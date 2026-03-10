@@ -13,6 +13,17 @@ final class PokeUITests: XCTestCase {
         XCTAssertNotNil(view)
     }
 
+    func testGameBoyPixelTextCanBeConstructed() {
+        let view = GameBoyPixelText(
+            "TRAINER",
+            scale: 2,
+            color: .black,
+            fallbackFont: .system(size: 12, weight: .bold, design: .monospaced)
+        )
+
+        XCTAssertNotNil(view)
+    }
+
     func testGameplayFieldShellCanBeConstructed() {
         let view = GameplayFieldShell(
             profile: .init(

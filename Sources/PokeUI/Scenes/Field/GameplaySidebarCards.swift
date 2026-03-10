@@ -97,9 +97,12 @@ private struct TrainerProfileContent: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("BADGES")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.52))
+                    GameBoyPixelText(
+                        "BADGES",
+                        scale: 1.5,
+                        color: FieldRetroPalette.ink.opacity(0.52),
+                        fallbackFont: .system(size: 11, weight: .bold, design: .rounded)
+                    )
                     Spacer(minLength: 8)
                     Text(props.badgeSummaryText)
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -143,9 +146,12 @@ private struct AccordionSidebarCard<Content: View>: View {
         VStack(alignment: .leading, spacing: isExpanded ? 14 : 0) {
             Button(action: action) {
                 HStack(spacing: 10) {
-                    Text(title.uppercased())
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.6))
+                    GameBoyPixelText(
+                        title.uppercased(),
+                        scale: 1.5,
+                        color: FieldRetroPalette.ink.opacity(0.6),
+                        fallbackFont: .system(size: 12, weight: .bold, design: .rounded)
+                    )
 
                     Spacer(minLength: 8)
 
@@ -212,9 +218,12 @@ private struct InventorySidebarContent: View {
     var body: some View {
         if props.items.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(props.emptyStateTitle)
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
-                    .foregroundStyle(FieldRetroPalette.ink)
+                GameBoyPixelText(
+                    props.emptyStateTitle.uppercased(),
+                    scale: 1.5,
+                    color: FieldRetroPalette.ink,
+                    fallbackFont: .system(size: 18, weight: .bold, design: .monospaced)
+                )
                 Text(props.emptyStateDetail)
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
@@ -292,9 +301,12 @@ private struct SidebarActionRow: View {
 
     private var rowBody: some View {
         HStack(spacing: 12) {
-            Text(props.title.uppercased())
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundStyle(FieldRetroPalette.ink)
+            GameBoyPixelText(
+                props.title.uppercased(),
+                scale: 1.5,
+                color: FieldRetroPalette.ink,
+                fallbackFont: .system(size: 13, weight: .bold, design: .monospaced)
+            )
             Spacer(minLength: 8)
             if let detail = props.detail {
                 Text(detail.uppercased())
@@ -315,9 +327,12 @@ private struct TrainerInfoRow: View {
 
     var body: some View {
         HStack {
-            Text(label.uppercased())
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(FieldRetroPalette.ink.opacity(0.52))
+            GameBoyPixelText(
+                label.uppercased(),
+                scale: 1.5,
+                color: FieldRetroPalette.ink.opacity(0.52),
+                fallbackFont: .system(size: 11, weight: .bold, design: .rounded)
+            )
             Spacer(minLength: 8)
             Text(value)
                 .font(.system(size: 16, weight: .bold, design: .monospaced))
@@ -629,9 +644,12 @@ private struct StatusStrip: View {
     var body: some View {
         HStack(spacing: 6) {
             ForEach(items, id: \.self) { item in
-                Text(item)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.74))
+                GameBoyPixelText(
+                    item.uppercased(),
+                    scale: 1,
+                    color: FieldRetroPalette.ink.opacity(0.74),
+                    fallbackFont: .system(size: 10, weight: .bold, design: .monospaced)
+                )
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(FieldRetroPalette.slotFill, in: Capsule())
@@ -683,9 +701,12 @@ private struct TrainerPortraitTile: View {
                         .foregroundStyle(FieldRetroPalette.ink)
                 }
 
-                Text("TRAINER")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.6))
+                GameBoyPixelText(
+                    "TRAINER",
+                    scale: 1,
+                    color: FieldRetroPalette.ink.opacity(0.6),
+                    fallbackFont: .system(size: 9, weight: .bold, design: .rounded)
+                )
             }
         }
         .frame(width: 84, height: 84)
