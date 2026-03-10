@@ -9,6 +9,7 @@ struct GameplaySidebar: View {
     let inventory: InventorySidebarProps
     let save: SaveSidebarProps
     let options: OptionsSidebarProps
+    @Binding var fieldRenderStyle: FieldRenderStyle
 
     @State private var expansionState = GameplaySidebarExpansionState()
 
@@ -56,12 +57,15 @@ struct GameplaySidebar: View {
 
             AccordionSidebarCard(
                 title: options.title,
-                summary: "Locked",
+                summary: fieldRenderStyle.sidebarSummaryLabel,
                 isExpanded: expansionState.expandedSection == .options
             ) {
                 expansionState.activate(.options)
             } content: {
-                OptionsSidebarContent(props: options)
+                OptionsSidebarContent(
+                    props: options,
+                    fieldRenderStyle: $fieldRenderStyle
+                )
             }
 
             Spacer(minLength: 0)
@@ -270,13 +274,73 @@ private struct SaveSidebarContent: View {
 
 private struct OptionsSidebarContent: View {
     let props: OptionsSidebarProps
+    @Binding var fieldRenderStyle: FieldRenderStyle
 
     var body: some View {
         VStack(spacing: 8) {
+            FieldRenderStyleOptionsRow(selectedStyle: $fieldRenderStyle)
+
             ForEach(props.rows) { row in
                 SidebarActionRow(props: row, rendersAsButton: false)
             }
         }
+    }
+}
+
+private struct FieldRenderStyleOptionsRow: View {
+    @Binding var selectedStyle: FieldRenderStyle
+
+    private let styles: [FieldRenderStyle] = [.dmgTinted, .dmgAuthentic, .rawGrayscale]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GameBoyPixelText(
+                "FIELD FILTER",
+                scale: 1.5,
+                color: FieldRetroPalette.ink,
+                fallbackFont: .system(size: 13, weight: .bold, design: .monospaced)
+            )
+
+            HStack(spacing: 8) {
+                ForEach(styles, id: \.self) { style in
+                    Button {
+                        selectedStyle = style
+                    } label: {
+                        GameBoyPixelText(
+                            style.sidebarOptionTitle.uppercased(),
+                            scale: 1,
+                            color: buttonTextColor(for: style),
+                            fallbackFont: .system(size: 11, weight: .bold, design: .monospaced)
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 8)
+                        .background(buttonFill(for: style), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(buttonStroke(for: style), lineWidth: 2)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FieldRetroPalette.slotFill.opacity(0.88), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func buttonFill(for style: FieldRenderStyle) -> Color {
+        selectedStyle == style ? FieldRetroPalette.leadSlotFill : FieldRetroPalette.cardFill.opacity(0.76)
+    }
+
+    private func buttonStroke(for style: FieldRenderStyle) -> Color {
+        selectedStyle == style ? FieldRetroPalette.ink.opacity(0.5) : FieldRetroPalette.ink.opacity(0.14)
+    }
+
+    private func buttonTextColor(for style: FieldRenderStyle) -> Color {
+        selectedStyle == style ? FieldRetroPalette.ink : FieldRetroPalette.ink.opacity(0.72)
     }
 }
 

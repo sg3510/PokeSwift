@@ -6,6 +6,7 @@ public struct GameplayFieldShell<MapStage: View>: View {
     private let inventory: InventorySidebarProps
     private let save: SaveSidebarProps
     private let options: OptionsSidebarProps
+    @Binding private var fieldRenderStyle: FieldRenderStyle
     private let mapStage: MapStage
 
     public init(
@@ -14,6 +15,7 @@ public struct GameplayFieldShell<MapStage: View>: View {
         inventory: InventorySidebarProps,
         save: SaveSidebarProps,
         options: OptionsSidebarProps,
+        fieldRenderStyle: Binding<FieldRenderStyle>,
         @ViewBuilder mapStage: () -> MapStage
     ) {
         self.profile = profile
@@ -21,6 +23,7 @@ public struct GameplayFieldShell<MapStage: View>: View {
         self.inventory = inventory
         self.save = save
         self.options = options
+        _fieldRenderStyle = fieldRenderStyle
         self.mapStage = mapStage()
     }
 
@@ -34,7 +37,8 @@ public struct GameplayFieldShell<MapStage: View>: View {
                 party: party,
                 inventory: inventory,
                 save: save,
-                options: options
+                options: options,
+                fieldRenderStyle: $fieldRenderStyle
             )
             .frame(width: GameplayFieldMetrics.sidebarWidth)
         }

@@ -59,7 +59,8 @@ final class PokeUITests: XCTestCase {
             ),
             inventory: GameplaySidebarPropsBuilder.makeInventory(),
             save: GameplaySidebarPropsBuilder.makeSaveSection(),
-            options: GameplaySidebarPropsBuilder.makeOptionsSection()
+            options: GameplaySidebarPropsBuilder.makeOptionsSection(),
+            fieldRenderStyle: .constant(.defaultGameplayStyle)
         ) {
             FieldMapStage {
                 Color.black
@@ -71,6 +72,16 @@ final class PokeUITests: XCTestCase {
         }
 
         XCTAssertNotNil(view)
+    }
+
+    func testFieldRenderStyleLabelsRemainStableForSidebarSwitcher() {
+        XCTAssertEqual(FieldRenderStyle.defaultGameplayStyle, .dmgTinted)
+        XCTAssertEqual(FieldRenderStyle.dmgAuthentic.sidebarSummaryLabel, "DMG")
+        XCTAssertEqual(FieldRenderStyle.dmgTinted.sidebarSummaryLabel, "TINTED")
+        XCTAssertEqual(FieldRenderStyle.rawGrayscale.sidebarSummaryLabel, "RAW")
+        XCTAssertEqual(FieldRenderStyle.dmgAuthentic.sidebarOptionTitle, "Authentic DMG")
+        XCTAssertEqual(FieldRenderStyle.dmgTinted.sidebarOptionTitle, "Tinted")
+        XCTAssertEqual(FieldRenderStyle.rawGrayscale.sidebarOptionTitle, "Raw Gray")
     }
 
     func testSidebarPropBuilderMapsEmptyPartyProfile() {
@@ -286,6 +297,62 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(image.height, 64)
     }
 
+    func testRendererCanCompositeRealFieldAssetsInAuthenticDMGStyle() throws {
+        let root = repoRoot()
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "OVERWORLD",
+                imageURL: root.appendingPathComponent("gfx/tilesets/overworld.png"),
+                blocksetURL: root.appendingPathComponent("gfx/blocksets/overworld.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": spriteDefinition(id: "SPRITE_RED", filename: "red.png"),
+                "SPRITE_OAK": spriteDefinition(id: "SPRITE_OAK", filename: "oak.png"),
+            ]
+        )
+        let map = MapManifest(
+            id: "PALLET_TOWN",
+            displayName: "Pallet Town",
+            defaultMusicID: "MUSIC_PALLET_TOWN",
+            borderBlockID: 0x0B,
+            blockWidth: 2,
+            blockHeight: 2,
+            stepWidth: 4,
+            stepHeight: 4,
+            tileset: "OVERWORLD",
+            blockIDs: [0, 1, 2, 3],
+            stepCollisionTileIDs: Array(repeating: 0x00, count: 16),
+            warps: [],
+            backgroundEvents: [],
+            objects: []
+        )
+        let objects = [
+            FieldObjectRenderState(
+                id: "oak",
+                displayName: "Oak",
+                sprite: "SPRITE_OAK",
+                position: .init(x: 1, y: 1),
+                facing: .left,
+                interactionDialogueID: nil,
+                trainerBattleID: nil
+            ),
+        ]
+
+        let image = try FieldSceneRenderer.render(
+            map: map,
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: objects,
+            assets: assets,
+            style: .dmgAuthentic
+        )
+
+        XCTAssertEqual(image.width, 64)
+        XCTAssertEqual(image.height, 64)
+        XCTAssertTrue(rgbValues(in: image).isSubset(of: dmgPaletteValues()))
+    }
+
     func testRendererTreatsWhiteSpritePixelsAsTransparentInsteadOfMultiplying() throws {
         let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
         defer { try? FileManager.default.removeItem(at: fixtureRoot) }
@@ -336,6 +403,124 @@ final class PokeUITests: XCTestCase {
         )
 
         XCTAssertEqual(grayscaleValues(in: image), Set([85, 170]))
+    }
+
+    func testAuthenticDMGStyleMapsThresholdBucketsToExpectedPalette() throws {
+        let fixtureRoot = try makeSyntheticPaletteFixture(tileValues: [32, 96, 160, 224])
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [:]
+        )
+
+        let image = try FieldSceneRenderer.render(
+            map: makePaletteMap(blockWidth: 2, blockHeight: 2),
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "MISSING",
+            objects: [],
+            assets: assets,
+            style: .dmgAuthentic
+        )
+
+        XCTAssertEqual(
+            rgbValues(in: image),
+            Set([
+                RGBTriplet(red: 15, green: 56, blue: 15),
+                RGBTriplet(red: 48, green: 98, blue: 48),
+                RGBTriplet(red: 139, green: 172, blue: 15),
+                RGBTriplet(red: 155, green: 188, blue: 15),
+            ])
+        )
+    }
+
+    func testDMGTintedStylePreservesMoreThanFourDistinctShades() throws {
+        let fixtureRoot = try makeSyntheticPaletteFixture(tileValues: [0, 64, 128, 192, 255])
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [:]
+        )
+
+        let image = try FieldSceneRenderer.render(
+            map: makePaletteMap(blockWidth: 5, blockHeight: 1),
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "MISSING",
+            objects: [],
+            assets: assets,
+            style: .dmgTinted
+        )
+
+        XCTAssertEqual(rgbValues(in: image).count, 5)
+    }
+
+    func testAuthenticDMGStyleKeepsWhiteSpritePixelsTransparent() throws {
+        let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": FieldSpriteDefinition(
+                    id: "SPRITE_RED",
+                    imageURL: fixtureRoot.appendingPathComponent("sprite.png"),
+                    facingFrames: [
+                        .down: .init(x: 0, y: 0, width: 16, height: 16),
+                        .up: .init(x: 0, y: 0, width: 16, height: 16),
+                        .left: .init(x: 0, y: 0, width: 16, height: 16),
+                        .right: .init(x: 0, y: 0, width: 16, height: 16),
+                    ]
+                ),
+            ]
+        )
+
+        let image = try FieldSceneRenderer.render(
+            map: MapManifest(
+                id: "TEST_MAP",
+                displayName: "Test Map",
+                defaultMusicID: "MUSIC_PALLET_TOWN",
+                borderBlockID: 0,
+                blockWidth: 1,
+                blockHeight: 1,
+                stepWidth: 2,
+                stepHeight: 2,
+                tileset: "TEST",
+                blockIDs: [0],
+                stepCollisionTileIDs: Array(repeating: 0x00, count: 4),
+                warps: [],
+                backgroundEvents: [],
+                objects: []
+            ),
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: [],
+            assets: assets,
+            style: .dmgAuthentic
+        )
+
+        XCTAssertEqual(
+            rgbValues(in: image),
+            Set([
+                RGBTriplet(red: 48, green: 98, blue: 48),
+                RGBTriplet(red: 139, green: 172, blue: 15),
+            ])
+        )
     }
 
     private func spriteDefinition(id: String, filename: String) -> FieldSpriteDefinition {
@@ -424,6 +609,30 @@ final class PokeUITests: XCTestCase {
         return values
     }
 
+    private func rgbValues(in image: CGImage) -> Set<RGBTriplet> {
+        guard let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return []
+        }
+
+        var values: Set<RGBTriplet> = []
+        for row in 0..<image.height {
+            let rowStart = row * image.bytesPerRow
+            for column in 0..<image.width {
+                let pixelStart = rowStart + (column * 4)
+                values.insert(
+                    RGBTriplet(
+                        red: bytes[pixelStart],
+                        green: bytes[pixelStart + 1],
+                        blue: bytes[pixelStart + 2]
+                    )
+                )
+            }
+        }
+        return values
+    }
+
     private func makeTestTileImage(topHalf: UInt8, bottomHalf: UInt8) throws -> CGImage {
         let width = 8
         let height = 8
@@ -489,6 +698,58 @@ final class PokeUITests: XCTestCase {
         return root
     }
 
+    private func makeSyntheticPaletteFixture(tileValues: [UInt8]) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        var tilesetPixels: [UInt8] = []
+        for value in tileValues {
+            tilesetPixels.append(contentsOf: Array(repeating: value, count: 8 * 8))
+        }
+
+        try writeGrayscalePNG(
+            width: tileValues.count * 8,
+            height: 8,
+            pixels: tilesetPixels,
+            to: root.appendingPathComponent("tileset.png")
+        )
+
+        var blocksetBytes: [UInt8] = []
+        for tileIndex in tileValues.indices {
+            blocksetBytes.append(contentsOf: Array(repeating: UInt8(tileIndex), count: 16))
+        }
+        try Data(blocksetBytes).write(to: root.appendingPathComponent("test.bst"))
+        return root
+    }
+
+    private func makePaletteMap(blockWidth: Int, blockHeight: Int) -> MapManifest {
+        MapManifest(
+            id: "PALETTE_MAP",
+            displayName: "Palette Map",
+            defaultMusicID: "MUSIC_PALLET_TOWN",
+            borderBlockID: 0,
+            blockWidth: blockWidth,
+            blockHeight: blockHeight,
+            stepWidth: blockWidth * 2,
+            stepHeight: blockHeight * 2,
+            tileset: "TEST",
+            blockIDs: Array(0..<(blockWidth * blockHeight)),
+            stepCollisionTileIDs: Array(repeating: 0x00, count: blockWidth * blockHeight * 4),
+            warps: [],
+            backgroundEvents: [],
+            objects: []
+        )
+    }
+
+    private func dmgPaletteValues() -> Set<RGBTriplet> {
+        Set([
+            RGBTriplet(red: 15, green: 56, blue: 15),
+            RGBTriplet(red: 48, green: 98, blue: 48),
+            RGBTriplet(red: 139, green: 172, blue: 15),
+            RGBTriplet(red: 155, green: 188, blue: 15),
+        ])
+    }
+
     private func writeGrayscalePNG(width: Int, height: Int, pixels: [UInt8], to url: URL) throws {
         let bytesPerRow = width
         let data = Data(pixels) as CFData
@@ -522,4 +783,10 @@ final class PokeUITests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }
+}
+
+private struct RGBTriplet: Hashable {
+    let red: UInt8
+    let green: UInt8
+    let blue: UInt8
 }

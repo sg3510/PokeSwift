@@ -9,6 +9,8 @@ public struct FieldMapView: View {
     let objects: [FieldObjectRenderState]
     let playerSpriteID: String
     let renderAssets: FieldRenderAssets?
+    let renderStyle: FieldRenderStyle
+    @State private var renderedField: CGImage?
 
     public init(
         map: MapManifest,
@@ -16,7 +18,8 @@ public struct FieldMapView: View {
         playerFacing: FacingDirection,
         objects: [FieldObjectRenderState],
         playerSpriteID: String = "SPRITE_RED",
-        renderAssets: FieldRenderAssets? = nil
+        renderAssets: FieldRenderAssets? = nil,
+        renderStyle: FieldRenderStyle = .defaultGameplayStyle
     ) {
         self.map = map
         self.playerPosition = playerPosition
@@ -24,6 +27,7 @@ public struct FieldMapView: View {
         self.objects = objects
         self.playerSpriteID = playerSpriteID
         self.renderAssets = renderAssets
+        self.renderStyle = renderStyle
     }
 
     public var body: some View {
@@ -39,6 +43,11 @@ public struct FieldMapView: View {
                     Image(decorative: renderedField, scale: 1)
                         .interpolation(.none)
                         .resizable()
+                        .overlay {
+                            if renderStyle != .rawGrayscale {
+                                FieldPixelMatrixOverlay(pixelScale: scale, style: renderStyle)
+                            }
+                        }
                 } else {
                     placeholderField
                 }
@@ -46,18 +55,58 @@ public struct FieldMapView: View {
             .frame(width: renderWidth, height: renderHeight)
             .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
+        .task(id: renderSignature) {
+            await updateRenderedField()
+        }
     }
 
-    private var renderedField: CGImage? {
+    private var renderSignature: FieldRenderSignature? {
         guard let renderAssets else { return nil }
-        return try? FieldSceneRenderer.render(
+        return FieldRenderSignature(
             map: map,
             playerPosition: playerPosition,
             playerFacing: playerFacing,
             playerSpriteID: playerSpriteID,
             objects: objects,
-            assets: renderAssets
+            assets: renderAssets,
+            style: renderStyle
         )
+    }
+
+    @MainActor
+    private func updateRenderedField() async {
+        guard let renderAssets else {
+            renderedField = nil
+            return
+        }
+
+        let image = await renderFieldImage(assets: renderAssets)
+        guard Task.isCancelled == false else { return }
+        renderedField = image
+    }
+
+    private func renderFieldImage(assets: FieldRenderAssets) async -> CGImage? {
+        let map = map
+        let playerPosition = playerPosition
+        let playerFacing = playerFacing
+        let playerSpriteID = playerSpriteID
+        let objects = objects
+        let renderStyle = renderStyle
+
+        let renderResult = await Task.detached(priority: .userInitiated) {
+            try? RenderedFieldImage(
+                image: FieldSceneRenderer.render(
+                    map: map,
+                    playerPosition: playerPosition,
+                    playerFacing: playerFacing,
+                    playerSpriteID: playerSpriteID,
+                    objects: objects,
+                    assets: assets,
+                    style: renderStyle
+                )
+            )
+        }.value
+        return renderResult?.image
     }
 
     @ViewBuilder
@@ -159,5 +208,179 @@ public struct FieldMapView: View {
         case .right:
             return CGSize(width: -amount, height: 0)
         }
+    }
+}
+
+private struct RenderedFieldImage: @unchecked Sendable {
+    let image: CGImage
+}
+
+private struct FieldPixelMatrixOverlay: View {
+    let pixelScale: CGFloat
+    let style: FieldRenderStyle
+
+    var body: some View {
+        GeometryReader { proxy in
+            Canvas(opaque: false, colorMode: .linear, rendersAsynchronously: true) { context, size in
+                let spacing = CGFloat(max(2, Int(pixelScale.rounded())))
+                let dotSize = max(1.2, spacing * dotScale)
+                let bevelOffset = max(0.35, gridLineWidth * 0.8)
+                let cellAccentSize = max(0.6, dotSize * 0.54)
+                let cellAccentOffset = max(0.28, spacing * 0.12)
+
+                var columns = Path()
+                var rows = Path()
+                var highlightGrid = Path()
+                var shadowGrid = Path()
+                var cellHighlightPath = Path()
+                var cellShadowPath = Path()
+                var dotPath = Path()
+
+                var gridX: CGFloat = 0
+                while gridX <= size.width {
+                    columns.move(to: CGPoint(x: gridX, y: 0))
+                    columns.addLine(to: CGPoint(x: gridX, y: size.height))
+                    gridX += spacing
+                }
+
+                var gridY: CGFloat = 0
+                while gridY <= size.height {
+                    rows.move(to: CGPoint(x: 0, y: gridY))
+                    rows.addLine(to: CGPoint(x: size.width, y: gridY))
+                    gridY += spacing
+                }
+
+                highlightGrid.addPath(translated(columns, dx: -bevelOffset, dy: 0))
+                highlightGrid.addPath(translated(rows, dx: 0, dy: -bevelOffset))
+                shadowGrid.addPath(translated(columns, dx: bevelOffset, dy: 0))
+                shadowGrid.addPath(translated(rows, dx: 0, dy: bevelOffset))
+
+                context.stroke(columns, with: .color(gridLineColor), lineWidth: gridLineWidth)
+                context.stroke(rows, with: .color(gridLineColor), lineWidth: gridLineWidth)
+                context.stroke(highlightGrid, with: .color(gridHighlightColor), lineWidth: gridLineWidth)
+                context.stroke(shadowGrid, with: .color(gridShadowColor), lineWidth: gridLineWidth)
+
+                var y: CGFloat = spacing / 2
+                while y < size.height {
+                    var x: CGFloat = spacing / 2
+                    while x < size.width {
+                        let highlightRect = CGRect(
+                            x: x - (cellAccentSize / 2) - cellAccentOffset,
+                            y: y - (cellAccentSize / 2) - cellAccentOffset,
+                            width: cellAccentSize,
+                            height: cellAccentSize * 0.78
+                        )
+                        let shadowRect = CGRect(
+                            x: x - (cellAccentSize / 2) + cellAccentOffset,
+                            y: y - (cellAccentSize / 2) + cellAccentOffset,
+                            width: cellAccentSize,
+                            height: cellAccentSize * 0.78
+                        )
+                        let rect = CGRect(
+                            x: x - (dotSize / 2),
+                            y: y - (dotSize / 2),
+                            width: dotSize,
+                            height: dotSize
+                        )
+                        cellHighlightPath.addEllipse(in: highlightRect)
+                        cellShadowPath.addEllipse(in: shadowRect)
+                        dotPath.addEllipse(in: rect)
+                        x += spacing
+                    }
+                    y += spacing
+                }
+
+                context.fill(cellHighlightPath, with: .color(cellHighlightColor))
+                context.fill(cellShadowPath, with: .color(cellShadowColor))
+                context.fill(dotPath, with: .color(matrixDotColor))
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func translated(_ path: Path, dx: CGFloat, dy: CGFloat) -> Path {
+        path.applying(CGAffineTransform(translationX: dx, y: dy))
+    }
+
+    private var matrixDotColor: Color {
+        switch style {
+        case .rawGrayscale:
+            return .clear
+        case .dmgAuthentic:
+            return Color(red: 0.08, green: 0.18, blue: 0.06).opacity(0.14)
+        case .dmgTinted:
+            return Color(red: 0.11, green: 0.22, blue: 0.08).opacity(0.12)
+        }
+    }
+
+    private var gridHighlightColor: Color {
+        switch style {
+        case .rawGrayscale:
+            return .clear
+        case .dmgAuthentic:
+            return Color(red: 0.78, green: 0.88, blue: 0.68).opacity(0.045)
+        case .dmgTinted:
+            return Color(red: 0.83, green: 0.91, blue: 0.74).opacity(0.055)
+        }
+    }
+
+    private var gridShadowColor: Color {
+        switch style {
+        case .rawGrayscale:
+            return .clear
+        case .dmgAuthentic:
+            return Color(red: 0.05, green: 0.12, blue: 0.04).opacity(0.085)
+        case .dmgTinted:
+            return Color(red: 0.07, green: 0.14, blue: 0.05).opacity(0.09)
+        }
+    }
+
+    private var gridLineColor: Color {
+        switch style {
+        case .rawGrayscale:
+            return .clear
+        case .dmgAuthentic:
+            return Color(red: 0.09, green: 0.17, blue: 0.06).opacity(0.08)
+        case .dmgTinted:
+            return Color(red: 0.12, green: 0.21, blue: 0.09).opacity(0.075)
+        }
+    }
+
+    private var cellHighlightColor: Color {
+        switch style {
+        case .rawGrayscale:
+            return .clear
+        case .dmgAuthentic:
+            return Color(red: 0.88, green: 0.95, blue: 0.74).opacity(0.03)
+        case .dmgTinted:
+            return Color(red: 0.9, green: 0.97, blue: 0.8).opacity(0.038)
+        }
+    }
+
+    private var cellShadowColor: Color {
+        switch style {
+        case .rawGrayscale:
+            return .clear
+        case .dmgAuthentic:
+            return Color(red: 0.04, green: 0.1, blue: 0.03).opacity(0.055)
+        case .dmgTinted:
+            return Color(red: 0.05, green: 0.11, blue: 0.04).opacity(0.065)
+        }
+    }
+
+    private var dotScale: CGFloat {
+        switch style {
+        case .rawGrayscale:
+            return 0
+        case .dmgAuthentic:
+            return 0.26
+        case .dmgTinted:
+            return 0.24
+        }
+    }
+
+    private var gridLineWidth: CGFloat {
+        max(0.5, pixelScale * 0.04)
     }
 }

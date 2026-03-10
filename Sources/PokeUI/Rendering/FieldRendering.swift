@@ -1,8 +1,39 @@
+import Foundation
 import SwiftUI
 import CoreGraphics
 import ImageIO
 import PokeCore
 import PokeDataModel
+
+public enum FieldRenderStyle: Equatable, Hashable, Sendable {
+    case rawGrayscale
+    case dmgAuthentic
+    case dmgTinted
+
+    public static let defaultGameplayStyle: FieldRenderStyle = .dmgTinted
+
+    public var sidebarSummaryLabel: String {
+        switch self {
+        case .rawGrayscale:
+            return "RAW"
+        case .dmgAuthentic:
+            return "DMG"
+        case .dmgTinted:
+            return "TINTED"
+        }
+    }
+
+    public var sidebarOptionTitle: String {
+        switch self {
+        case .rawGrayscale:
+            return "Raw Gray"
+        case .dmgAuthentic:
+            return "Authentic DMG"
+        case .dmgTinted:
+            return "Tinted"
+        }
+    }
+}
 
 public struct FieldSpriteFrame: Equatable, Sendable {
     public let x: Int
@@ -120,6 +151,275 @@ struct FieldBlockset: Equatable {
     }
 }
 
+struct FieldRenderSignature: Hashable, Sendable {
+    struct ObjectSignature: Hashable, Sendable {
+        let spriteID: String
+        let position: TilePoint
+        let facingRawValue: String
+
+        init(object: FieldObjectRenderState) {
+            spriteID = object.sprite
+            position = object.position
+            facingRawValue = object.facing.rawValue
+        }
+    }
+
+    struct AssetSignature: Hashable, Sendable {
+        struct SpriteSignature: Hashable, Sendable {
+            struct FrameSignature: Hashable, Sendable {
+                let directionRawValue: String
+                let x: Int
+                let y: Int
+                let width: Int
+                let height: Int
+                let flippedHorizontally: Bool
+
+                init(direction: FacingDirection, frame: FieldSpriteFrame) {
+                    directionRawValue = direction.rawValue
+                    x = frame.x
+                    y = frame.y
+                    width = frame.width
+                    height = frame.height
+                    flippedHorizontally = frame.flippedHorizontally
+                }
+            }
+
+            let id: String
+            let imagePath: String
+            let frameWidth: Int
+            let frameHeight: Int
+            let frames: [FrameSignature]
+
+            init(definition: FieldSpriteDefinition) {
+                id = definition.id
+                imagePath = definition.imageURL.standardizedFileURL.path
+                frameWidth = definition.frameWidth
+                frameHeight = definition.frameHeight
+                frames = FacingDirection.allCases.compactMap { direction in
+                    guard let frame = definition.frame(for: direction) else { return nil }
+                    return FrameSignature(direction: direction, frame: frame)
+                }
+            }
+        }
+
+        let tilesetID: String
+        let tilesetImagePath: String
+        let blocksetPath: String
+        let sourceTileSize: Int
+        let blockTileWidth: Int
+        let blockTileHeight: Int
+        let spriteAssets: [SpriteSignature]
+
+        init(assets: FieldRenderAssets) {
+            tilesetID = assets.tileset.id
+            tilesetImagePath = assets.tileset.imageURL.standardizedFileURL.path
+            blocksetPath = assets.tileset.blocksetURL.standardizedFileURL.path
+            sourceTileSize = assets.tileset.sourceTileSize
+            blockTileWidth = assets.tileset.blockTileWidth
+            blockTileHeight = assets.tileset.blockTileHeight
+            spriteAssets = assets.overworldSprites.values
+                .sorted { $0.id < $1.id }
+                .map(SpriteSignature.init(definition:))
+        }
+    }
+
+    let mapID: String
+    let tilesetID: String
+    let blockWidth: Int
+    let blockHeight: Int
+    let blockIDs: [Int]
+    let playerPosition: TilePoint
+    let playerFacingRawValue: String
+    let playerSpriteID: String
+    let objectStates: [ObjectSignature]
+    let assetSignature: AssetSignature
+    let style: FieldRenderStyle
+
+    init(
+        map: MapManifest,
+        playerPosition: TilePoint,
+        playerFacing: FacingDirection,
+        playerSpriteID: String,
+        objects: [FieldObjectRenderState],
+        assets: FieldRenderAssets,
+        style: FieldRenderStyle
+    ) {
+        mapID = map.id
+        tilesetID = map.tileset
+        blockWidth = map.blockWidth
+        blockHeight = map.blockHeight
+        blockIDs = map.blockIDs
+        self.playerPosition = playerPosition
+        playerFacingRawValue = playerFacing.rawValue
+        self.playerSpriteID = playerSpriteID
+        objectStates = objects.map(ObjectSignature.init(object:))
+        assetSignature = AssetSignature(assets: assets)
+        self.style = style
+    }
+}
+
+private struct PreparedTileAtlas {
+    let tiles: [CGImage]
+
+    init(image: CGImage, tileSize: Int) throws {
+        let atlas = FieldSceneRenderer.TileAtlas(image: image, tileSize: tileSize)
+        tiles = try (0..<(atlas.columns * atlas.rows)).map { index in
+            try atlas.tile(at: index)
+        }
+    }
+
+    func tile(at index: Int) throws -> CGImage {
+        guard tiles.indices.contains(index) else {
+            throw FieldRendererError.invalidTileIndex(index)
+        }
+        return tiles[index]
+    }
+}
+
+private final class FieldRendererCaches: @unchecked Sendable {
+    private struct BlocksetCacheKey: Hashable {
+        let path: String
+        let blockTileWidth: Int
+        let blockTileHeight: Int
+    }
+
+    private struct AtlasCacheKey: Hashable {
+        let imagePath: String
+        let tileSize: Int
+    }
+
+    private struct SpriteFrameCacheKey: Hashable {
+        let imagePath: String
+        let x: Int
+        let y: Int
+        let width: Int
+        let height: Int
+    }
+
+    static let shared = FieldRendererCaches()
+
+    private let lock = NSLock()
+    private let maxRenderedImages = 24
+    private var decodedImages: [String: CGImage] = [:]
+    private var blocksets: [BlocksetCacheKey: FieldBlockset] = [:]
+    private var preparedAtlases: [AtlasCacheKey: PreparedTileAtlas] = [:]
+    private var preparedSprites: [SpriteFrameCacheKey: CGImage] = [:]
+    private var renderedImages: [FieldRenderSignature: CGImage] = [:]
+    private var renderedImageOrder: [FieldRenderSignature] = []
+
+    private init() {}
+
+    func renderedImage(for signature: FieldRenderSignature) -> CGImage? {
+        withLock {
+            renderedImages[signature]
+        }
+    }
+
+    func storeRenderedImage(_ image: CGImage, for signature: FieldRenderSignature) {
+        withLock {
+            renderedImages[signature] = image
+            renderedImageOrder.removeAll { $0 == signature }
+            renderedImageOrder.append(signature)
+
+            while renderedImageOrder.count > maxRenderedImages {
+                let evictedSignature = renderedImageOrder.removeFirst()
+                renderedImages.removeValue(forKey: evictedSignature)
+            }
+        }
+    }
+
+    func image(at url: URL, invalidError: FieldRendererError) throws -> CGImage {
+        let imagePath = url.standardizedFileURL.path
+        if let cached = withLock({ decodedImages[imagePath] }) {
+            return cached
+        }
+
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw invalidError
+        }
+
+        withLock {
+            decodedImages[imagePath] = image
+        }
+        return image
+    }
+
+    func blockset(for tileset: FieldTilesetDefinition) throws -> FieldBlockset {
+        let key = BlocksetCacheKey(
+            path: tileset.blocksetURL.standardizedFileURL.path,
+            blockTileWidth: tileset.blockTileWidth,
+            blockTileHeight: tileset.blockTileHeight
+        )
+        if let cached = withLock({ blocksets[key] }) {
+            return cached
+        }
+
+        let blocksetData = try Data(contentsOf: tileset.blocksetURL)
+        let blockset = try FieldBlockset.decode(
+            data: blocksetData,
+            blockTileWidth: tileset.blockTileWidth,
+            blockTileHeight: tileset.blockTileHeight
+        )
+        withLock {
+            blocksets[key] = blockset
+        }
+        return blockset
+    }
+
+    func preparedAtlas(for tileset: FieldTilesetDefinition) throws -> PreparedTileAtlas {
+        let key = AtlasCacheKey(
+            imagePath: tileset.imageURL.standardizedFileURL.path,
+            tileSize: tileset.sourceTileSize
+        )
+        if let cached = withLock({ preparedAtlases[key] }) {
+            return cached
+        }
+
+        let image = try self.image(at: tileset.imageURL, invalidError: .invalidTilesetImage(tileset.imageURL))
+        let atlas = try PreparedTileAtlas(image: image, tileSize: tileset.sourceTileSize)
+        withLock {
+            preparedAtlases[key] = atlas
+        }
+        return atlas
+    }
+
+    func preparedSpriteImage(
+        definition: FieldSpriteDefinition,
+        facing: FacingDirection
+    ) throws -> CGImage? {
+        guard let frame = definition.frame(for: facing) else {
+            return nil
+        }
+
+        let key = SpriteFrameCacheKey(
+            imagePath: definition.imageURL.standardizedFileURL.path,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height
+        )
+        if let cached = withLock({ preparedSprites[key] }) {
+            return cached
+        }
+
+        let sourceImage = try image(at: definition.imageURL, invalidError: .invalidSpriteImage(definition.imageURL))
+        let preparedImage = try FieldSceneRenderer.prepareSpriteImageForFieldContext(
+            FieldSceneRenderer.crop(sourceImage, topLeftFrame: frame)
+        )
+        withLock {
+            preparedSprites[key] = preparedImage
+        }
+        return preparedImage
+    }
+
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
+}
+
 struct FieldSceneRenderer {
     static let tilePixelSize = 8
     static let blockTileWidth = 4
@@ -133,22 +433,24 @@ struct FieldSceneRenderer {
         playerFacing: FacingDirection,
         playerSpriteID: String,
         objects: [FieldObjectRenderState],
-        assets: FieldRenderAssets
+        assets: FieldRenderAssets,
+        style: FieldRenderStyle = .rawGrayscale
     ) throws -> CGImage {
-        let tilesetImage = try loadImage(from: assets.tileset.imageURL, invalidError: .invalidTilesetImage(assets.tileset.imageURL))
-        let spriteImages = try Dictionary(
-            uniqueKeysWithValues: assets.overworldSprites.values.map { definition in
-                let image = try loadImage(from: definition.imageURL, invalidError: .invalidSpriteImage(definition.imageURL))
-                return (definition.id, image)
-            }
+        let renderSignature = FieldRenderSignature(
+            map: map,
+            playerPosition: playerPosition,
+            playerFacing: playerFacing,
+            playerSpriteID: playerSpriteID,
+            objects: objects,
+            assets: assets,
+            style: style
         )
-        let blocksetData = try Data(contentsOf: assets.tileset.blocksetURL)
-        let blockset = try FieldBlockset.decode(
-            data: blocksetData,
-            blockTileWidth: assets.tileset.blockTileWidth,
-            blockTileHeight: assets.tileset.blockTileHeight
-        )
-        let atlas = TileAtlas(image: tilesetImage, tileSize: assets.tileset.sourceTileSize)
+        if let cachedImage = FieldRendererCaches.shared.renderedImage(for: renderSignature) {
+            return cachedImage
+        }
+
+        let atlas = try FieldRendererCaches.shared.preparedAtlas(for: assets.tileset)
+        let blockset = try FieldRendererCaches.shared.blockset(for: assets.tileset)
 
         let width = max(1, map.blockWidth) * blockPixelSize
         let height = max(1, map.blockHeight) * blockPixelSize
@@ -168,17 +470,49 @@ struct FieldSceneRenderer {
             playerFacing: playerFacing,
             playerSpriteID: playerSpriteID,
             assets: assets,
-            spriteImages: spriteImages,
             into: context
         )
 
         guard let image = context.makeImage() else {
             throw FieldRendererError.bitmapContextCreationFailed
         }
-        return image
+        let styledImage = try applyRenderStyle(style, to: image)
+        FieldRendererCaches.shared.storeRenderedImage(styledImage, for: renderSignature)
+        return styledImage
     }
 
-    private static func loadImage(from url: URL, invalidError: FieldRendererError) throws -> CGImage {
+    fileprivate static func applyRenderStyle(_ style: FieldRenderStyle, to image: CGImage) throws -> CGImage {
+        switch style {
+        case .rawGrayscale:
+            return image
+        case .dmgAuthentic:
+            let grayscaleValues = try grayscalePixels(for: image)
+            let rgbBytes = grayscaleValues.flatMap { value in
+                let color = dmgAuthenticColor(for: value)
+                return [color.red, color.green, color.blue, 255]
+            }
+            return try makeRGBImage(
+                width: image.width,
+                height: image.height,
+                bytesPerRow: image.width * 4,
+                rgbaBytes: rgbBytes
+            )
+        case .dmgTinted:
+            let grayscaleValues = try grayscalePixels(for: image)
+            let rgbBytes = grayscaleValues.flatMap { value in
+                let color = dmgTintedColor(for: value)
+                return [color.red, color.green, color.blue, 255]
+            }
+            return try makeRGBImage(
+                width: image.width,
+                height: image.height,
+                bytesPerRow: image.width * 4,
+                rgbaBytes: rgbBytes
+            )
+        }
+    }
+
+    fileprivate static func loadImage(from url: URL, invalidError: FieldRendererError) throws -> CGImage {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw invalidError
@@ -200,7 +534,7 @@ struct FieldSceneRenderer {
 
     private static func drawBackground(
         map: MapManifest,
-        atlas: TileAtlas,
+        atlas: PreparedTileAtlas,
         blockset: FieldBlockset,
         into context: CGContext
     ) throws {
@@ -233,7 +567,6 @@ struct FieldSceneRenderer {
         playerFacing: FacingDirection,
         playerSpriteID: String,
         assets: FieldRenderAssets,
-        spriteImages: [String: CGImage],
         into context: CGContext
     ) throws {
         for object in objects {
@@ -242,7 +575,6 @@ struct FieldSceneRenderer {
                 facing: object.facing,
                 position: object.position,
                 assets: assets,
-                spriteImages: spriteImages,
                 into: context
             )
         }
@@ -252,7 +584,6 @@ struct FieldSceneRenderer {
             facing: playerFacing,
             position: playerPosition,
             assets: assets,
-            spriteImages: spriteImages,
             into: context
         )
     }
@@ -262,18 +593,14 @@ struct FieldSceneRenderer {
         facing: FacingDirection,
         position: TilePoint,
         assets: FieldRenderAssets,
-        spriteImages: [String: CGImage],
         into context: CGContext
     ) throws {
         guard let definition = assets.spriteDefinition(for: spriteID),
-              let sourceImage = spriteImages[spriteID],
-              let frame = definition.frame(for: facing) else {
+              let frame = definition.frame(for: facing),
+              let spriteImage = try FieldRendererCaches.shared.preparedSpriteImage(definition: definition, facing: facing) else {
             return
         }
 
-        let spriteImage = try prepareSpriteImageForFieldContext(
-            crop(sourceImage, topLeftFrame: frame)
-        )
         let x = position.x * stepPixelSize
         let y = position.y * stepPixelSize
         context.saveGState()
@@ -287,7 +614,7 @@ struct FieldSceneRenderer {
         context.restoreGState()
     }
 
-    private static func crop(_ image: CGImage, topLeftFrame frame: FieldSpriteFrame) throws -> CGImage {
+    fileprivate static func crop(_ image: CGImage, topLeftFrame frame: FieldSpriteFrame) throws -> CGImage {
         let cropRect = CGRect(
             x: frame.x,
             y: frame.y,
@@ -300,7 +627,7 @@ struct FieldSceneRenderer {
         return cropped
     }
 
-    private static func prepareImageForFieldContext(_ image: CGImage) throws -> CGImage {
+    fileprivate static func prepareImageForFieldContext(_ image: CGImage) throws -> CGImage {
         guard let context = bitmapContext(width: image.width, height: image.height) else {
             throw FieldRendererError.bitmapContextCreationFailed
         }
@@ -315,7 +642,7 @@ struct FieldSceneRenderer {
         return flipped
     }
 
-    private static func prepareSpriteImageForFieldContext(_ image: CGImage) throws -> CGImage {
+    fileprivate static func prepareSpriteImageForFieldContext(_ image: CGImage) throws -> CGImage {
         let maskedImage = try applySpriteTransparencyMask(to: image)
         guard let context = spriteBitmapContext(width: image.width, height: image.height) else {
             throw FieldRendererError.bitmapContextCreationFailed
@@ -374,6 +701,52 @@ struct FieldSceneRenderer {
         return bytes
     }
 
+    private static func makeRGBImage(
+        width: Int,
+        height: Int,
+        bytesPerRow: Int,
+        rgbaBytes: [UInt8]
+    ) throws -> CGImage {
+        let data = Data(rgbaBytes) as CFData
+        guard let provider = CGDataProvider(data: data),
+              let image = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo.byteOrder32Big.union(
+                    CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+                ),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent
+              ) else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+        return image
+    }
+
+    private static func dmgAuthenticColor(for value: UInt8) -> DMGPaletteColor {
+        switch value {
+        case 0...63:
+            return .darkest
+        case 64...127:
+            return .dark
+        case 128...191:
+            return .light
+        default:
+            return .lightest
+        }
+    }
+
+    private static func dmgTintedColor(for value: UInt8) -> DMGPaletteColor {
+        let t = Double(value) / 255
+        return DMGPaletteColor.interpolate(from: .darkest, to: .lightest, fraction: t)
+    }
+
     private static func spriteBitmapContext(width: Int, height: Int) -> CGContext? {
         CGContext(
             data: nil,
@@ -384,6 +757,34 @@ struct FieldSceneRenderer {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )
+    }
+
+    struct DMGPaletteColor: Equatable {
+        let red: UInt8
+        let green: UInt8
+        let blue: UInt8
+
+        static let darkest = DMGPaletteColor(red: 15, green: 56, blue: 15)
+        static let dark = DMGPaletteColor(red: 48, green: 98, blue: 48)
+        static let light = DMGPaletteColor(red: 139, green: 172, blue: 15)
+        static let lightest = DMGPaletteColor(red: 155, green: 188, blue: 15)
+
+        static func interpolate(
+            from start: DMGPaletteColor,
+            to end: DMGPaletteColor,
+            fraction: Double
+        ) -> DMGPaletteColor {
+            let clampedFraction = max(0, min(1, fraction))
+            return DMGPaletteColor(
+                red: interpolateChannel(start.red, end.red, fraction: clampedFraction),
+                green: interpolateChannel(start.green, end.green, fraction: clampedFraction),
+                blue: interpolateChannel(start.blue, end.blue, fraction: clampedFraction)
+            )
+        }
+
+        private static func interpolateChannel(_ start: UInt8, _ end: UInt8, fraction: Double) -> UInt8 {
+            UInt8((Double(start) + ((Double(end) - Double(start)) * fraction)).rounded())
+        }
     }
 
     struct TileAtlas {

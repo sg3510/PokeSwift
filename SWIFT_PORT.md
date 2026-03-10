@@ -65,7 +65,7 @@ The repo now contains:
 - corrected overworld sprite compositing for the accepted M3/M4A slice so sprite color-0 white is treated as transparent instead of multiply-blending against the field background
 - Oak Lab rival battle hardening for the accepted M3 slice: battle sprites, queued battle text phases, accuracy/evasion, STAB, type effectiveness, critical hits, bounded move-effect handling, and deterministic trainer AI better than first-PP selection
 - Oak Lab battle presentation polish for the accepted M3 slice: GBC-style left/right battler composition and native HP bars with on-bar numeric readouts on battle status cards
-- a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets`
+- a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets` and the native field view now presenting those scenes through a tinted Game Boy green treatment plus a more visible pixel-matrix overlay
 - bounded native M3 music playback driven from extracted ASM-backed audio manifests, including title, map-default, scripted override, battle, rival-exit, and Mom-heal routing
 - battle telemetry that now exposes phase, queued/current text, and move-slot state so the UI and harness can consume turn sequencing directly
 - audio telemetry that now exposes current track, entry, playback reason, and revision so the harness can validate music transitions during the slice
@@ -222,7 +222,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 | `M1` Extraction Foundation | `done` | Red-only title-scope extraction, loader schemas, deterministic content output | extraction and verify commands succeed; deterministic output is proven; runtime can load extracted content | Accepted on `2026-03-09` via extractor build, extract/verify, deterministic diff check, and loader-backed app boot |
 | `M2` Native Boot + Title | `done` | launch, splash, title attract, title menu, telemetry, harness validation loop | native app builds and launches; title flow works; telemetry and harness acceptance checks pass | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh` and passing workspace tests |
 | `M3` First Playable Slice | `done` | intro to player room, Pallet Town, Oak trigger, lab, starter choice, first rival battle | one serious vertical slice is playable end to end | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh`, deterministic extraction diff, and passing workspace tests |
-| `M4A` Real Field Rendering for M3 | `done` | render the current M3 maps and actors from extracted GB assets instead of placeholder geometry | real extracted tilesets, blocksets, sprite sheets, and zero field asset failures in validation | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh`, passing workspace tests, and `renderMode == realAssets` telemetry in field scenes |
+| `M4A` Real Field Rendering for M3 | `done` | render the current M3 maps and actors from extracted GB assets instead of placeholder geometry | real extracted tilesets, blocksets, sprite sheets, and zero field asset failures in validation | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh`, passing workspace tests, and `renderMode == realAssets` telemetry in field scenes; presentation baseline revalidated on `2026-03-10` after adding a tinted Game Boy field treatment and a stronger scale-aware pixel-matrix overlay |
 | `M4` Early-Game Progression | `not started` | route and town progression through early-game loop | stable field loop, trainers, encounters, marts, healing, save/load | Scope to be refined after M3 |
 | `M5` Full Content Parity | `not started` | complete Red content coverage from start to credits | end-to-end playable game | Requires all subsystem rows to reach done or approved residual-gap state |
 
@@ -439,6 +439,10 @@ When a blocker is discovered, add:
 - Extended telemetry and harness validation to assert audio track, reason, and entry transitions during the M3 end-to-end flow.
 - Tightened extractor timing fidelity for the bounded music slice by matching the engine's carried note-delay behavior more closely.
 - Extended telemetry to surface active map-script triggers and enemy party progress so harnesses and tests can validate the source-driven runtime path directly.
+- Updated the field renderer/view baseline so gameplay maps default to the tinted Game Boy presentation, while preserving raw grayscale composition internally and existing `renderMode == realAssets` telemetry semantics.
+- Strengthened the scale-aware pixel-matrix overlay in the SwiftUI field view so the retro screen texture reads more clearly at gameplay sizes, including a subtle recessed highlight/shadow bevel on the field cell lattice plus per-cell aperture highlights and shadows.
+- Added a working field-filter switcher in the gameplay sidebar options section so the UI can swap between authentic DMG, tinted, and raw grayscale field presentation without touching runtime state contracts.
+- Optimized field presentation updates so the SwiftUI field view no longer regenerates the full scene bitmap during ordinary body invalidations, and the renderer now caches decoded assets plus recent rendered frames by render signature.
 - Revalidated the accepted M3/M4A baseline with `./scripts/extract_red.sh`, `./scripts/validate_milestone.sh`, and `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`.
 
 ### 2026-03-09
