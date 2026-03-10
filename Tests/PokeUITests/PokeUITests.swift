@@ -1,5 +1,6 @@
 import XCTest
 import ImageIO
+import UniformTypeIdentifiers
 @testable import PokeUI
 import PokeDataModel
 import PokeCore
@@ -108,6 +109,58 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(image.height, 64)
     }
 
+    func testRendererTreatsWhiteSpritePixelsAsTransparentInsteadOfMultiplying() throws {
+        let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": FieldSpriteDefinition(
+                    id: "SPRITE_RED",
+                    imageURL: fixtureRoot.appendingPathComponent("sprite.png"),
+                    facingFrames: [
+                        .down: .init(x: 0, y: 0, width: 16, height: 16),
+                        .up: .init(x: 0, y: 0, width: 16, height: 16),
+                        .left: .init(x: 0, y: 0, width: 16, height: 16),
+                        .right: .init(x: 0, y: 0, width: 16, height: 16),
+                    ]
+                ),
+            ]
+        )
+        let map = MapManifest(
+            id: "TEST_MAP",
+            displayName: "Test Map",
+            defaultMusicID: "MUSIC_PALLET_TOWN",
+            borderBlockID: 0,
+            blockWidth: 1,
+            blockHeight: 1,
+            stepWidth: 2,
+            stepHeight: 2,
+            tileset: "TEST",
+            blockIDs: [0],
+            stepCollisionTileIDs: Array(repeating: 0x00, count: 4),
+            warps: [],
+            backgroundEvents: [],
+            objects: []
+        )
+
+        let image = try FieldSceneRenderer.render(
+            map: map,
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: [],
+            assets: assets
+        )
+
+        XCTAssertEqual(grayscaleValues(in: image), Set([85, 170]))
+    }
+
     private func spriteDefinition(id: String, filename: String) -> FieldSpriteDefinition {
         let root = repoRoot()
         return FieldSpriteDefinition(
@@ -177,6 +230,23 @@ final class PokeUITests: XCTestCase {
         return Double(sum) / Double(count)
     }
 
+    private func grayscaleValues(in image: CGImage) -> Set<Int> {
+        guard let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return []
+        }
+
+        var values: Set<Int> = []
+        for row in 0..<image.height {
+            let rowStart = row * image.bytesPerRow
+            for column in 0..<image.width {
+                values.insert(Int(bytes[rowStart + column]))
+            }
+        }
+        return values
+    }
+
     private func makeTestTileImage(topHalf: UInt8, bottomHalf: UInt8) throws -> CGImage {
         let width = 8
         let height = 8
@@ -211,6 +281,62 @@ final class PokeUITests: XCTestCase {
             throw XCTSkip("Unable to crop tile \(index)")
         }
         return tile
+    }
+
+    private func makeSyntheticFieldFixture(tileValue: UInt8, spriteBodyValue: UInt8) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let tilesetPixels = Array(repeating: tileValue, count: 8 * 8)
+        try writeGrayscalePNG(
+            width: 8,
+            height: 8,
+            pixels: tilesetPixels,
+            to: root.appendingPathComponent("tileset.png")
+        )
+
+        var spritePixels = Array(repeating: UInt8(255), count: 16 * 16)
+        for y in 4..<12 {
+            for x in 4..<12 {
+                spritePixels[(y * 16) + x] = spriteBodyValue
+            }
+        }
+        try writeGrayscalePNG(
+            width: 16,
+            height: 16,
+            pixels: spritePixels,
+            to: root.appendingPathComponent("sprite.png")
+        )
+
+        try Data(Array(repeating: UInt8(0), count: 16)).write(to: root.appendingPathComponent("test.bst"))
+        return root
+    }
+
+    private func writeGrayscalePNG(width: Int, height: Int, pixels: [UInt8], to url: URL) throws {
+        let bytesPerRow = width
+        let data = Data(pixels) as CFData
+        guard let provider = CGDataProvider(data: data),
+              let image = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 8,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent
+              ),
+              let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+            throw XCTSkip("Unable to write grayscale PNG fixture")
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw XCTSkip("Unable to finalize PNG fixture at \(url.path)")
+        }
     }
 
     private func repoRoot() -> URL {

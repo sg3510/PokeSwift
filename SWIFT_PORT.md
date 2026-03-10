@@ -62,6 +62,7 @@ The repo now contains:
 - extracted starter typings, starter battle sprite paths, copied starter battle assets, and a source-driven type-effectiveness table for Oak Lab battle hardening
 - a native overworld/dialogue/battle UI shell for the M3 slice
 - real extracted field tilesets, blocksets, and overworld sprite sheets for the M3 slice
+- corrected overworld sprite compositing for the accepted M3/M4A slice so sprite color-0 white is treated as transparent instead of multiply-blending against the field background
 - Oak Lab rival battle hardening for the accepted M3 slice: battle sprites, queued battle text phases, accuracy/evasion, STAB, type effectiveness, critical hits, bounded move-effect handling, and deterministic trainer AI better than first-PP selection
 - Oak Lab battle presentation polish for the accepted M3 slice: GBC-style left/right battler composition and native HP bars with on-bar numeric readouts on battle status cards
 - a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets`

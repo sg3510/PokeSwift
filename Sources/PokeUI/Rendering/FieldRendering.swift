@@ -92,6 +92,7 @@ enum FieldRendererError: Error, Equatable {
     case invalidBlockIndex(Int)
     case invalidTileIndex(Int)
     case cropFailed
+    case maskCreationFailed
     case bitmapContextCreationFailed
 }
 
@@ -270,13 +271,12 @@ struct FieldSceneRenderer {
             return
         }
 
-        let spriteImage = try prepareImageForFieldContext(
+        let spriteImage = try prepareSpriteImageForFieldContext(
             crop(sourceImage, topLeftFrame: frame)
         )
         let x = position.x * stepPixelSize
         let y = position.y * stepPixelSize
         context.saveGState()
-        context.setBlendMode(.multiply)
         if frame.flippedHorizontally {
             context.translateBy(x: CGFloat(x + frame.width), y: 0)
             context.scaleBy(x: -1, y: 1)
@@ -313,6 +313,77 @@ struct FieldSceneRenderer {
             throw FieldRendererError.bitmapContextCreationFailed
         }
         return flipped
+    }
+
+    private static func prepareSpriteImageForFieldContext(_ image: CGImage) throws -> CGImage {
+        let maskedImage = try applySpriteTransparencyMask(to: image)
+        guard let context = spriteBitmapContext(width: image.width, height: image.height) else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+        context.interpolationQuality = .none
+        context.setShouldAntialias(false)
+        context.translateBy(x: 0, y: CGFloat(image.height))
+        context.scaleBy(x: 1, y: -1)
+        context.draw(maskedImage, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let preparedImage = context.makeImage() else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+        return preparedImage
+    }
+
+    private static func applySpriteTransparencyMask(to image: CGImage) throws -> CGImage {
+        let pixelValues = try grayscalePixels(for: image)
+        let maskBytes = pixelValues.map { $0 == 255 ? UInt8(255) : UInt8(0) }
+        let maskData = Data(maskBytes) as CFData
+        guard let provider = CGDataProvider(data: maskData),
+              let mask = CGImage(
+                maskWidth: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 8,
+                bytesPerRow: image.width,
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false
+              ),
+              let maskedImage = image.masking(mask) else {
+            throw FieldRendererError.maskCreationFailed
+        }
+        return maskedImage
+    }
+
+    private static func grayscalePixels(for image: CGImage) throws -> [UInt8] {
+        let width = image.width
+        let height = image.height
+        let bytesPerRow = width
+        var bytes = [UInt8](repeating: 0, count: width * height)
+        guard let context = CGContext(
+            data: &bytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+        context.interpolationQuality = .none
+        context.setShouldAntialias(false)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return bytes
+    }
+
+    private static func spriteBitmapContext(width: Int, height: Int) -> CGContext? {
+        CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
     }
 
     struct TileAtlas {
