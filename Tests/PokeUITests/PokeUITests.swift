@@ -60,7 +60,7 @@ final class PokeUITests: XCTestCase {
             inventory: GameplaySidebarPropsBuilder.makeInventory(),
             save: GameplaySidebarPropsBuilder.makeSaveSection(),
             options: GameplaySidebarPropsBuilder.makeOptionsSection(),
-            fieldRenderStyle: .constant(.defaultGameplayStyle)
+            fieldDisplayStyle: .constant(.defaultGameplayStyle)
         ) {
             FieldMapStage {
                 Color.black
@@ -74,14 +74,60 @@ final class PokeUITests: XCTestCase {
         XCTAssertNotNil(view)
     }
 
-    func testFieldRenderStyleLabelsRemainStableForSidebarSwitcher() {
-        XCTAssertEqual(FieldRenderStyle.defaultGameplayStyle, .dmgTinted)
-        XCTAssertEqual(FieldRenderStyle.dmgAuthentic.sidebarSummaryLabel, "DMG")
-        XCTAssertEqual(FieldRenderStyle.dmgTinted.sidebarSummaryLabel, "TINTED")
-        XCTAssertEqual(FieldRenderStyle.rawGrayscale.sidebarSummaryLabel, "RAW")
-        XCTAssertEqual(FieldRenderStyle.dmgAuthentic.sidebarOptionTitle, "Authentic DMG")
-        XCTAssertEqual(FieldRenderStyle.dmgTinted.sidebarOptionTitle, "Tinted")
-        XCTAssertEqual(FieldRenderStyle.rawGrayscale.sidebarOptionTitle, "Raw Gray")
+    func testFieldDisplayStyleLabelsRemainStableForSidebarSwitcher() {
+        XCTAssertEqual(FieldDisplayStyle.defaultGameplayStyle, .dmgTinted)
+        XCTAssertEqual(FieldDisplayStyle.dmgAuthentic.sidebarSummaryLabel, "DMG")
+        XCTAssertEqual(FieldDisplayStyle.dmgTinted.sidebarSummaryLabel, "TINTED")
+        XCTAssertEqual(FieldDisplayStyle.rawGrayscale.sidebarSummaryLabel, "RAW")
+        XCTAssertEqual(FieldDisplayStyle.dmgAuthentic.sidebarOptionTitle, "Authentic DMG")
+        XCTAssertEqual(FieldDisplayStyle.dmgTinted.sidebarOptionTitle, "Tinted")
+        XCTAssertEqual(FieldDisplayStyle.rawGrayscale.sidebarOptionTitle, "Raw Gray")
+    }
+
+    func testFieldSceneRenderTaskIdentityIgnoresDisplayStyle() {
+        let map = makePaletteMap(blockWidth: 2, blockHeight: 2)
+        let root = repoRoot()
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "OVERWORLD",
+                imageURL: root.appendingPathComponent("gfx/tilesets/overworld.png"),
+                blocksetURL: root.appendingPathComponent("gfx/blocksets/overworld.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": spriteDefinition(id: "SPRITE_RED", filename: "red.png"),
+                "SPRITE_OAK": spriteDefinition(id: "SPRITE_OAK", filename: "oak.png"),
+            ]
+        )
+        let objects = [
+            FieldObjectRenderState(
+                id: "oak",
+                displayName: "Oak",
+                sprite: "SPRITE_OAK",
+                position: .init(x: 1, y: 1),
+                facing: .left,
+                interactionDialogueID: nil,
+                trainerBattleID: nil
+            ),
+        ]
+
+        let tintedIdentity = FieldMapView.sceneRenderTaskIdentity(
+            map: map,
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: objects,
+            renderAssets: assets,
+            displayStyle: .dmgTinted
+        )
+        let authenticIdentity = FieldMapView.sceneRenderTaskIdentity(
+            map: map,
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: objects,
+            renderAssets: assets,
+            displayStyle: .dmgAuthentic
+        )
+
+        XCTAssertEqual(tintedIdentity, authenticIdentity)
     }
 
     func testFieldSceneMetricsUseFixedGameplayViewportPadding() {
@@ -336,7 +382,7 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(image.height, 64)
     }
 
-    func testRendererCanCompositeRealFieldAssetsInAuthenticDMGStyle() throws {
+    func testRendererCanCompositeRealFieldAssetsAsRawGrayscale() throws {
         let root = repoRoot()
         let assets = FieldRenderAssets(
             tileset: .init(
@@ -383,13 +429,12 @@ final class PokeUITests: XCTestCase {
             playerFacing: .down,
             playerSpriteID: "SPRITE_RED",
             objects: objects,
-            assets: assets,
-            style: .dmgAuthentic
+            assets: assets
         )
 
         XCTAssertEqual(image.width, 64)
         XCTAssertEqual(image.height, 64)
-        XCTAssertTrue(rgbValues(in: image).isSubset(of: dmgPaletteValues()))
+        XCTAssertFalse(grayscaleValues(in: image).isEmpty)
     }
 
     func testRenderSceneBuildsBorderPaddedBackgroundAndLayeredActors() throws {
@@ -438,15 +483,76 @@ final class PokeUITests: XCTestCase {
             playerFacing: .down,
             playerSpriteID: "SPRITE_RED",
             objects: [],
-            assets: assets,
-            style: .dmgAuthentic
+            assets: assets
         )
 
         XCTAssertEqual(scene.backgroundImage.width, scene.metrics.contentPixelSize.width)
         XCTAssertEqual(scene.backgroundImage.height, scene.metrics.contentPixelSize.height)
         XCTAssertEqual(scene.actors.count, 1)
         XCTAssertEqual(scene.actors.first?.worldPosition, FieldSceneRenderer.playerWorldPosition(for: .init(x: 0, y: 0), metrics: scene.metrics))
-        XCTAssertTrue(rgbValues(in: scene.backgroundImage).isSubset(of: dmgPaletteValues()))
+        XCTAssertEqual(grayscaleValues(in: scene.backgroundImage), Set([85]))
+    }
+
+    func testRendererProducesByteStableRawOutputAcrossRepeatedCalls() throws {
+        let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": FieldSpriteDefinition(
+                    id: "SPRITE_RED",
+                    imageURL: fixtureRoot.appendingPathComponent("sprite.png"),
+                    facingFrames: [
+                        .down: .init(x: 0, y: 0, width: 16, height: 16),
+                        .up: .init(x: 0, y: 0, width: 16, height: 16),
+                        .left: .init(x: 0, y: 0, width: 16, height: 16),
+                        .right: .init(x: 0, y: 0, width: 16, height: 16),
+                    ]
+                ),
+            ]
+        )
+
+        let map = MapManifest(
+            id: "TEST_MAP",
+            displayName: "Test Map",
+            defaultMusicID: "MUSIC_PALLET_TOWN",
+            borderBlockID: 0,
+            blockWidth: 1,
+            blockHeight: 1,
+            stepWidth: 2,
+            stepHeight: 2,
+            tileset: "TEST",
+            blockIDs: [0],
+            stepCollisionTileIDs: Array(repeating: 0x00, count: 4),
+            warps: [],
+            backgroundEvents: [],
+            objects: []
+        )
+
+        let firstImage = try FieldSceneRenderer.render(
+            map: map,
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: [],
+            assets: assets
+        )
+        let secondImage = try FieldSceneRenderer.render(
+            map: map,
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: [],
+            assets: assets
+        )
+
+        XCTAssertEqual(grayscaleValues(in: firstImage), grayscaleValues(in: secondImage))
+        XCTAssertEqual(alphaValues(in: firstImage), alphaValues(in: secondImage))
     }
 
     func testRendererTreatsWhiteSpritePixelsAsTransparentInsteadOfMultiplying() throws {
@@ -501,7 +607,7 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(grayscaleValues(in: image), Set([85, 170]))
     }
 
-    func testAuthenticDMGStyleMapsThresholdBucketsToExpectedPalette() throws {
+    func testRendererPreservesRawGrayscaleThresholdBuckets() throws {
         let fixtureRoot = try makeSyntheticPaletteFixture(tileValues: [32, 96, 160, 224])
         defer { try? FileManager.default.removeItem(at: fixtureRoot) }
 
@@ -520,22 +626,13 @@ final class PokeUITests: XCTestCase {
             playerFacing: .down,
             playerSpriteID: "MISSING",
             objects: [],
-            assets: assets,
-            style: .dmgAuthentic
+            assets: assets
         )
 
-        XCTAssertEqual(
-            rgbValues(in: image),
-            Set([
-                RGBTriplet(red: 15, green: 56, blue: 15),
-                RGBTriplet(red: 48, green: 98, blue: 48),
-                RGBTriplet(red: 139, green: 172, blue: 15),
-                RGBTriplet(red: 155, green: 188, blue: 15),
-            ])
-        )
+        XCTAssertEqual(grayscaleValues(in: image), Set([32, 96, 160, 224]))
     }
 
-    func testDMGTintedStylePreservesMoreThanFourDistinctShades() throws {
+    func testRendererPreservesDistinctGrayscaleShades() throws {
         let fixtureRoot = try makeSyntheticPaletteFixture(tileValues: [0, 64, 128, 192, 255])
         defer { try? FileManager.default.removeItem(at: fixtureRoot) }
 
@@ -554,14 +651,13 @@ final class PokeUITests: XCTestCase {
             playerFacing: .down,
             playerSpriteID: "MISSING",
             objects: [],
-            assets: assets,
-            style: .dmgTinted
+            assets: assets
         )
 
-        XCTAssertEqual(rgbValues(in: image).count, 5)
+        XCTAssertEqual(grayscaleValues(in: image), Set([0, 64, 128, 192, 255]))
     }
 
-    func testAuthenticDMGStyleKeepsWhiteSpritePixelsTransparent() throws {
+    func testRendererKeepsWhiteSpritePixelsTransparentInRawOutput() throws {
         let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
         defer { try? FileManager.default.removeItem(at: fixtureRoot) }
 
@@ -606,20 +702,13 @@ final class PokeUITests: XCTestCase {
             playerFacing: .down,
             playerSpriteID: "SPRITE_RED",
             objects: [],
-            assets: assets,
-            style: .dmgAuthentic
+            assets: assets
         )
 
-        XCTAssertEqual(
-            rgbValues(in: image),
-            Set([
-                RGBTriplet(red: 48, green: 98, blue: 48),
-                RGBTriplet(red: 139, green: 172, blue: 15),
-            ])
-        )
+        XCTAssertEqual(grayscaleValues(in: image), Set([85, 170]))
     }
 
-    func testRenderSceneKeepsStyledSpriteTransparency() throws {
+    func testRenderSceneKeepsSpriteTransparencyInRawOutput() throws {
         let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
         defer { try? FileManager.default.removeItem(at: fixtureRoot) }
 
@@ -664,8 +753,7 @@ final class PokeUITests: XCTestCase {
             playerFacing: .down,
             playerSpriteID: "SPRITE_RED",
             objects: [],
-            assets: assets,
-            style: .dmgAuthentic
+            assets: assets
         )
 
         guard let playerActor = scene.actors.first else {
@@ -675,7 +763,7 @@ final class PokeUITests: XCTestCase {
         XCTAssertTrue(alphaValues(in: playerActor.image).contains(0))
         XCTAssertEqual(
             visibleRGBValues(in: playerActor.image),
-            Set([RGBTriplet(red: 139, green: 172, blue: 15)])
+            Set([RGBTriplet(red: 170, green: 170, blue: 170)])
         )
     }
 

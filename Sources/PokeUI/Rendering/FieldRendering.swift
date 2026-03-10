@@ -5,12 +5,12 @@ import ImageIO
 import PokeCore
 import PokeDataModel
 
-public enum FieldRenderStyle: Equatable, Hashable, Sendable {
+public enum FieldDisplayStyle: Equatable, Hashable, Sendable {
     case rawGrayscale
     case dmgAuthentic
     case dmgTinted
 
-    public static let defaultGameplayStyle: FieldRenderStyle = .dmgTinted
+    public static let defaultGameplayStyle: FieldDisplayStyle = .dmgTinted
 
     public var sidebarSummaryLabel: String {
         switch self {
@@ -34,6 +34,9 @@ public enum FieldRenderStyle: Equatable, Hashable, Sendable {
         }
     }
 }
+
+@available(*, deprecated, renamed: "FieldDisplayStyle")
+public typealias FieldRenderStyle = FieldDisplayStyle
 
 public struct FieldSpriteFrame: Equatable, Sendable {
     public let x: Int
@@ -212,7 +215,6 @@ struct FieldRenderedActor: Identifiable, @unchecked Sendable {
 
 struct FieldRenderedScene: @unchecked Sendable {
     let mapID: String
-    let style: FieldRenderStyle
     let metrics: FieldSceneMetrics
     let backgroundImage: CGImage
     let actors: [FieldRenderedActor]
@@ -300,7 +302,6 @@ struct FieldRenderSignature: Hashable, Sendable {
     let playerSpriteID: String
     let objectStates: [ObjectSignature]
     let assetSignature: AssetSignature
-    let style: FieldRenderStyle
 
     init(
         map: MapManifest,
@@ -308,8 +309,7 @@ struct FieldRenderSignature: Hashable, Sendable {
         playerFacing: FacingDirection,
         playerSpriteID: String,
         objects: [FieldObjectRenderState],
-        assets: FieldRenderAssets,
-        style: FieldRenderStyle
+        assets: FieldRenderAssets
     ) {
         mapID = map.id
         tilesetID = map.tileset
@@ -321,7 +321,6 @@ struct FieldRenderSignature: Hashable, Sendable {
         self.playerSpriteID = playerSpriteID
         objectStates = objects.map(ObjectSignature.init(object:))
         assetSignature = AssetSignature(assets: assets)
-        self.style = style
     }
 }
 
@@ -337,10 +336,9 @@ private struct FieldBackgroundSignature: Hashable, Sendable {
     let blockTileWidth: Int
     let blockTileHeight: Int
     let sourceTileSize: Int
-    let style: FieldRenderStyle
     let paddingBlocks: FieldPixelSize
 
-    init(map: MapManifest, assets: FieldRenderAssets, style: FieldRenderStyle, paddingBlocks: FieldPixelSize) {
+    init(map: MapManifest, assets: FieldRenderAssets, paddingBlocks: FieldPixelSize) {
         mapID = map.id
         blockWidth = map.blockWidth
         blockHeight = map.blockHeight
@@ -352,7 +350,6 @@ private struct FieldBackgroundSignature: Hashable, Sendable {
         blockTileWidth = assets.tileset.blockTileWidth
         blockTileHeight = assets.tileset.blockTileHeight
         sourceTileSize = assets.tileset.sourceTileSize
-        self.style = style
         self.paddingBlocks = paddingBlocks
     }
 }
@@ -395,15 +392,6 @@ private final class FieldRendererCaches: @unchecked Sendable {
         let height: Int
     }
 
-    private struct StyledSpriteFrameCacheKey: Hashable {
-        let imagePath: String
-        let x: Int
-        let y: Int
-        let width: Int
-        let height: Int
-        let style: FieldRenderStyle
-    }
-
     static let shared = FieldRendererCaches()
 
     private let lock = NSLock()
@@ -412,7 +400,6 @@ private final class FieldRendererCaches: @unchecked Sendable {
     private var blocksets: [BlocksetCacheKey: FieldBlockset] = [:]
     private var preparedAtlases: [AtlasCacheKey: PreparedTileAtlas] = [:]
     private var preparedSprites: [SpriteFrameCacheKey: CGImage] = [:]
-    private var styledSprites: [StyledSpriteFrameCacheKey: CGImage] = [:]
     private var backgroundImages: [FieldBackgroundSignature: CGImage] = [:]
     private var renderedImages: [FieldRenderSignature: CGImage] = [:]
     private var renderedImageOrder: [FieldRenderSignature] = []
@@ -535,41 +522,6 @@ private final class FieldRendererCaches: @unchecked Sendable {
         return preparedImage
     }
 
-    func styledSpriteImage(
-        definition: FieldSpriteDefinition,
-        facing: FacingDirection,
-        style: FieldRenderStyle
-    ) throws -> CGImage? {
-        guard let frame = definition.frame(for: facing) else {
-            return nil
-        }
-
-        if style == .rawGrayscale {
-            return try preparedSpriteImage(definition: definition, facing: facing)
-        }
-
-        let key = StyledSpriteFrameCacheKey(
-            imagePath: definition.imageURL.standardizedFileURL.path,
-            x: frame.x,
-            y: frame.y,
-            width: frame.width,
-            height: frame.height,
-            style: style
-        )
-        if let cached = withLock({ styledSprites[key] }) {
-            return cached
-        }
-
-        guard let preparedImage = try preparedSpriteImage(definition: definition, facing: facing) else {
-            return nil
-        }
-        let styledImage = try FieldSceneRenderer.applyRenderStylePreservingAlpha(style, to: preparedImage)
-        withLock {
-            styledSprites[key] = styledImage
-        }
-        return styledImage
-    }
-
     private func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
@@ -623,8 +575,7 @@ struct FieldSceneRenderer {
         playerFacing: FacingDirection,
         playerSpriteID: String,
         objects: [FieldObjectRenderState],
-        assets: FieldRenderAssets,
-        style: FieldRenderStyle = .rawGrayscale
+        assets: FieldRenderAssets
     ) throws -> FieldRenderedScene {
         let atlas = try FieldRendererCaches.shared.preparedAtlas(for: assets.tileset)
         let blockset = try FieldRendererCaches.shared.blockset(for: assets.tileset)
@@ -636,7 +587,6 @@ struct FieldSceneRenderer {
         let backgroundSignature = FieldBackgroundSignature(
             map: map,
             assets: assets,
-            style: style,
             paddingBlocks: paddingBlocks
         )
         let backgroundImage: CGImage
@@ -647,8 +597,7 @@ struct FieldSceneRenderer {
                 map: map,
                 atlas: atlas,
                 blockset: blockset,
-                metrics: metrics,
-                style: style
+                metrics: metrics
             )
             FieldRendererCaches.shared.storeBackgroundImage(backgroundImage, for: backgroundSignature)
         }
@@ -659,13 +608,11 @@ struct FieldSceneRenderer {
             playerFacing: playerFacing,
             playerSpriteID: playerSpriteID,
             assets: assets,
-            metrics: metrics,
-            style: style
+            metrics: metrics
         )
 
         return FieldRenderedScene(
             mapID: map.id,
-            style: style,
             metrics: metrics,
             backgroundImage: backgroundImage,
             actors: actors
@@ -678,8 +625,7 @@ struct FieldSceneRenderer {
         playerFacing: FacingDirection,
         playerSpriteID: String,
         objects: [FieldObjectRenderState],
-        assets: FieldRenderAssets,
-        style: FieldRenderStyle = .rawGrayscale
+        assets: FieldRenderAssets
     ) throws -> CGImage {
         let renderSignature = FieldRenderSignature(
             map: map,
@@ -687,8 +633,7 @@ struct FieldSceneRenderer {
             playerFacing: playerFacing,
             playerSpriteID: playerSpriteID,
             objects: objects,
-            assets: assets,
-            style: style
+            assets: assets
         )
         if let cachedImage = FieldRendererCaches.shared.renderedImage(for: renderSignature) {
             return cachedImage
@@ -726,81 +671,8 @@ struct FieldSceneRenderer {
         guard let image = context.makeImage() else {
             throw FieldRendererError.bitmapContextCreationFailed
         }
-        let styledImage = try applyRenderStyle(style, to: image)
-        FieldRendererCaches.shared.storeRenderedImage(styledImage, for: renderSignature)
-        return styledImage
-    }
-
-    fileprivate static func applyRenderStyle(_ style: FieldRenderStyle, to image: CGImage) throws -> CGImage {
-        switch style {
-        case .rawGrayscale:
-            return image
-        case .dmgAuthentic:
-            let grayscaleValues = try grayscalePixels(for: image)
-            let rgbBytes = grayscaleValues.flatMap { value in
-                let color = dmgAuthenticColor(for: value)
-                return [color.red, color.green, color.blue, 255]
-            }
-            return try makeRGBImage(
-                width: image.width,
-                height: image.height,
-                bytesPerRow: image.width * 4,
-                rgbaBytes: rgbBytes
-            )
-        case .dmgTinted:
-            let grayscaleValues = try grayscalePixels(for: image)
-            let rgbBytes = grayscaleValues.flatMap { value in
-                let color = dmgTintedColor(for: value)
-                return [color.red, color.green, color.blue, 255]
-            }
-            return try makeRGBImage(
-                width: image.width,
-                height: image.height,
-                bytesPerRow: image.width * 4,
-                rgbaBytes: rgbBytes
-            )
-        }
-    }
-
-    fileprivate static func applyRenderStylePreservingAlpha(
-        _ style: FieldRenderStyle,
-        to image: CGImage
-    ) throws -> CGImage {
-        switch style {
-        case .rawGrayscale:
-            return image
-        case .dmgAuthentic, .dmgTinted:
-            let pixelBytes = try rgbaPixels(for: image)
-            var styledBytes: [UInt8] = []
-            styledBytes.reserveCapacity(pixelBytes.count)
-
-            for index in stride(from: 0, to: pixelBytes.count, by: 4) {
-                let alpha = pixelBytes[index + 3]
-                if alpha == 0 {
-                    styledBytes.append(contentsOf: [0, 0, 0, 0])
-                    continue
-                }
-
-                let value = pixelBytes[index]
-                let color: DMGPaletteColor
-                switch style {
-                case .rawGrayscale:
-                    color = DMGPaletteColor(red: value, green: value, blue: value)
-                case .dmgAuthentic:
-                    color = dmgAuthenticColor(for: value)
-                case .dmgTinted:
-                    color = dmgTintedColor(for: value)
-                }
-                styledBytes.append(contentsOf: [color.red, color.green, color.blue, alpha])
-            }
-
-            return try makeRGBImage(
-                width: image.width,
-                height: image.height,
-                bytesPerRow: image.width * 4,
-                rgbaBytes: styledBytes
-            )
-        }
+        FieldRendererCaches.shared.storeRenderedImage(image, for: renderSignature)
+        return image
     }
 
     fileprivate static func loadImage(from url: URL, invalidError: FieldRendererError) throws -> CGImage {
@@ -815,8 +687,7 @@ struct FieldSceneRenderer {
         map: MapManifest,
         atlas: PreparedTileAtlas,
         blockset: FieldBlockset,
-        metrics: FieldSceneMetrics,
-        style: FieldRenderStyle
+        metrics: FieldSceneMetrics
     ) throws -> CGImage {
         guard let context = bitmapContext(
             width: metrics.contentPixelSize.width,
@@ -841,7 +712,7 @@ struct FieldSceneRenderer {
         guard let image = context.makeImage() else {
             throw FieldRendererError.bitmapContextCreationFailed
         }
-        return try applyRenderStyle(style, to: image)
+        return image
     }
 
     private static func renderedActors(
@@ -850,8 +721,7 @@ struct FieldSceneRenderer {
         playerFacing: FacingDirection,
         playerSpriteID: String,
         assets: FieldRenderAssets,
-        metrics: FieldSceneMetrics,
-        style: FieldRenderStyle
+        metrics: FieldSceneMetrics
     ) throws -> [FieldRenderedActor] {
         var actors: [FieldRenderedActor] = []
 
@@ -863,8 +733,7 @@ struct FieldSceneRenderer {
                 facing: object.facing,
                 position: object.position,
                 assets: assets,
-                metrics: metrics,
-                style: style
+                metrics: metrics
             ) {
                 actors.append(actor)
             }
@@ -877,8 +746,7 @@ struct FieldSceneRenderer {
             facing: playerFacing,
             position: playerPosition,
             assets: assets,
-            metrics: metrics,
-            style: style
+            metrics: metrics
         ) {
             actors.append(playerActor)
         }
@@ -893,15 +761,13 @@ struct FieldSceneRenderer {
         facing: FacingDirection,
         position: TilePoint,
         assets: FieldRenderAssets,
-        metrics: FieldSceneMetrics,
-        style: FieldRenderStyle
+        metrics: FieldSceneMetrics
     ) throws -> FieldRenderedActor? {
         guard let definition = assets.spriteDefinition(for: spriteID),
               let frame = definition.frame(for: facing),
-              let spriteImage = try FieldRendererCaches.shared.styledSpriteImage(
+              let spriteImage = try FieldRendererCaches.shared.preparedSpriteImage(
                   definition: definition,
-                  facing: facing,
-                  style: style
+                  facing: facing
               ) else {
             return nil
         }
@@ -1167,76 +1033,6 @@ struct FieldSceneRenderer {
         return bytes
     }
 
-    private static func rgbaPixels(for image: CGImage) throws -> [UInt8] {
-        let width = image.width
-        let height = image.height
-        let bytesPerRow = width * 4
-        var bytes = [UInt8](repeating: 0, count: height * bytesPerRow)
-        guard let context = CGContext(
-            data: &bytes,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGBitmapInfo.byteOrder32Big.union(
-                CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-            ).rawValue
-        ) else {
-            throw FieldRendererError.bitmapContextCreationFailed
-        }
-        context.interpolationQuality = .none
-        context.setShouldAntialias(false)
-        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return bytes
-    }
-
-    private static func makeRGBImage(
-        width: Int,
-        height: Int,
-        bytesPerRow: Int,
-        rgbaBytes: [UInt8]
-    ) throws -> CGImage {
-        let data = Data(rgbaBytes) as CFData
-        guard let provider = CGDataProvider(data: data),
-              let image = CGImage(
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bitsPerPixel: 32,
-                bytesPerRow: bytesPerRow,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGBitmapInfo.byteOrder32Big.union(
-                    CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-                ),
-                provider: provider,
-                decode: nil,
-                shouldInterpolate: false,
-                intent: .defaultIntent
-              ) else {
-            throw FieldRendererError.bitmapContextCreationFailed
-        }
-        return image
-    }
-
-    private static func dmgAuthenticColor(for value: UInt8) -> DMGPaletteColor {
-        switch value {
-        case 0...63:
-            return .darkest
-        case 64...127:
-            return .dark
-        case 128...191:
-            return .light
-        default:
-            return .lightest
-        }
-    }
-
-    private static func dmgTintedColor(for value: UInt8) -> DMGPaletteColor {
-        let t = Double(value) / 255
-        return DMGPaletteColor.interpolate(from: .darkest, to: .lightest, fraction: t)
-    }
-
     private static func spriteBitmapContext(width: Int, height: Int) -> CGContext? {
         CGContext(
             data: nil,
@@ -1247,34 +1043,6 @@ struct FieldSceneRenderer {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )
-    }
-
-    struct DMGPaletteColor: Equatable {
-        let red: UInt8
-        let green: UInt8
-        let blue: UInt8
-
-        static let darkest = DMGPaletteColor(red: 15, green: 56, blue: 15)
-        static let dark = DMGPaletteColor(red: 48, green: 98, blue: 48)
-        static let light = DMGPaletteColor(red: 139, green: 172, blue: 15)
-        static let lightest = DMGPaletteColor(red: 155, green: 188, blue: 15)
-
-        static func interpolate(
-            from start: DMGPaletteColor,
-            to end: DMGPaletteColor,
-            fraction: Double
-        ) -> DMGPaletteColor {
-            let clampedFraction = max(0, min(1, fraction))
-            return DMGPaletteColor(
-                red: interpolateChannel(start.red, end.red, fraction: clampedFraction),
-                green: interpolateChannel(start.green, end.green, fraction: clampedFraction),
-                blue: interpolateChannel(start.blue, end.blue, fraction: clampedFraction)
-            )
-        }
-
-        private static func interpolateChannel(_ start: UInt8, _ end: UInt8, fraction: Double) -> UInt8 {
-            UInt8((Double(start) + ((Double(end) - Double(start)) * fraction)).rounded())
-        }
     }
 
     struct TileAtlas {

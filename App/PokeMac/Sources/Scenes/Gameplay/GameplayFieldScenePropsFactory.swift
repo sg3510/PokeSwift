@@ -15,7 +15,7 @@ enum GameplayFieldScenePropsFactory {
             objects: runtime.currentFieldObjects,
             playerSpriteID: runtime.playerSpriteID,
             renderAssets: makeFieldRenderAssets(runtime: runtime),
-            initialFieldRenderStyle: .defaultGameplayStyle,
+            initialFieldDisplayStyle: .defaultGameplayStyle,
             dialogueLines: runtime.currentDialoguePage?.lines,
             starterChoiceOptions: runtime.scene == .starterChoice ? runtime.starterChoiceOptions : [],
             starterChoiceFocusedIndex: runtime.starterChoiceFocusedIndex,

@@ -10,7 +10,7 @@ struct GameplayFieldSceneProps {
     let objects: [FieldObjectRenderState]
     let playerSpriteID: String
     let renderAssets: FieldRenderAssets?
-    let initialFieldRenderStyle: FieldRenderStyle
+    let initialFieldDisplayStyle: FieldDisplayStyle
     let dialogueLines: [String]?
     let starterChoiceOptions: [SpeciesManifest]
     let starterChoiceFocusedIndex: Int
@@ -39,11 +39,11 @@ struct PlaceholderSceneProps {
 
 struct GameplayFieldScene: View {
     let props: GameplayFieldSceneProps
-    @State private var fieldRenderStyle: FieldRenderStyle
+    @State private var fieldDisplayStyle: FieldDisplayStyle
 
     init(props: GameplayFieldSceneProps) {
         self.props = props
-        _fieldRenderStyle = State(initialValue: props.initialFieldRenderStyle)
+        _fieldDisplayStyle = State(initialValue: props.initialFieldDisplayStyle)
     }
 
     var body: some View {
@@ -54,7 +54,7 @@ struct GameplayFieldScene: View {
                 inventory: props.inventory,
                 save: props.save,
                 options: props.options,
-                fieldRenderStyle: $fieldRenderStyle
+                fieldDisplayStyle: $fieldDisplayStyle
             ) {
                 FieldMapStage {
                     mapStageContent
@@ -87,7 +87,7 @@ struct GameplayFieldScene: View {
                 objects: props.objects,
                 playerSpriteID: props.playerSpriteID,
                 renderAssets: props.renderAssets,
-                renderStyle: fieldRenderStyle
+                displayStyle: fieldDisplayStyle
             )
         } else {
             VStack(spacing: 14) {

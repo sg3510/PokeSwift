@@ -10,7 +10,7 @@ public struct FieldMapView: View {
     let objects: [FieldObjectRenderState]
     let playerSpriteID: String
     let renderAssets: FieldRenderAssets?
-    let renderStyle: FieldRenderStyle
+    let displayStyle: FieldDisplayStyle
 
     @State private var renderedScene: FieldRenderedScene?
     @State private var presentedCameraOrigin: CGPoint = .zero
@@ -24,7 +24,7 @@ public struct FieldMapView: View {
         objects: [FieldObjectRenderState],
         playerSpriteID: String = "SPRITE_RED",
         renderAssets: FieldRenderAssets? = nil,
-        renderStyle: FieldRenderStyle = .defaultGameplayStyle
+        displayStyle: FieldDisplayStyle = .defaultGameplayStyle
     ) {
         self.map = map
         self.playerPosition = playerPosition
@@ -32,7 +32,7 @@ public struct FieldMapView: View {
         self.objects = objects
         self.playerSpriteID = playerSpriteID
         self.renderAssets = renderAssets
-        self.renderStyle = renderStyle
+        self.displayStyle = displayStyle
     }
 
     public var body: some View {
@@ -45,7 +45,7 @@ public struct FieldMapView: View {
                 if let renderedScene {
                     FixedViewportRenderedField(
                         scene: renderedScene,
-                        renderStyle: renderStyle,
+                        displayStyle: displayStyle,
                         displayScale: scale,
                         cameraOrigin: presentedCameraOrigin,
                         playerWorldPosition: presentedPlayerWorldPosition
@@ -57,7 +57,7 @@ public struct FieldMapView: View {
                         playerFacing: playerFacing,
                         objects: objects,
                         metrics: FieldSceneRenderer.sceneMetrics(for: map),
-                        renderStyle: renderStyle,
+                        displayStyle: displayStyle,
                         displayScale: scale,
                         cameraOrigin: presentedCameraOrigin,
                         playerWorldPosition: presentedPlayerWorldPosition
@@ -80,14 +80,31 @@ public struct FieldMapView: View {
     }
 
     private var sceneRenderSignature: FieldSceneRenderIdentity? {
+        Self.sceneRenderTaskIdentity(
+            map: map,
+            playerFacing: playerFacing,
+            playerSpriteID: playerSpriteID,
+            objects: objects,
+            renderAssets: renderAssets,
+            displayStyle: displayStyle
+        )
+    }
+
+    static func sceneRenderTaskIdentity(
+        map: MapManifest,
+        playerFacing: FacingDirection,
+        playerSpriteID: String,
+        objects: [FieldObjectRenderState],
+        renderAssets: FieldRenderAssets?,
+        displayStyle _: FieldDisplayStyle
+    ) -> FieldSceneRenderIdentity? {
         guard let renderAssets else { return nil }
         return FieldSceneRenderIdentity(
             map: map,
             playerFacing: playerFacing,
             playerSpriteID: playerSpriteID,
             objects: objects,
-            assets: renderAssets,
-            style: renderStyle
+            assets: renderAssets
         )
     }
 
@@ -109,7 +126,6 @@ public struct FieldMapView: View {
         let playerFacing = playerFacing
         let playerSpriteID = playerSpriteID
         let objects = objects
-        let renderStyle = renderStyle
 
         let renderResult = await Task.detached(priority: .userInitiated) {
             try? RenderedFieldSceneBox(
@@ -119,8 +135,7 @@ public struct FieldMapView: View {
                     playerFacing: playerFacing,
                     playerSpriteID: playerSpriteID,
                     objects: objects,
-                    assets: assets,
-                    style: renderStyle
+                    assets: assets
                 )
             )
         }.value
@@ -192,13 +207,12 @@ private struct RenderedFieldSceneBox: @unchecked Sendable {
     let scene: FieldRenderedScene
 }
 
-private struct FieldSceneRenderIdentity: Equatable {
+struct FieldSceneRenderIdentity: Equatable {
     let map: MapManifest
     let playerFacing: FacingDirection
     let playerSpriteID: String
     let objects: [FieldObjectRenderState]
     let assets: FieldRenderAssets
-    let style: FieldRenderStyle
 }
 
 private struct FieldPresentationIdentity: Equatable {
@@ -208,7 +222,7 @@ private struct FieldPresentationIdentity: Equatable {
 
 private struct FixedViewportRenderedField: View {
     let scene: FieldRenderedScene
-    let renderStyle: FieldRenderStyle
+    let displayStyle: FieldDisplayStyle
     let displayScale: CGFloat
     let cameraOrigin: CGPoint
     let playerWorldPosition: CGPoint
@@ -248,10 +262,8 @@ private struct FixedViewportRenderedField: View {
                     .zIndex(renderedWorldPosition.y)
             }
 
-            if renderStyle != .rawGrayscale {
-                FieldPixelMatrixOverlay(pixelScale: displayScale, style: renderStyle)
-            }
         }
+        .fieldScreenEffect(displayStyle: displayStyle, displayScale: displayScale)
         .frame(
             width: CGFloat(FieldSceneRenderer.viewportPixelSize.width) * displayScale,
             height: CGFloat(FieldSceneRenderer.viewportPixelSize.height) * displayScale,
@@ -297,7 +309,7 @@ private struct FixedViewportPlaceholderField: View {
     let playerFacing: FacingDirection
     let objects: [FieldObjectRenderState]
     let metrics: FieldSceneMetrics
-    let renderStyle: FieldRenderStyle
+    let displayStyle: FieldDisplayStyle
     let displayScale: CGFloat
     let cameraOrigin: CGPoint
     let playerWorldPosition: CGPoint
@@ -361,10 +373,8 @@ private struct FixedViewportPlaceholderField: View {
                     y: ((playerWorldPosition.y - cameraOrigin.y) * displayScale) + (stepSize / 2)
                 )
 
-            if renderStyle != .rawGrayscale {
-                FieldPixelMatrixOverlay(pixelScale: displayScale, style: renderStyle)
-            }
         }
+        .fieldScreenEffect(displayStyle: displayStyle, displayScale: displayScale)
         .frame(width: viewportWidth, height: viewportHeight, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: max(6, displayScale * 2.5), style: .continuous))
         .overlay {
@@ -439,298 +449,5 @@ private struct FixedViewportPlaceholderField: View {
         case .right:
             return CGSize(width: -amount, height: 0)
         }
-    }
-}
-
-private struct FieldPixelMatrixOverlay: View {
-    let pixelScale: CGFloat
-    let style: FieldRenderStyle
-    @State private var textureImage: CGImage?
-
-    var body: some View {
-        GeometryReader { proxy in
-            Group {
-                if let textureImage {
-                    Image(decorative: textureImage, scale: 1)
-                        .interpolation(.none)
-                        .resizable()
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                }
-            }
-            .task(id: textureKey(for: proxy.size)) {
-                await updateTexture(for: proxy.size)
-            }
-        }
-        .allowsHitTesting(false)
-    }
-
-    @MainActor
-    private func updateTexture(for size: CGSize) async {
-        guard let key = textureKey(for: size), style != .rawGrayscale else {
-            textureImage = nil
-            return
-        }
-
-        let imageBox = await Task.detached(priority: .utility) {
-            let image = FieldPixelMatrixTextureCache.shared.image(for: key) {
-                renderTexture(for: key)
-            }
-            return FieldPixelMatrixTextureBox(image: image)
-        }.value
-        guard Task.isCancelled == false else { return }
-        textureImage = imageBox.image
-    }
-
-    private func textureKey(for size: CGSize) -> FieldPixelMatrixTextureKey? {
-        let width = Int(size.width.rounded(.toNearestOrAwayFromZero))
-        let height = Int(size.height.rounded(.toNearestOrAwayFromZero))
-        guard width > 0, height > 0 else { return nil }
-        return FieldPixelMatrixTextureKey(
-            width: width,
-            height: height,
-            pixelScale: max(1, Int(pixelScale.rounded())),
-            style: style
-        )
-    }
-
-    private func renderTexture(for key: FieldPixelMatrixTextureKey) -> CGImage? {
-        let width = key.width
-        let height = key.height
-        guard let context = CGContext(
-            data: nil,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
-            return nil
-        }
-
-        let size = CGSize(width: width, height: height)
-        let spacing = CGFloat(max(2, key.pixelScale))
-        let lineWidth = max(0.5, CGFloat(key.pixelScale) * 0.04)
-        let dotSize = max(1.2, spacing * dotScale(for: key.style))
-        let bevelOffset = max(0.35, lineWidth * 0.8)
-        let cellAccentSize = max(0.6, dotSize * 0.54)
-        let cellAccentOffset = max(0.28, spacing * 0.12)
-
-        let columns = CGMutablePath()
-        let rows = CGMutablePath()
-        let highlightGrid = CGMutablePath()
-        let shadowGrid = CGMutablePath()
-        let cellHighlightPath = CGMutablePath()
-        let cellShadowPath = CGMutablePath()
-        let dotPath = CGMutablePath()
-
-        var gridX: CGFloat = 0
-        while gridX <= size.width {
-            columns.move(to: CGPoint(x: gridX, y: 0))
-            columns.addLine(to: CGPoint(x: gridX, y: size.height))
-            gridX += spacing
-        }
-
-        var gridY: CGFloat = 0
-        while gridY <= size.height {
-            rows.move(to: CGPoint(x: 0, y: gridY))
-            rows.addLine(to: CGPoint(x: size.width, y: gridY))
-            gridY += spacing
-        }
-
-        var highlightTransform = CGAffineTransform(translationX: -bevelOffset, y: 0)
-        if let translatedColumns = columns.copy(using: &highlightTransform) {
-            highlightGrid.addPath(translatedColumns)
-        }
-        highlightTransform = CGAffineTransform(translationX: 0, y: -bevelOffset)
-        if let translatedRows = rows.copy(using: &highlightTransform) {
-            highlightGrid.addPath(translatedRows)
-        }
-
-        var shadowTransform = CGAffineTransform(translationX: bevelOffset, y: 0)
-        if let translatedColumns = columns.copy(using: &shadowTransform) {
-            shadowGrid.addPath(translatedColumns)
-        }
-        shadowTransform = CGAffineTransform(translationX: 0, y: bevelOffset)
-        if let translatedRows = rows.copy(using: &shadowTransform) {
-            shadowGrid.addPath(translatedRows)
-        }
-
-        stroke(columns, color: gridLineColor(for: key.style), width: lineWidth, in: context)
-        stroke(rows, color: gridLineColor(for: key.style), width: lineWidth, in: context)
-        stroke(highlightGrid, color: gridHighlightColor(for: key.style), width: lineWidth, in: context)
-        stroke(shadowGrid, color: gridShadowColor(for: key.style), width: lineWidth, in: context)
-
-        var y: CGFloat = spacing / 2
-        while y < size.height {
-            var x: CGFloat = spacing / 2
-            while x < size.width {
-                cellHighlightPath.addEllipse(in: CGRect(
-                    x: x - (cellAccentSize / 2) - cellAccentOffset,
-                    y: y - (cellAccentSize / 2) - cellAccentOffset,
-                    width: cellAccentSize,
-                    height: cellAccentSize * 0.78
-                ))
-                cellShadowPath.addEllipse(in: CGRect(
-                    x: x - (cellAccentSize / 2) + cellAccentOffset,
-                    y: y - (cellAccentSize / 2) + cellAccentOffset,
-                    width: cellAccentSize,
-                    height: cellAccentSize * 0.78
-                ))
-                dotPath.addEllipse(in: CGRect(
-                    x: x - (dotSize / 2),
-                    y: y - (dotSize / 2),
-                    width: dotSize,
-                    height: dotSize
-                ))
-                x += spacing
-            }
-            y += spacing
-        }
-
-        fill(cellHighlightPath, color: cellHighlightColor(for: key.style), in: context)
-        fill(cellShadowPath, color: cellShadowColor(for: key.style), in: context)
-        fill(dotPath, color: matrixDotColor(for: key.style), in: context)
-
-        return context.makeImage()
-    }
-
-    private func stroke(_ path: CGPath, color: FieldPixelMatrixColor, width: CGFloat, in context: CGContext) {
-        guard color.alpha > 0 else { return }
-        context.addPath(path)
-        context.setStrokeColor(color.cgColor)
-        context.setLineWidth(width)
-        context.strokePath()
-    }
-
-    private func fill(_ path: CGPath, color: FieldPixelMatrixColor, in context: CGContext) {
-        guard color.alpha > 0 else { return }
-        context.addPath(path)
-        context.setFillColor(color.cgColor)
-        context.fillPath()
-    }
-
-    private func matrixDotColor(for style: FieldRenderStyle) -> FieldPixelMatrixColor {
-        switch style {
-        case .rawGrayscale:
-            return .clear
-        case .dmgAuthentic:
-            return .init(red: 0.08, green: 0.18, blue: 0.06, alpha: 0.14)
-        case .dmgTinted:
-            return .init(red: 0.11, green: 0.22, blue: 0.08, alpha: 0.12)
-        }
-    }
-
-    private func gridHighlightColor(for style: FieldRenderStyle) -> FieldPixelMatrixColor {
-        switch style {
-        case .rawGrayscale:
-            return .clear
-        case .dmgAuthentic:
-            return .init(red: 0.78, green: 0.88, blue: 0.68, alpha: 0.045)
-        case .dmgTinted:
-            return .init(red: 0.83, green: 0.91, blue: 0.74, alpha: 0.055)
-        }
-    }
-
-    private func gridShadowColor(for style: FieldRenderStyle) -> FieldPixelMatrixColor {
-        switch style {
-        case .rawGrayscale:
-            return .clear
-        case .dmgAuthentic:
-            return .init(red: 0.05, green: 0.12, blue: 0.04, alpha: 0.085)
-        case .dmgTinted:
-            return .init(red: 0.07, green: 0.14, blue: 0.05, alpha: 0.09)
-        }
-    }
-
-    private func gridLineColor(for style: FieldRenderStyle) -> FieldPixelMatrixColor {
-        switch style {
-        case .rawGrayscale:
-            return .clear
-        case .dmgAuthentic:
-            return .init(red: 0.09, green: 0.17, blue: 0.06, alpha: 0.08)
-        case .dmgTinted:
-            return .init(red: 0.12, green: 0.21, blue: 0.09, alpha: 0.075)
-        }
-    }
-
-    private func cellHighlightColor(for style: FieldRenderStyle) -> FieldPixelMatrixColor {
-        switch style {
-        case .rawGrayscale:
-            return .clear
-        case .dmgAuthentic:
-            return .init(red: 0.88, green: 0.95, blue: 0.74, alpha: 0.03)
-        case .dmgTinted:
-            return .init(red: 0.9, green: 0.97, blue: 0.8, alpha: 0.038)
-        }
-    }
-
-    private func cellShadowColor(for style: FieldRenderStyle) -> FieldPixelMatrixColor {
-        switch style {
-        case .rawGrayscale:
-            return .clear
-        case .dmgAuthentic:
-            return .init(red: 0.04, green: 0.1, blue: 0.03, alpha: 0.055)
-        case .dmgTinted:
-            return .init(red: 0.05, green: 0.11, blue: 0.04, alpha: 0.065)
-        }
-    }
-
-    private func dotScale(for style: FieldRenderStyle) -> CGFloat {
-        switch style {
-        case .rawGrayscale:
-            return 0
-        case .dmgAuthentic:
-            return 0.26
-        case .dmgTinted:
-            return 0.24
-        }
-    }
-}
-
-private struct FieldPixelMatrixTextureKey: Hashable {
-    let width: Int
-    let height: Int
-    let pixelScale: Int
-    let style: FieldRenderStyle
-}
-
-private struct FieldPixelMatrixTextureBox: @unchecked Sendable {
-    let image: CGImage?
-}
-
-private struct FieldPixelMatrixColor {
-    let red: CGFloat
-    let green: CGFloat
-    let blue: CGFloat
-    let alpha: CGFloat
-
-    static let clear = FieldPixelMatrixColor(red: 0, green: 0, blue: 0, alpha: 0)
-
-    var cgColor: CGColor {
-        CGColor(red: red, green: green, blue: blue, alpha: alpha)
-    }
-}
-
-private final class FieldPixelMatrixTextureCache: @unchecked Sendable {
-    static let shared = FieldPixelMatrixTextureCache()
-
-    private let lock = NSLock()
-    private var cachedImages: [FieldPixelMatrixTextureKey: CGImage] = [:]
-
-    func image(for key: FieldPixelMatrixTextureKey, builder: () -> CGImage?) -> CGImage? {
-        lock.lock()
-        if let image = cachedImages[key] {
-            lock.unlock()
-            return image
-        }
-        lock.unlock()
-
-        guard let image = builder() else { return nil }
-
-        lock.lock()
-        cachedImages[key] = image
-        lock.unlock()
-        return image
     }
 }

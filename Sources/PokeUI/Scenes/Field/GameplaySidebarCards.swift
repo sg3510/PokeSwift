@@ -9,7 +9,7 @@ struct GameplaySidebar: View {
     let inventory: InventorySidebarProps
     let save: SaveSidebarProps
     let options: OptionsSidebarProps
-    @Binding var fieldRenderStyle: FieldRenderStyle
+    @Binding var fieldDisplayStyle: FieldDisplayStyle
 
     @State private var expansionState = GameplaySidebarExpansionState()
 
@@ -57,14 +57,14 @@ struct GameplaySidebar: View {
 
             AccordionSidebarCard(
                 title: options.title,
-                summary: fieldRenderStyle.sidebarSummaryLabel,
+                summary: fieldDisplayStyle.sidebarSummaryLabel,
                 isExpanded: expansionState.expandedSection == .options
             ) {
                 expansionState.activate(.options)
             } content: {
                 OptionsSidebarContent(
                     props: options,
-                    fieldRenderStyle: $fieldRenderStyle
+                    fieldDisplayStyle: $fieldDisplayStyle
                 )
             }
 
@@ -274,11 +274,11 @@ private struct SaveSidebarContent: View {
 
 private struct OptionsSidebarContent: View {
     let props: OptionsSidebarProps
-    @Binding var fieldRenderStyle: FieldRenderStyle
+    @Binding var fieldDisplayStyle: FieldDisplayStyle
 
     var body: some View {
         VStack(spacing: 8) {
-            FieldRenderStyleOptionsRow(selectedStyle: $fieldRenderStyle)
+            FieldDisplayStyleOptionsRow(selectedStyle: $fieldDisplayStyle)
 
             ForEach(props.rows) { row in
                 SidebarActionRow(props: row, rendersAsButton: false)
@@ -287,10 +287,10 @@ private struct OptionsSidebarContent: View {
     }
 }
 
-private struct FieldRenderStyleOptionsRow: View {
-    @Binding var selectedStyle: FieldRenderStyle
+private struct FieldDisplayStyleOptionsRow: View {
+    @Binding var selectedStyle: FieldDisplayStyle
 
-    private let styles: [FieldRenderStyle] = [.dmgTinted, .dmgAuthentic, .rawGrayscale]
+    private let styles: [FieldDisplayStyle] = [.dmgTinted, .dmgAuthentic, .rawGrayscale]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -331,15 +331,15 @@ private struct FieldRenderStyleOptionsRow: View {
         .background(FieldRetroPalette.slotFill.opacity(0.88), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func buttonFill(for style: FieldRenderStyle) -> Color {
+    private func buttonFill(for style: FieldDisplayStyle) -> Color {
         selectedStyle == style ? FieldRetroPalette.leadSlotFill : FieldRetroPalette.cardFill.opacity(0.76)
     }
 
-    private func buttonStroke(for style: FieldRenderStyle) -> Color {
+    private func buttonStroke(for style: FieldDisplayStyle) -> Color {
         selectedStyle == style ? FieldRetroPalette.ink.opacity(0.5) : FieldRetroPalette.ink.opacity(0.14)
     }
 
-    private func buttonTextColor(for style: FieldRenderStyle) -> Color {
+    private func buttonTextColor(for style: FieldDisplayStyle) -> Color {
         selectedStyle == style ? FieldRetroPalette.ink : FieldRetroPalette.ink.opacity(0.72)
     }
 }
