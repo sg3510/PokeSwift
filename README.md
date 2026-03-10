@@ -1,6 +1,6 @@
 # PokeSwift
 
-![PokeSwift title screen](docs/images/pokeswift-title-screen.png)
+![PokeSwift field sidebar shell](docs/images/pokeswift-field-sidebar-shell.png)
 
 PokeSwift is a native macOS reinterpretation of Pokemon Red built in Swift.
 
