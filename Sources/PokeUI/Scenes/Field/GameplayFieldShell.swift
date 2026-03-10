@@ -1,43 +1,32 @@
 import SwiftUI
 
-public struct GameplayFieldShell<MapStage: View>: View {
-    private let profile: TrainerProfileProps
-    private let party: PartySidebarProps
-    private let inventory: InventorySidebarProps
-    private let save: SaveSidebarProps
-    private let options: OptionsSidebarProps
+public enum GameplayFooterPlacement {
+    case insideScreen
+    case belowScreen
+}
+
+public struct GameplayShell<Stage: View>: View {
+    private let sidebarMode: GameplaySidebarMode
     @Binding private var fieldDisplayStyle: FieldDisplayStyle
-    private let mapStage: MapStage
+    private let stage: Stage
 
     public init(
-        profile: TrainerProfileProps,
-        party: PartySidebarProps,
-        inventory: InventorySidebarProps,
-        save: SaveSidebarProps,
-        options: OptionsSidebarProps,
+        sidebarMode: GameplaySidebarMode,
         fieldDisplayStyle: Binding<FieldDisplayStyle>,
-        @ViewBuilder mapStage: () -> MapStage
+        @ViewBuilder stage: () -> Stage
     ) {
-        self.profile = profile
-        self.party = party
-        self.inventory = inventory
-        self.save = save
-        self.options = options
+        self.sidebarMode = sidebarMode
         _fieldDisplayStyle = fieldDisplayStyle
-        self.mapStage = mapStage()
+        self.stage = stage()
     }
 
     public var body: some View {
         HStack(alignment: .top, spacing: GameplayFieldMetrics.interColumnSpacing) {
-            mapStage
+            stage
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             GameplaySidebar(
-                profile: profile,
-                party: party,
-                inventory: inventory,
-                save: save,
-                options: options,
+                mode: sidebarMode,
                 fieldDisplayStyle: $fieldDisplayStyle
             )
             .frame(width: GameplayFieldMetrics.sidebarWidth)
@@ -47,27 +36,32 @@ public struct GameplayFieldShell<MapStage: View>: View {
     }
 }
 
-public struct FieldMapStage<MapContent: View, Footer: View, OverlayContent: View>: View {
-    private let mapContent: MapContent
+public struct GameplayShellStage<ScreenContent: View, Footer: View, OverlayContent: View>: View {
+    private let screenContent: ScreenContent
     private let footer: Footer
     private let overlayContent: OverlayContent
+    private let footerPlacement: GameplayFooterPlacement
 
     public init(
-        @ViewBuilder mapContent: () -> MapContent,
+        footerPlacement: GameplayFooterPlacement = .insideScreen,
+        @ViewBuilder screenContent: () -> ScreenContent,
         @ViewBuilder footer: () -> Footer,
         @ViewBuilder overlayContent: () -> OverlayContent
     ) {
-        self.mapContent = mapContent()
+        self.footerPlacement = footerPlacement
+        self.screenContent = screenContent()
         self.footer = footer()
         self.overlayContent = overlayContent()
     }
 
     public var body: some View {
         ZStack(alignment: .topTrailing) {
-            DMGFieldDisplayShell {
-                mapContent
+            GameplayDisplayShell {
+                screenContent
             } footer: {
                 footer
+            } footerPlacement: {
+                footerPlacement
             }
             .frame(maxWidth: 920)
             .padding(.top, 24)
@@ -112,23 +106,83 @@ public struct FieldMapStage<MapContent: View, Footer: View, OverlayContent: View
     }
 }
 
-private struct DMGFieldDisplayShell<Content: View, Footer: View>: View {
+public struct FieldMapStage<MapContent: View, Footer: View, OverlayContent: View>: View {
+    private let mapContent: MapContent
+    private let footer: Footer
+    private let overlayContent: OverlayContent
+
+    public init(
+        @ViewBuilder mapContent: () -> MapContent,
+        @ViewBuilder footer: () -> Footer,
+        @ViewBuilder overlayContent: () -> OverlayContent
+    ) {
+        self.mapContent = mapContent()
+        self.footer = footer()
+        self.overlayContent = overlayContent()
+    }
+
+    public var body: some View {
+        GameplayShellStage {
+            mapContent
+        } footer: {
+            footer
+        } overlayContent: {
+            overlayContent
+        }
+    }
+}
+
+public struct BattleViewportStage<Content: View, Footer: View>: View {
     private let content: Content
     private let footer: Footer
 
-    init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+    public init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
         self.content = content()
         self.footer = footer()
     }
 
+    public var body: some View {
+        GameplayShellStage {
+            content
+        } footer: {
+            footer
+        } overlayContent: {
+            EmptyView()
+        }
+    }
+}
+
+private struct GameplayDisplayShell<Content: View, Footer: View>: View {
+    private let content: Content
+    private let footer: Footer
+    private let footerPlacement: GameplayFooterPlacement
+
+    init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder footer: () -> Footer,
+        footerPlacement: @escaping () -> GameplayFooterPlacement
+    ) {
+        self.content = content()
+        self.footer = footer()
+        self.footerPlacement = footerPlacement()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            DMGFieldScreenWell {
+            GameplayScreenWell {
                 content
             } footer: {
                 footer
+            } footerPlacement: {
+                footerPlacement
             }
             .frame(maxWidth: 920)
+
+            if footerPlacement == .belowScreen {
+                footer
+                    .frame(maxWidth: 760, alignment: .leading)
+                    .padding(.leading, 10)
+            }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Nintendo")
@@ -144,13 +198,19 @@ private struct DMGFieldDisplayShell<Content: View, Footer: View>: View {
     }
 }
 
-private struct DMGFieldScreenWell<Content: View, Footer: View>: View {
+private struct GameplayScreenWell<Content: View, Footer: View>: View {
     private let content: Content
     private let footer: Footer
+    private let footerPlacement: GameplayFooterPlacement
 
-    init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+    init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder footer: () -> Footer,
+        footerPlacement: @escaping () -> GameplayFooterPlacement
+    ) {
         self.content = content()
         self.footer = footer()
+        self.footerPlacement = footerPlacement()
     }
 
     var body: some View {
@@ -253,17 +313,19 @@ private struct DMGFieldScreenWell<Content: View, Footer: View>: View {
                     .frame(width: screenRect.width, height: screenRect.height)
                     .position(x: screenRect.midX, y: screenRect.midY)
 
-                ZStack(alignment: .bottom) {
-                    footer
-                        .frame(
-                            width: screenRect.width - (max(10, lcdScale * 2) * 2),
-                            alignment: .leading
-                        )
-                        .padding(.horizontal, max(10, lcdScale * 2))
-                        .padding(.bottom, max(10, lcdScale * 2))
+                if footerPlacement == .insideScreen {
+                    ZStack(alignment: .bottom) {
+                        footer
+                            .frame(
+                                width: screenRect.width - (max(10, lcdScale * 2) * 2),
+                                alignment: .leading
+                            )
+                            .padding(.horizontal, max(10, lcdScale * 2))
+                            .padding(.bottom, max(10, lcdScale * 2))
+                    }
+                    .frame(width: screenRect.width, height: screenRect.height, alignment: .bottom)
+                    .position(x: screenRect.midX, y: screenRect.midY)
                 }
-                .frame(width: screenRect.width, height: screenRect.height, alignment: .bottom)
-                .position(x: screenRect.midX, y: screenRect.midY)
             }
         }
         .aspectRatio(1.14, contentMode: .fit)

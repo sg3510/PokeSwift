@@ -3,7 +3,18 @@ import PokeCore
 import PokeDataModel
 import PokeUI
 
-struct GameplayFieldSceneProps {
+struct GameplaySceneProps {
+    let viewport: GameplayViewportProps
+    let sidebarMode: GameplaySidebarMode
+    let initialFieldDisplayStyle: FieldDisplayStyle
+}
+
+enum GameplayViewportProps {
+    case field(GameplayFieldViewportProps)
+    case battle(BattleViewportProps)
+}
+
+struct GameplayFieldViewportProps {
     let map: MapManifest?
     let playerPosition: TilePoint?
     let playerFacing: FacingDirection
@@ -12,25 +23,16 @@ struct GameplayFieldSceneProps {
     let playerSpriteID: String
     let renderAssets: FieldRenderAssets?
     let fieldTransition: FieldTransitionTelemetry?
-    let initialFieldDisplayStyle: FieldDisplayStyle
     let dialogueLines: [String]?
     let starterChoiceOptions: [SpeciesManifest]
     let starterChoiceFocusedIndex: Int
-    let profile: TrainerProfileProps
-    let party: PartySidebarProps
-    let inventory: InventorySidebarProps
-    let save: SaveSidebarProps
-    let options: OptionsSidebarProps
 }
 
-struct BattleSceneProps {
+struct BattleViewportProps {
     let trainerName: String
-    let phase: String
     let textLines: [String]
     let playerPokemon: PartyPokemonTelemetry
     let enemyPokemon: PartyPokemonTelemetry
-    let moveSlots: [BattleMoveSlotTelemetry]
-    let focusedMoveIndex: Int
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
 }
@@ -39,47 +41,68 @@ struct PlaceholderSceneProps {
     let title: String?
 }
 
-struct GameplayFieldScene: View {
-    let props: GameplayFieldSceneProps
+struct GameplayScene: View {
+    let props: GameplaySceneProps
     @State private var fieldDisplayStyle: FieldDisplayStyle
 
-    init(props: GameplayFieldSceneProps) {
+    init(props: GameplaySceneProps) {
         self.props = props
         _fieldDisplayStyle = State(initialValue: props.initialFieldDisplayStyle)
     }
 
     var body: some View {
         GameBoyScreen(style: .fieldShell) {
-            GameplayFieldShell(
-                profile: props.profile,
-                party: props.party,
-                inventory: props.inventory,
-                save: props.save,
-                options: props.options,
+            GameplayShell(
+                sidebarMode: props.sidebarMode,
                 fieldDisplayStyle: $fieldDisplayStyle
             ) {
-                FieldMapStage {
-                    mapStageContent
-                } footer: {
-                    if let dialogueLines = props.dialogueLines {
-                        DialogueBoxView(lines: dialogueLines)
-                            .frame(maxWidth: 760)
-                    }
-                } overlayContent: {
-                    if props.starterChoiceOptions.isEmpty == false {
-                        StarterChoicePanel(
-                            options: props.starterChoiceOptions,
-                            focusedIndex: props.starterChoiceFocusedIndex
-                        )
-                        .frame(width: 420)
-                    }
-                }
+                stage
             }
         }
     }
 
     @ViewBuilder
-    private var mapStageContent: some View {
+    private var stage: some View {
+        switch props.viewport {
+        case let .field(fieldProps):
+            FieldMapStage {
+                fieldMapStageContent(fieldProps)
+            } footer: {
+                if let dialogueLines = fieldProps.dialogueLines {
+                    DialogueBoxView(lines: dialogueLines)
+                        .frame(maxWidth: 760)
+                }
+            } overlayContent: {
+                if fieldProps.starterChoiceOptions.isEmpty == false {
+                    StarterChoicePanel(
+                        options: fieldProps.starterChoiceOptions,
+                        focusedIndex: fieldProps.starterChoiceFocusedIndex
+                    )
+                    .frame(width: 420)
+                }
+            }
+        case let .battle(battleProps):
+            BattleViewportStage {
+                BattlePanel(
+                    trainerName: battleProps.trainerName,
+                    playerPokemon: battleProps.playerPokemon,
+                    enemyPokemon: battleProps.enemyPokemon,
+                    playerSpriteURL: battleProps.playerSpriteURL,
+                    enemySpriteURL: battleProps.enemySpriteURL,
+                    displayStyle: fieldDisplayStyle
+                )
+            } footer: {
+                DialogueBoxView(
+                    title: "Battle",
+                    lines: battleProps.textLines.isEmpty ? ["Pick the next move."] : battleProps.textLines
+                )
+                .frame(maxWidth: 760)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fieldMapStageContent(_ props: GameplayFieldViewportProps) -> some View {
         if let map = props.map,
            let playerPosition = props.playerPosition {
             FieldMapView(
@@ -103,27 +126,6 @@ struct GameplayFieldScene: View {
             }
             .foregroundStyle(.black.opacity(0.78))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-}
-
-struct BattleScene: View {
-    let props: BattleSceneProps
-
-    var body: some View {
-        GameBoyScreen {
-            BattlePanel(
-                trainerName: props.trainerName,
-                phase: props.phase,
-                textLines: props.textLines,
-                playerPokemon: props.playerPokemon,
-                enemyPokemon: props.enemyPokemon,
-                moveSlots: props.moveSlots,
-                focusedMoveIndex: props.focusedMoveIndex,
-                playerSpriteURL: props.playerSpriteURL,
-                enemySpriteURL: props.enemySpriteURL
-            )
-            .padding(36)
         }
     }
 }

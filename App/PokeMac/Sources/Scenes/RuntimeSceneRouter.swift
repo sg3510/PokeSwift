@@ -23,36 +23,13 @@ struct RuntimeSceneRouter: View {
                     focusedIndex: runtime.focusedIndex
                 )
             )
-        case .field, .dialogue, .scriptedSequence, .starterChoice:
-            GameplayFieldScene(props: GameplayFieldScenePropsFactory.make(runtime: runtime))
-        case .battle:
-            if let battleSceneProps {
-                BattleScene(props: battleSceneProps)
+        case .field, .dialogue, .scriptedSequence, .starterChoice, .battle:
+            if let gameplaySceneProps = GameplayScenePropsFactory.make(runtime: runtime) {
+                GameplayScene(props: gameplaySceneProps)
             }
         case .placeholder:
             PlaceholderScene(props: .init(title: runtime.placeholderTitle))
         }
-    }
-
-    private var battleSceneProps: BattleSceneProps? {
-        guard let battle = runtime.currentSnapshot().battle else { return nil }
-        let playerSpriteURL = runtime.content.species(id: battle.playerPokemon.speciesID)?
-            .battleSprite
-            .map { runtime.content.rootURL.appendingPathComponent($0.backImagePath) }
-        let enemySpriteURL = runtime.content.species(id: battle.enemyPokemon.speciesID)?
-            .battleSprite
-            .map { runtime.content.rootURL.appendingPathComponent($0.frontImagePath) }
-        return BattleSceneProps(
-            trainerName: battle.trainerName,
-            phase: battle.phase,
-            textLines: battle.textLines,
-            playerPokemon: battle.playerPokemon,
-            enemyPokemon: battle.enemyPokemon,
-            moveSlots: battle.moveSlots,
-            focusedMoveIndex: battle.focusedMoveIndex,
-            playerSpriteURL: playerSpriteURL,
-            enemySpriteURL: enemySpriteURL
-        )
     }
 }
 

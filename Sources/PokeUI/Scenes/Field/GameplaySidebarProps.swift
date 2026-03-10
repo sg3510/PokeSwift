@@ -3,6 +3,7 @@ import PokeDataModel
 
 public enum GameplaySidebarExpandedSection: String, Equatable, Sendable, CaseIterable {
     case trainer
+    case battleCombat
     case party
     case bag
     case save
@@ -228,6 +229,115 @@ public struct OptionsSidebarProps: Equatable, Sendable {
     public init(title: String, rows: [SidebarActionRowProps]) {
         self.title = title
         self.rows = rows
+    }
+}
+
+public struct GameplayFieldSidebarProps: Equatable, Sendable {
+    public let profile: TrainerProfileProps
+    public let party: PartySidebarProps
+    public let inventory: InventorySidebarProps
+    public let save: SaveSidebarProps
+    public let options: OptionsSidebarProps
+
+    public init(
+        profile: TrainerProfileProps,
+        party: PartySidebarProps,
+        inventory: InventorySidebarProps,
+        save: SaveSidebarProps,
+        options: OptionsSidebarProps
+    ) {
+        self.profile = profile
+        self.party = party
+        self.inventory = inventory
+        self.save = save
+        self.options = options
+    }
+}
+
+public struct BattleSidebarProps: Equatable, Sendable {
+    public let trainerName: String
+    public let phase: String
+    public let promptText: String
+    public let playerPokemon: PartyPokemonTelemetry
+    public let enemyPokemon: PartyPokemonTelemetry
+    public let moveSlots: [BattleMoveSlotTelemetry]
+    public let focusedMoveIndex: Int
+    public let party: PartySidebarProps
+
+    public init(
+        trainerName: String,
+        phase: String,
+        promptText: String,
+        playerPokemon: PartyPokemonTelemetry,
+        enemyPokemon: PartyPokemonTelemetry,
+        moveSlots: [BattleMoveSlotTelemetry],
+        focusedMoveIndex: Int,
+        party: PartySidebarProps
+    ) {
+        self.trainerName = trainerName
+        self.phase = phase
+        self.promptText = promptText
+        self.playerPokemon = playerPokemon
+        self.enemyPokemon = enemyPokemon
+        self.moveSlots = moveSlots
+        self.focusedMoveIndex = focusedMoveIndex
+        self.party = party
+    }
+}
+
+public enum GameplaySidebarKind: String, Equatable, Sendable {
+    case fieldLike
+    case battle
+
+    public static func forScene(_ scene: RuntimeScene) -> GameplaySidebarKind {
+        switch scene {
+        case .battle:
+            return .battle
+        default:
+            return .fieldLike
+        }
+    }
+}
+
+public enum GameplaySidebarMode: Equatable, Sendable {
+    case fieldLike(GameplayFieldSidebarProps)
+    case battle(BattleSidebarProps)
+
+    public var kind: GameplaySidebarKind {
+        switch self {
+        case .fieldLike:
+            return .fieldLike
+        case .battle:
+            return .battle
+        }
+    }
+
+    public var defaultExpandedSection: GameplaySidebarExpandedSection {
+        switch self {
+        case .fieldLike:
+            return .trainer
+        case .battle:
+            return .battleCombat
+        }
+    }
+
+    public func supports(_ section: GameplaySidebarExpandedSection) -> Bool {
+        switch self {
+        case .fieldLike:
+            switch section {
+            case .trainer, .party, .bag, .save, .options:
+                return true
+            case .battleCombat:
+                return false
+            }
+        case .battle:
+            switch section {
+            case .battleCombat, .party:
+                return true
+            case .trainer, .bag, .save, .options:
+                return false
+            }
+        }
     }
 }
 

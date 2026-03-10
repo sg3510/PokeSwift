@@ -3,57 +3,94 @@ import PokeDataModel
 import PokeUI
 
 @MainActor
-enum GameplayFieldScenePropsFactory {
-    static func make(runtime: GameRuntime) -> GameplayFieldSceneProps {
+enum GameplayScenePropsFactory {
+    static func make(runtime: GameRuntime) -> GameplaySceneProps? {
         let snapshot = runtime.currentSnapshot()
-        let sidebarProps = GameplaySidebarScenePropsFactory.make(runtime: runtime, party: snapshot.party)
-
-        return GameplayFieldSceneProps(
-            map: runtime.currentMapManifest,
-            playerPosition: runtime.playerPosition,
-            playerFacing: runtime.playerFacing,
-            playerStepDuration: runtime.fieldAnimationStepDuration,
-            objects: runtime.currentFieldObjects,
-            playerSpriteID: runtime.playerSpriteID,
-            renderAssets: makeFieldRenderAssets(runtime: runtime),
-            fieldTransition: snapshot.field?.transition,
-            initialFieldDisplayStyle: .defaultGameplayStyle,
-            dialogueLines: runtime.currentDialoguePage?.lines,
-            starterChoiceOptions: runtime.scene == .starterChoice ? runtime.starterChoiceOptions : [],
-            starterChoiceFocusedIndex: runtime.starterChoiceFocusedIndex,
-            profile: sidebarProps.profile,
-            party: sidebarProps.party,
-            inventory: sidebarProps.inventory,
-            save: sidebarProps.save,
-            options: sidebarProps.options
-        )
-    }
-}
-
-@MainActor
-private enum GameplaySidebarScenePropsFactory {
-    static func make(runtime: GameRuntime, party: PartyTelemetry?) -> GameplaySidebarSceneProps {
         let manifestIndex = GameplaySidebarManifestIndex(runtime: runtime)
+        let sidebarParty = GameplaySidebarPropsBuilder.makeParty(
+            from: snapshot.party,
+            speciesDetailsByID: manifestIndex.speciesDetailsByID,
+            moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID
+        )
 
-        return GameplaySidebarSceneProps(
-            profile: GameplaySidebarPropsBuilder.makeProfile(
-                trainerName: runtime.playerName,
-                locationName: runtime.currentMapManifest?.displayName ?? "Unknown Location",
-                scene: runtime.scene,
-                playerPosition: runtime.playerPosition,
-                facing: runtime.playerPosition == nil ? nil : runtime.playerFacing,
-                portrait: makeTrainerPortrait(runtime: runtime),
-                money: runtime.playerMoney,
-                ownedBadgeIDs: runtime.earnedBadgeIDs
-            ),
-            party: GameplaySidebarPropsBuilder.makeParty(
-                from: party,
-                speciesDetailsByID: manifestIndex.speciesDetailsByID,
-                moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID
-            ),
-            inventory: GameplaySidebarPropsBuilder.makeInventory(),
-            save: GameplaySidebarPropsBuilder.makeSaveSection(),
-            options: GameplaySidebarPropsBuilder.makeOptionsSection()
+        switch GameplaySidebarKind.forScene(runtime.scene) {
+        case .fieldLike:
+            return GameplaySceneProps(
+                viewport: .field(
+                    GameplayFieldViewportProps(
+                        map: runtime.currentMapManifest,
+                        playerPosition: runtime.playerPosition,
+                        playerFacing: runtime.playerFacing,
+                        playerStepDuration: runtime.fieldAnimationStepDuration,
+                        objects: runtime.currentFieldObjects,
+                        playerSpriteID: runtime.playerSpriteID,
+                        renderAssets: makeFieldRenderAssets(runtime: runtime),
+                        fieldTransition: snapshot.field?.transition,
+                        dialogueLines: runtime.currentDialoguePage?.lines,
+                        starterChoiceOptions: runtime.scene == .starterChoice ? runtime.starterChoiceOptions : [],
+                        starterChoiceFocusedIndex: runtime.starterChoiceFocusedIndex
+                    )
+                ),
+                sidebarMode: .fieldLike(
+                    GameplayFieldSidebarProps(
+                        profile: makeTrainerProfile(runtime: runtime),
+                        party: sidebarParty,
+                        inventory: GameplaySidebarPropsBuilder.makeInventory(),
+                        save: GameplaySidebarPropsBuilder.makeSaveSection(),
+                        options: GameplaySidebarPropsBuilder.makeOptionsSection()
+                    )
+                ),
+                initialFieldDisplayStyle: .defaultGameplayStyle
+            )
+        case .battle:
+            guard let battle = snapshot.battle else { return nil }
+
+            let playerSpriteURL = runtime.content.species(id: battle.playerPokemon.speciesID)?
+                .battleSprite
+                .map { runtime.content.rootURL.appendingPathComponent($0.backImagePath) }
+            let enemySpriteURL = runtime.content.species(id: battle.enemyPokemon.speciesID)?
+                .battleSprite
+                .map { runtime.content.rootURL.appendingPathComponent($0.frontImagePath) }
+            let promptText = battle.textLines.last ?? (battle.battleMessage.isEmpty ? "Pick the next move." : battle.battleMessage)
+
+            return GameplaySceneProps(
+                viewport: .battle(
+                    BattleViewportProps(
+                        trainerName: battle.trainerName,
+                        textLines: battle.textLines,
+                        playerPokemon: battle.playerPokemon,
+                        enemyPokemon: battle.enemyPokemon,
+                        playerSpriteURL: playerSpriteURL,
+                        enemySpriteURL: enemySpriteURL
+                    )
+                ),
+                sidebarMode: .battle(
+                    BattleSidebarProps(
+                        trainerName: battle.trainerName,
+                        phase: battle.phase,
+                        promptText: promptText,
+                        playerPokemon: battle.playerPokemon,
+                        enemyPokemon: battle.enemyPokemon,
+                        moveSlots: battle.moveSlots,
+                        focusedMoveIndex: battle.focusedMoveIndex,
+                        party: sidebarParty
+                    )
+                ),
+                initialFieldDisplayStyle: .defaultGameplayStyle
+            )
+        }
+    }
+
+    private static func makeTrainerProfile(runtime: GameRuntime) -> TrainerProfileProps {
+        GameplaySidebarPropsBuilder.makeProfile(
+            trainerName: runtime.playerName,
+            locationName: runtime.currentMapManifest?.displayName ?? "Unknown Location",
+            scene: runtime.scene,
+            playerPosition: runtime.playerPosition,
+            facing: runtime.playerPosition == nil ? nil : runtime.playerFacing,
+            portrait: makeTrainerPortrait(runtime: runtime),
+            money: runtime.playerMoney,
+            ownedBadgeIDs: runtime.earnedBadgeIDs
         )
     }
 
@@ -80,14 +117,6 @@ private enum GameplaySidebarScenePropsFactory {
             spriteFrame: spriteFrame
         )
     }
-}
-
-private struct GameplaySidebarSceneProps {
-    let profile: TrainerProfileProps
-    let party: PartySidebarProps
-    let inventory: InventorySidebarProps
-    let save: SaveSidebarProps
-    let options: OptionsSidebarProps
 }
 
 @MainActor

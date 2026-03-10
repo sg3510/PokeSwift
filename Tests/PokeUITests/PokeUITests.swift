@@ -33,33 +33,38 @@ final class PokeUITests: XCTestCase {
         XCTAssertNotNil(view)
     }
 
-    func testGameplayFieldShellCanBeConstructed() {
-        let view = GameplayFieldShell(
-            profile: .init(
-                trainerName: "RED",
-                locationName: "Pallet Town",
-                portrait: .init(label: "RED", spriteURL: nil, spriteFrame: nil),
-                badges: [],
-                badgeSummaryText: "0/8",
-                moneyText: "¥3,000",
-                statusItems: ["FIELD", "X4 Y6", "DOWN"]
-            ),
-            party: .init(
-                pokemon: [
-                    .init(
-                        id: "bulbasaur-0",
-                        speciesID: "BULBASAUR",
-                        displayName: "Bulbasaur",
-                        level: 5,
-                        currentHP: 19,
-                        maxHP: 19,
-                        isLead: true
-                    ),
-                ]
-            ),
-            inventory: GameplaySidebarPropsBuilder.makeInventory(),
-            save: GameplaySidebarPropsBuilder.makeSaveSection(),
-            options: GameplaySidebarPropsBuilder.makeOptionsSection(),
+    func testGameplayShellCanBeConstructedForFieldMode() {
+        let sidebarMode = GameplaySidebarMode.fieldLike(
+            GameplayFieldSidebarProps(
+                profile: .init(
+                    trainerName: "RED",
+                    locationName: "Pallet Town",
+                    portrait: .init(label: "RED", spriteURL: nil, spriteFrame: nil),
+                    badges: [],
+                    badgeSummaryText: "0/8",
+                    moneyText: "¥3,000",
+                    statusItems: ["FIELD", "X4 Y6", "DOWN"]
+                ),
+                party: .init(
+                    pokemon: [
+                        .init(
+                            id: "bulbasaur-0",
+                            speciesID: "BULBASAUR",
+                            displayName: "Bulbasaur",
+                            level: 5,
+                            currentHP: 19,
+                            maxHP: 19,
+                            isLead: true
+                        ),
+                    ]
+                ),
+                inventory: GameplaySidebarPropsBuilder.makeInventory(),
+                save: GameplaySidebarPropsBuilder.makeSaveSection(),
+                options: GameplaySidebarPropsBuilder.makeOptionsSection()
+            )
+        )
+        let view = GameplayShell(
+            sidebarMode: sidebarMode,
             fieldDisplayStyle: .constant(.defaultGameplayStyle)
         ) {
             FieldMapStage {
@@ -68,6 +73,62 @@ final class PokeUITests: XCTestCase {
                 Text("Dialogue")
             } overlayContent: {
                 Text("Overlay")
+            }
+        }
+
+        XCTAssertNotNil(view)
+    }
+
+    func testGameplayShellCanBeConstructedForBattleMode() {
+        let sidebarMode = GameplaySidebarMode.battle(
+            BattleSidebarProps(
+                trainerName: "BLUE",
+                phase: "moveSelection",
+                promptText: "Pick the next move.",
+                playerPokemon: .init(
+                    speciesID: "BULBASAUR",
+                    displayName: "Bulbasaur",
+                    level: 5,
+                    currentHP: 19,
+                    maxHP: 19,
+                    moves: ["TACKLE", "GROWL"]
+                ),
+                enemyPokemon: .init(
+                    speciesID: "CHARMANDER",
+                    displayName: "Charmander",
+                    level: 5,
+                    currentHP: 18,
+                    maxHP: 20,
+                    moves: ["SCRATCH", "GROWL"]
+                ),
+                moveSlots: [
+                    .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true),
+                    .init(moveID: "GROWL", displayName: "Growl", currentPP: 40, maxPP: 40, isSelectable: true),
+                ],
+                focusedMoveIndex: 1,
+                party: .init(
+                    pokemon: [
+                        .init(
+                            id: "bulbasaur-0",
+                            speciesID: "BULBASAUR",
+                            displayName: "Bulbasaur",
+                            level: 5,
+                            currentHP: 19,
+                            maxHP: 19,
+                            isLead: true
+                        ),
+                    ]
+                )
+            )
+        )
+        let view = GameplayShell(
+            sidebarMode: sidebarMode,
+            fieldDisplayStyle: .constant(.defaultGameplayStyle)
+        ) {
+            BattleViewportStage {
+                Color.black
+            } footer: {
+                Text("Battle text")
             }
         }
 
@@ -191,6 +252,95 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(inventory.emptyStateTitle, "No items yet")
     }
 
+    func testGameplaySidebarKindMapsRuntimeScenesForGameplayLayout() {
+        XCTAssertEqual(GameplaySidebarKind.forScene(.field), .fieldLike)
+        XCTAssertEqual(GameplaySidebarKind.forScene(.dialogue), .fieldLike)
+        XCTAssertEqual(GameplaySidebarKind.forScene(.starterChoice), .fieldLike)
+        XCTAssertEqual(GameplaySidebarKind.forScene(.battle), .battle)
+    }
+
+    func testBattleSidebarPropsPreservePhaseSpecificState() {
+        let moveSelection = BattleSidebarProps(
+            trainerName: "BLUE",
+            phase: "moveSelection",
+            promptText: "Pick the next move.",
+            playerPokemon: .init(
+                speciesID: "BULBASAUR",
+                displayName: "Bulbasaur",
+                level: 5,
+                currentHP: 19,
+                maxHP: 19,
+                moves: ["TACKLE", "GROWL"]
+            ),
+            enemyPokemon: .init(
+                speciesID: "CHARMANDER",
+                displayName: "Charmander",
+                level: 5,
+                currentHP: 18,
+                maxHP: 20,
+                moves: ["SCRATCH", "GROWL"]
+            ),
+            moveSlots: [
+                .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true),
+            ],
+            focusedMoveIndex: 0,
+            party: .init(pokemon: [])
+        )
+        let resolve = BattleSidebarProps(
+            trainerName: "BLUE",
+            phase: "turnText",
+            promptText: "Charmander used Scratch!",
+            playerPokemon: moveSelection.playerPokemon,
+            enemyPokemon: moveSelection.enemyPokemon,
+            moveSlots: moveSelection.moveSlots,
+            focusedMoveIndex: moveSelection.focusedMoveIndex,
+            party: moveSelection.party
+        )
+
+        XCTAssertEqual(moveSelection.phase, "moveSelection")
+        XCTAssertEqual(moveSelection.promptText, "Pick the next move.")
+        XCTAssertEqual(resolve.phase, "turnText")
+        XCTAssertEqual(resolve.promptText, "Charmander used Scratch!")
+        XCTAssertEqual(resolve.moveSlots.first?.displayName, "Tackle")
+    }
+
+    func testGameplaySidebarModeUsesBattleAccordionDefaults() {
+        let battleMode = GameplaySidebarMode.battle(
+            BattleSidebarProps(
+                trainerName: "BLUE",
+                phase: "moveSelection",
+                promptText: "Pick the next move.",
+                playerPokemon: .init(
+                    speciesID: "BULBASAUR",
+                    displayName: "Bulbasaur",
+                    level: 5,
+                    currentHP: 19,
+                    maxHP: 19,
+                    moves: ["TACKLE", "GROWL"]
+                ),
+                enemyPokemon: .init(
+                    speciesID: "CHARMANDER",
+                    displayName: "Charmander",
+                    level: 5,
+                    currentHP: 18,
+                    maxHP: 20,
+                    moves: ["SCRATCH", "GROWL"]
+                ),
+                moveSlots: [
+                    .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true),
+                ],
+                focusedMoveIndex: 0,
+                party: .init(pokemon: [])
+            )
+        )
+
+        XCTAssertEqual(battleMode.defaultExpandedSection, .battleCombat)
+        XCTAssertTrue(battleMode.supports(.battleCombat))
+        XCTAssertTrue(battleMode.supports(.party))
+        XCTAssertFalse(battleMode.supports(.trainer))
+        XCTAssertFalse(battleMode.supports(.bag))
+    }
+
     func testSidebarPropBuilderMapsPartyAfterStarterSelection() {
         let party = PartyTelemetry(
             pokemon: [
@@ -273,6 +423,12 @@ final class PokeUITests: XCTestCase {
 
         expansion.activate(.options)
         XCTAssertEqual(expansion.expandedSection, .options)
+
+        expansion.activate(.battleCombat)
+        XCTAssertEqual(expansion.expandedSection, .battleCombat)
+
+        expansion.activate(.party)
+        XCTAssertEqual(expansion.expandedSection, .party)
     }
 
     func testSaveAndOptionsBuildersProduceDisabledRows() {
@@ -799,6 +955,34 @@ final class PokeUITests: XCTestCase {
         XCTAssertNotNil(playerActor.walkingImage)
     }
 
+    func testPixelAssetMaskKeepsInteriorWhiteHighlightsOpaque() throws {
+        let image = try makeRGBAImage(
+            width: 5,
+            height: 5,
+            pixels: [
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+                255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255,
+                255, 255, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255,
+                255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255,
+                255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            ]
+        )
+
+        guard let maskedImage = PixelAssetView.applyWhiteTransparencyMask(to: image) else {
+            return XCTFail("Expected white background masking to succeed")
+        }
+
+        let background = RGBTriplet(red: 255, green: 0, blue: 0)
+        let compositedImage = try renderRGBAImage(maskedImage, background: background)
+        let corner = rgbValue(in: compositedImage, x: 0, y: 0)
+
+        XCTAssertGreaterThan(Int(corner.red), 200)
+        XCTAssertLessThan(Int(corner.green), 64)
+        XCTAssertLessThan(Int(corner.blue), 16)
+        XCTAssertEqual(rgbValue(in: compositedImage, x: 1, y: 1), .init(red: 0, green: 0, blue: 0))
+        XCTAssertEqual(rgbValue(in: compositedImage, x: 2, y: 2), .init(red: 255, green: 255, blue: 255))
+    }
+
     private func spriteDefinition(id: String, filename: String) -> FieldSpriteDefinition {
         let root = repoRoot()
         return FieldSpriteDefinition(
@@ -930,6 +1114,32 @@ final class PokeUITests: XCTestCase {
             }
         }
         return values
+    }
+
+    private func alphaValue(in image: CGImage, x: Int, y: Int) -> UInt8 {
+        guard let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return 0
+        }
+
+        let pixelStart = (y * image.bytesPerRow) + (x * 4)
+        return bytes[pixelStart + 3]
+    }
+
+    private func rgbValue(in image: CGImage, x: Int, y: Int) -> RGBTriplet {
+        guard let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return .init(red: 0, green: 0, blue: 0)
+        }
+
+        let pixelStart = (y * image.bytesPerRow) + (x * 4)
+        return RGBTriplet(
+            red: bytes[pixelStart],
+            green: bytes[pixelStart + 1],
+            blue: bytes[pixelStart + 2]
+        )
     }
 
     private func visibleRGBValues(in image: CGImage) -> Set<RGBTriplet> {
@@ -1099,6 +1309,71 @@ final class PokeUITests: XCTestCase {
         guard CGImageDestinationFinalize(destination) else {
             throw XCTSkip("Unable to finalize PNG fixture at \(url.path)")
         }
+    }
+
+    private func makeRGBAImage(width: Int, height: Int, pixels: [UInt8]) throws -> CGImage {
+        let bytesPerRow = width * 4
+        let data = Data(pixels) as CFData
+        guard let provider = CGDataProvider(data: data),
+              let image = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent
+              ) else {
+            throw XCTSkip("Unable to create RGBA fixture image")
+        }
+
+        return image
+    }
+
+    private func renderRGBAImage(_ image: CGImage, background: RGBTriplet? = nil) throws -> CGImage {
+        let width = image.width
+        let height = image.height
+        let bytesPerRow = width * 4
+        var bytes = [UInt8](repeating: 0, count: height * bytesPerRow)
+
+        guard let context = CGContext(
+            data: &bytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw XCTSkip("Unable to create RGBA render context")
+        }
+
+        context.interpolationQuality = .none
+        context.setShouldAntialias(false)
+
+        if let background {
+            context.setFillColor(
+                CGColor(
+                    red: CGFloat(background.red) / 255,
+                    green: CGFloat(background.green) / 255,
+                    blue: CGFloat(background.blue) / 255,
+                    alpha: 1
+                )
+            )
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        }
+
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        guard let renderedImage = context.makeImage() else {
+            throw XCTSkip("Unable to create composited RGBA image")
+        }
+
+        return renderedImage
     }
 
     private func repoRoot() -> URL {

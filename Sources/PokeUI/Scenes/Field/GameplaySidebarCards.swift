@@ -4,74 +4,317 @@ import SwiftUI
 import PokeDataModel
 
 struct GameplaySidebar: View {
-    let profile: TrainerProfileProps
-    let party: PartySidebarProps
-    let inventory: InventorySidebarProps
-    let save: SaveSidebarProps
-    let options: OptionsSidebarProps
+    let mode: GameplaySidebarMode
     @Binding var fieldDisplayStyle: FieldDisplayStyle
 
-    @State private var expansionState = GameplaySidebarExpansionState()
+    @State private var expansionState: GameplaySidebarExpansionState
+
+    init(mode: GameplaySidebarMode, fieldDisplayStyle: Binding<FieldDisplayStyle>) {
+        self.mode = mode
+        _fieldDisplayStyle = fieldDisplayStyle
+        _expansionState = State(
+            initialValue: GameplaySidebarExpansionState(
+                expandedSection: mode.defaultExpandedSection
+            )
+        )
+    }
 
     var body: some View {
+        Group {
+            switch mode {
+            case let .fieldLike(props):
+                fieldLikeSidebar(props)
+            case let .battle(props):
+                BattleModeSidebarContent(
+                    props: props,
+                    expansionState: expansionState
+                ) { section in
+                    expansionState.activate(section)
+                }
+            }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .animation(.snappy(duration: 0.24, extraBounce: 0), value: expansionState.expandedSection)
+        .onChange(of: mode.kind) { _, _ in
+            guard mode.supports(expansionState.expandedSection) == false else { return }
+            expansionState.activate(mode.defaultExpandedSection)
+        }
+    }
+
+    @ViewBuilder
+    private func fieldLikeSidebar(_ props: GameplayFieldSidebarProps) -> some View {
         VStack(spacing: GameplayFieldMetrics.sidebarSectionSpacing) {
             AccordionSidebarCard(
                 title: "Trainer",
-                summary: profile.locationName,
+                summary: props.profile.locationName,
                 isExpanded: expansionState.expandedSection == .trainer
             ) {
                 expansionState.activate(.trainer)
             } content: {
-                TrainerProfileContent(props: profile)
+                TrainerProfileContent(props: props.profile)
             }
 
             AccordionSidebarCard(
                 title: "Party",
-                summary: "\(party.pokemon.count)/\(party.totalSlots)",
+                summary: "\(props.party.pokemon.count)/\(props.party.totalSlots)",
                 isExpanded: expansionState.expandedSection == .party
             ) {
                 expansionState.activate(.party)
             } content: {
-                PartySidebarContent(props: party)
+                PartySidebarContent(props: props.party)
             }
 
             AccordionSidebarCard(
-                title: inventory.title,
-                summary: inventory.items.isEmpty ? "Empty" : "\(inventory.items.count)",
+                title: props.inventory.title,
+                summary: props.inventory.items.isEmpty ? "Empty" : "\(props.inventory.items.count)",
                 isExpanded: expansionState.expandedSection == .bag
             ) {
                 expansionState.activate(.bag)
             } content: {
-                InventorySidebarContent(props: inventory)
+                InventorySidebarContent(props: props.inventory)
             }
 
             AccordionSidebarCard(
-                title: save.title,
+                title: props.save.title,
                 summary: "Locked",
                 isExpanded: expansionState.expandedSection == .save
             ) {
                 expansionState.activate(.save)
             } content: {
-                SaveSidebarContent(props: save)
+                SaveSidebarContent(props: props.save)
             }
 
             AccordionSidebarCard(
-                title: options.title,
+                title: props.options.title,
                 summary: fieldDisplayStyle.sidebarSummaryLabel,
                 isExpanded: expansionState.expandedSection == .options
             ) {
                 expansionState.activate(.options)
             } content: {
                 OptionsSidebarContent(
-                    props: options,
+                    props: props.options,
                     fieldDisplayStyle: $fieldDisplayStyle
                 )
             }
 
             Spacer(minLength: 0)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .animation(.snappy(duration: 0.24, extraBounce: 0), value: expansionState.expandedSection)
+    }
+}
+
+private struct BattleModeSidebarContent: View {
+    let props: BattleSidebarProps
+    let expansionState: GameplaySidebarExpansionState
+    let onActivateSection: (GameplaySidebarExpandedSection) -> Void
+
+    var body: some View {
+        VStack(spacing: GameplayFieldMetrics.sidebarSectionSpacing) {
+            AccordionSidebarCard(
+                title: "Combat",
+                summary: battleSummaryLabel,
+                isExpanded: expansionState.expandedSection == .battleCombat
+            ) {
+                onActivateSection(.battleCombat)
+            } content: {
+                VStack(alignment: .leading, spacing: 16) {
+                    BattleSummaryContent(props: props)
+                    BattleActionContent(props: props)
+                }
+            }
+
+            AccordionSidebarCard(
+                title: "Party",
+                summary: "\(props.party.pokemon.count)/\(props.party.totalSlots)",
+                isExpanded: expansionState.expandedSection == .party
+            ) {
+                onActivateSection(.party)
+            } content: {
+                PartySidebarContent(props: props.party)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var battleSummaryLabel: String {
+        switch props.phase {
+        case "moveSelection":
+            return "Moves"
+        case "resolvingTurn":
+            return "Resolving"
+        case "turnText":
+            return "Text"
+        case "battleComplete":
+            return "Result"
+        default:
+            return "Battle"
+        }
+    }
+}
+
+private struct BattleSummaryContent: View {
+    let props: BattleSidebarProps
+
+    private var phaseTitle: String {
+        switch props.phase {
+        case "introText":
+            return "Intro"
+        case "moveSelection":
+            return "Move Select"
+        case "resolvingTurn":
+            return "Resolving"
+        case "turnText":
+            return "Turn Text"
+        case "battleComplete":
+            return "Result"
+        default:
+            return props.phase.uppercased()
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(props.trainerName.uppercased())
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
+                        .foregroundStyle(FieldRetroPalette.ink)
+                    Text("OAK LAB ENCOUNTER")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.56))
+                }
+
+                Spacer(minLength: 8)
+
+                Text(phaseTitle.uppercased())
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.82))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(FieldRetroPalette.slotFill, in: Capsule())
+            }
+
+            BattleCombatantStatusRow(
+                title: "FOE",
+                pokemon: props.enemyPokemon,
+                accentFill: FieldRetroPalette.slotFill.opacity(0.82)
+            )
+
+            BattleCombatantStatusRow(
+                title: "YOU",
+                pokemon: props.playerPokemon,
+                accentFill: FieldRetroPalette.leadSlotFill
+            )
+
+            Text(props.promptText)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct BattleActionContent: View {
+    let props: BattleSidebarProps
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if props.moveSlots.isEmpty {
+                Text("No move choices available in this phase.")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(Array(props.moveSlots.enumerated()), id: \.offset) { index, slot in
+                    BattleMoveSidebarRow(
+                        title: moveSlotLabel(index: index, slot: slot),
+                        isSelectable: slot.isSelectable,
+                        isFocused: props.phase == "moveSelection" && index == props.focusedMoveIndex
+                    )
+                }
+            }
+        }
+    }
+
+    private func moveSlotLabel(index: Int, slot: BattleMoveSlotTelemetry) -> String {
+        let prefix = props.phase == "moveSelection" && index == props.focusedMoveIndex ? "▶" : " "
+        return "\(prefix) \(slot.displayName) \(slot.currentPP)/\(slot.maxPP)"
+    }
+}
+
+private struct BattleCombatantStatusRow: View {
+    let title: String
+    let pokemon: PartyPokemonTelemetry
+    let accentFill: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.54))
+                Text(pokemon.displayName.uppercased())
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink)
+                Spacer(minLength: 8)
+                Text("Lv\(pokemon.level)")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.68))
+            }
+
+            HStack(spacing: 10) {
+                PartyHPBar(currentHP: pokemon.currentHP, maxHP: pokemon.maxHP)
+                    .frame(maxWidth: .infinity)
+                Text("\(pokemon.currentHP)/\(pokemon.maxHP)")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(accentFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(FieldRetroPalette.outline.opacity(0.14), lineWidth: 1)
+        }
+    }
+}
+
+private struct BattleMoveSidebarRow: View {
+    let title: String
+    let isSelectable: Bool
+    let isFocused: Bool
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
+            .foregroundStyle(textColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(backgroundFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(borderColor, lineWidth: isFocused ? 2 : 1)
+            }
+    }
+
+    private var textColor: Color {
+        if isSelectable == false {
+            return FieldRetroPalette.ink.opacity(0.36)
+        }
+        return isFocused ? FieldRetroPalette.ink : FieldRetroPalette.ink.opacity(0.82)
+    }
+
+    private var backgroundFill: Color {
+        if isFocused {
+            return FieldRetroPalette.leadSlotFill
+        }
+        return FieldRetroPalette.slotFill.opacity(isSelectable ? 0.88 : 0.52)
+    }
+
+    private var borderColor: Color {
+        FieldRetroPalette.outline.opacity(isFocused ? 0.24 : 0.08)
     }
 }
 
@@ -563,7 +806,7 @@ private struct PartyPokemonSpriteTile: View {
                 .fill(FieldRetroPalette.portraitFill.opacity(0.9))
 
             if let spriteURL = props.spriteURL {
-                PixelAssetView(url: spriteURL, label: props.displayName)
+                PixelAssetView(url: spriteURL, label: props.displayName, whiteIsTransparent: true)
                     .padding(4)
             } else {
                 Text(String(props.displayName.prefix(2)).uppercased())
@@ -668,7 +911,7 @@ private struct PartyPokemonLargeSpriteTile: View {
                 .fill(FieldRetroPalette.portraitFill)
 
             if let spriteURL = props.spriteURL {
-                PixelAssetView(url: spriteURL, label: props.displayName)
+                PixelAssetView(url: spriteURL, label: props.displayName, whiteIsTransparent: true)
                     .padding(6)
             } else {
                 Text(String(props.displayName.prefix(2)).uppercased())
