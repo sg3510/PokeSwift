@@ -151,6 +151,73 @@ struct FieldBlockset: Equatable {
     }
 }
 
+struct FieldPixelPoint: Equatable, Hashable, Sendable {
+    let x: Int
+    let y: Int
+}
+
+struct FieldPixelSize: Equatable, Hashable, Sendable {
+    let width: Int
+    let height: Int
+}
+
+struct FieldSceneMetrics: Equatable, Hashable, Sendable {
+    let mapPixelSize: FieldPixelSize
+    let paddingPixels: FieldPixelSize
+    let contentPixelSize: FieldPixelSize
+}
+
+struct FieldCameraState: Equatable, Hashable, Sendable {
+    let origin: FieldPixelPoint
+    let viewportSize: FieldPixelSize
+
+    init(origin: FieldPixelPoint, viewportSize: FieldPixelSize = FieldSceneRenderer.viewportPixelSize) {
+        self.origin = origin
+        self.viewportSize = viewportSize
+    }
+
+    static func target(
+        playerWorldPosition: FieldPixelPoint,
+        contentPixelSize: FieldPixelSize,
+        viewportSize: FieldPixelSize = FieldSceneRenderer.viewportPixelSize
+    ) -> FieldCameraState {
+        let desiredX = playerWorldPosition.x + (FieldSceneRenderer.stepPixelSize / 2) - (viewportSize.width / 2)
+        let desiredY = playerWorldPosition.y + (FieldSceneRenderer.stepPixelSize / 2) - (viewportSize.height / 2)
+        let maxX = max(0, contentPixelSize.width - viewportSize.width)
+        let maxY = max(0, contentPixelSize.height - viewportSize.height)
+
+        return FieldCameraState(
+            origin: .init(
+                x: max(0, min(maxX, desiredX)),
+                y: max(0, min(maxY, desiredY))
+            ),
+            viewportSize: viewportSize
+        )
+    }
+}
+
+enum FieldRenderedActorRole: Sendable {
+    case player
+    case object
+}
+
+struct FieldRenderedActor: Identifiable, @unchecked Sendable {
+    let id: String
+    let role: FieldRenderedActorRole
+    let image: CGImage
+    let worldPosition: FieldPixelPoint
+    let size: FieldPixelSize
+    let flippedHorizontally: Bool
+}
+
+struct FieldRenderedScene: @unchecked Sendable {
+    let mapID: String
+    let style: FieldRenderStyle
+    let metrics: FieldSceneMetrics
+    let backgroundImage: CGImage
+    let actors: [FieldRenderedActor]
+}
+
 struct FieldRenderSignature: Hashable, Sendable {
     struct ObjectSignature: Hashable, Sendable {
         let spriteID: String
@@ -258,6 +325,38 @@ struct FieldRenderSignature: Hashable, Sendable {
     }
 }
 
+private struct FieldBackgroundSignature: Hashable, Sendable {
+    let mapID: String
+    let blockWidth: Int
+    let blockHeight: Int
+    let borderBlockID: Int
+    let blockIDs: [Int]
+    let tilesetID: String
+    let tilesetImagePath: String
+    let blocksetPath: String
+    let blockTileWidth: Int
+    let blockTileHeight: Int
+    let sourceTileSize: Int
+    let style: FieldRenderStyle
+    let paddingBlocks: FieldPixelSize
+
+    init(map: MapManifest, assets: FieldRenderAssets, style: FieldRenderStyle, paddingBlocks: FieldPixelSize) {
+        mapID = map.id
+        blockWidth = map.blockWidth
+        blockHeight = map.blockHeight
+        borderBlockID = map.borderBlockID
+        blockIDs = map.blockIDs
+        tilesetID = assets.tileset.id
+        tilesetImagePath = assets.tileset.imageURL.standardizedFileURL.path
+        blocksetPath = assets.tileset.blocksetURL.standardizedFileURL.path
+        blockTileWidth = assets.tileset.blockTileWidth
+        blockTileHeight = assets.tileset.blockTileHeight
+        sourceTileSize = assets.tileset.sourceTileSize
+        self.style = style
+        self.paddingBlocks = paddingBlocks
+    }
+}
+
 private struct PreparedTileAtlas {
     let tiles: [CGImage]
 
@@ -296,6 +395,15 @@ private final class FieldRendererCaches: @unchecked Sendable {
         let height: Int
     }
 
+    private struct StyledSpriteFrameCacheKey: Hashable {
+        let imagePath: String
+        let x: Int
+        let y: Int
+        let width: Int
+        let height: Int
+        let style: FieldRenderStyle
+    }
+
     static let shared = FieldRendererCaches()
 
     private let lock = NSLock()
@@ -304,6 +412,8 @@ private final class FieldRendererCaches: @unchecked Sendable {
     private var blocksets: [BlocksetCacheKey: FieldBlockset] = [:]
     private var preparedAtlases: [AtlasCacheKey: PreparedTileAtlas] = [:]
     private var preparedSprites: [SpriteFrameCacheKey: CGImage] = [:]
+    private var styledSprites: [StyledSpriteFrameCacheKey: CGImage] = [:]
+    private var backgroundImages: [FieldBackgroundSignature: CGImage] = [:]
     private var renderedImages: [FieldRenderSignature: CGImage] = [:]
     private var renderedImageOrder: [FieldRenderSignature] = []
 
@@ -325,6 +435,18 @@ private final class FieldRendererCaches: @unchecked Sendable {
                 let evictedSignature = renderedImageOrder.removeFirst()
                 renderedImages.removeValue(forKey: evictedSignature)
             }
+        }
+    }
+
+    func backgroundImage(for signature: FieldBackgroundSignature) -> CGImage? {
+        withLock {
+            backgroundImages[signature]
+        }
+    }
+
+    func storeBackgroundImage(_ image: CGImage, for signature: FieldBackgroundSignature) {
+        withLock {
+            backgroundImages[signature] = image
         }
     }
 
@@ -413,6 +535,41 @@ private final class FieldRendererCaches: @unchecked Sendable {
         return preparedImage
     }
 
+    func styledSpriteImage(
+        definition: FieldSpriteDefinition,
+        facing: FacingDirection,
+        style: FieldRenderStyle
+    ) throws -> CGImage? {
+        guard let frame = definition.frame(for: facing) else {
+            return nil
+        }
+
+        if style == .rawGrayscale {
+            return try preparedSpriteImage(definition: definition, facing: facing)
+        }
+
+        let key = StyledSpriteFrameCacheKey(
+            imagePath: definition.imageURL.standardizedFileURL.path,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+            style: style
+        )
+        if let cached = withLock({ styledSprites[key] }) {
+            return cached
+        }
+
+        guard let preparedImage = try preparedSpriteImage(definition: definition, facing: facing) else {
+            return nil
+        }
+        let styledImage = try FieldSceneRenderer.applyRenderStylePreservingAlpha(style, to: preparedImage)
+        withLock {
+            styledSprites[key] = styledImage
+        }
+        return styledImage
+    }
+
     private func withLock<T>(_ body: () throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
@@ -426,6 +583,94 @@ struct FieldSceneRenderer {
     static let blockTileHeight = 4
     static let stepPixelSize = 16
     static let blockPixelSize = tilePixelSize * blockTileWidth
+    static let viewportPixelSize = FieldPixelSize(width: 160, height: 144)
+
+    static func sceneMetrics(for map: MapManifest) -> FieldSceneMetrics {
+        let paddingBlocks = FieldPixelSize(
+            width: max(1, Int(ceil(Double(viewportPixelSize.width) / Double(blockPixelSize)))),
+            height: max(1, Int(ceil(Double(viewportPixelSize.height) / Double(blockPixelSize))))
+        )
+        let paddingPixels = FieldPixelSize(
+            width: paddingBlocks.width * blockPixelSize,
+            height: paddingBlocks.height * blockPixelSize
+        )
+        let mapPixelSize = FieldPixelSize(
+            width: max(1, map.blockWidth) * blockPixelSize,
+            height: max(1, map.blockHeight) * blockPixelSize
+        )
+        let contentPixelSize = FieldPixelSize(
+            width: mapPixelSize.width + (paddingPixels.width * 2),
+            height: mapPixelSize.height + (paddingPixels.height * 2)
+        )
+
+        return FieldSceneMetrics(
+            mapPixelSize: mapPixelSize,
+            paddingPixels: paddingPixels,
+            contentPixelSize: contentPixelSize
+        )
+    }
+
+    static func playerWorldPosition(for position: TilePoint, metrics: FieldSceneMetrics) -> FieldPixelPoint {
+        FieldPixelPoint(
+            x: (position.x * stepPixelSize) + metrics.paddingPixels.width,
+            y: (position.y * stepPixelSize) + metrics.paddingPixels.height
+        )
+    }
+
+    static func renderScene(
+        map: MapManifest,
+        playerPosition: TilePoint,
+        playerFacing: FacingDirection,
+        playerSpriteID: String,
+        objects: [FieldObjectRenderState],
+        assets: FieldRenderAssets,
+        style: FieldRenderStyle = .rawGrayscale
+    ) throws -> FieldRenderedScene {
+        let atlas = try FieldRendererCaches.shared.preparedAtlas(for: assets.tileset)
+        let blockset = try FieldRendererCaches.shared.blockset(for: assets.tileset)
+        let metrics = sceneMetrics(for: map)
+        let paddingBlocks = FieldPixelSize(
+            width: metrics.paddingPixels.width / blockPixelSize,
+            height: metrics.paddingPixels.height / blockPixelSize
+        )
+        let backgroundSignature = FieldBackgroundSignature(
+            map: map,
+            assets: assets,
+            style: style,
+            paddingBlocks: paddingBlocks
+        )
+        let backgroundImage: CGImage
+        if let cachedBackground = FieldRendererCaches.shared.backgroundImage(for: backgroundSignature) {
+            backgroundImage = cachedBackground
+        } else {
+            backgroundImage = try renderBackground(
+                map: map,
+                atlas: atlas,
+                blockset: blockset,
+                metrics: metrics,
+                style: style
+            )
+            FieldRendererCaches.shared.storeBackgroundImage(backgroundImage, for: backgroundSignature)
+        }
+
+        let actors = try renderedActors(
+            objects: objects,
+            playerPosition: playerPosition,
+            playerFacing: playerFacing,
+            playerSpriteID: playerSpriteID,
+            assets: assets,
+            metrics: metrics,
+            style: style
+        )
+
+        return FieldRenderedScene(
+            mapID: map.id,
+            style: style,
+            metrics: metrics,
+            backgroundImage: backgroundImage,
+            actors: actors
+        )
+    }
 
     static func render(
         map: MapManifest,
@@ -463,7 +708,12 @@ struct FieldSceneRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
-        try drawBackground(map: map, atlas: atlas, blockset: blockset, into: context)
+        try drawBackground(
+            map: map,
+            atlas: atlas,
+            blockset: blockset,
+            into: context
+        )
         try drawActors(
             objects: objects,
             playerPosition: playerPosition,
@@ -512,12 +762,158 @@ struct FieldSceneRenderer {
         }
     }
 
+    fileprivate static func applyRenderStylePreservingAlpha(
+        _ style: FieldRenderStyle,
+        to image: CGImage
+    ) throws -> CGImage {
+        switch style {
+        case .rawGrayscale:
+            return image
+        case .dmgAuthentic, .dmgTinted:
+            let pixelBytes = try rgbaPixels(for: image)
+            var styledBytes: [UInt8] = []
+            styledBytes.reserveCapacity(pixelBytes.count)
+
+            for index in stride(from: 0, to: pixelBytes.count, by: 4) {
+                let alpha = pixelBytes[index + 3]
+                if alpha == 0 {
+                    styledBytes.append(contentsOf: [0, 0, 0, 0])
+                    continue
+                }
+
+                let value = pixelBytes[index]
+                let color: DMGPaletteColor
+                switch style {
+                case .rawGrayscale:
+                    color = DMGPaletteColor(red: value, green: value, blue: value)
+                case .dmgAuthentic:
+                    color = dmgAuthenticColor(for: value)
+                case .dmgTinted:
+                    color = dmgTintedColor(for: value)
+                }
+                styledBytes.append(contentsOf: [color.red, color.green, color.blue, alpha])
+            }
+
+            return try makeRGBImage(
+                width: image.width,
+                height: image.height,
+                bytesPerRow: image.width * 4,
+                rgbaBytes: styledBytes
+            )
+        }
+    }
+
     fileprivate static func loadImage(from url: URL, invalidError: FieldRendererError) throws -> CGImage {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw invalidError
         }
         return image
+    }
+
+    private static func renderBackground(
+        map: MapManifest,
+        atlas: PreparedTileAtlas,
+        blockset: FieldBlockset,
+        metrics: FieldSceneMetrics,
+        style: FieldRenderStyle
+    ) throws -> CGImage {
+        guard let context = bitmapContext(
+            width: metrics.contentPixelSize.width,
+            height: metrics.contentPixelSize.height
+        ) else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+
+        context.interpolationQuality = .none
+        context.setShouldAntialias(false)
+        context.translateBy(x: 0, y: CGFloat(metrics.contentPixelSize.height))
+        context.scaleBy(x: 1, y: -1)
+
+        try drawPaddedBackground(
+            map: map,
+            atlas: atlas,
+            blockset: blockset,
+            metrics: metrics,
+            into: context
+        )
+
+        guard let image = context.makeImage() else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+        return try applyRenderStyle(style, to: image)
+    }
+
+    private static func renderedActors(
+        objects: [FieldObjectRenderState],
+        playerPosition: TilePoint,
+        playerFacing: FacingDirection,
+        playerSpriteID: String,
+        assets: FieldRenderAssets,
+        metrics: FieldSceneMetrics,
+        style: FieldRenderStyle
+    ) throws -> [FieldRenderedActor] {
+        var actors: [FieldRenderedActor] = []
+
+        for object in objects {
+            if let actor = try renderedActor(
+                id: object.id,
+                role: .object,
+                spriteID: object.sprite,
+                facing: object.facing,
+                position: object.position,
+                assets: assets,
+                metrics: metrics,
+                style: style
+            ) {
+                actors.append(actor)
+            }
+        }
+
+        if let playerActor = try renderedActor(
+            id: "player",
+            role: .player,
+            spriteID: playerSpriteID,
+            facing: playerFacing,
+            position: playerPosition,
+            assets: assets,
+            metrics: metrics,
+            style: style
+        ) {
+            actors.append(playerActor)
+        }
+
+        return actors
+    }
+
+    private static func renderedActor(
+        id: String,
+        role: FieldRenderedActorRole,
+        spriteID: String,
+        facing: FacingDirection,
+        position: TilePoint,
+        assets: FieldRenderAssets,
+        metrics: FieldSceneMetrics,
+        style: FieldRenderStyle
+    ) throws -> FieldRenderedActor? {
+        guard let definition = assets.spriteDefinition(for: spriteID),
+              let frame = definition.frame(for: facing),
+              let spriteImage = try FieldRendererCaches.shared.styledSpriteImage(
+                  definition: definition,
+                  facing: facing,
+                  style: style
+              ) else {
+            return nil
+        }
+
+        return FieldRenderedActor(
+            id: id,
+            role: role,
+            image: spriteImage,
+            worldPosition: playerWorldPosition(for: position, metrics: metrics),
+            size: .init(width: frame.width, height: frame.height),
+            flippedHorizontally: frame.flippedHorizontally
+        )
     }
 
     private static func bitmapContext(width: Int, height: Int) -> CGContext? {
@@ -540,23 +936,93 @@ struct FieldSceneRenderer {
     ) throws {
         for blockY in 0..<map.blockHeight {
             for blockX in 0..<map.blockWidth {
-                let mapIndex = (blockY * map.blockWidth) + blockX
-                guard map.blockIDs.indices.contains(mapIndex) else { continue }
-                let blockID = map.blockIDs[mapIndex]
-                guard blockset.blocks.indices.contains(blockID) else {
-                    throw FieldRendererError.invalidBlockIndex(blockID)
-                }
+                try drawBlock(
+                    blockID: blockID(
+                        in: map,
+                        blockX: blockX,
+                        blockY: blockY,
+                        useBorderForOutOfBounds: false
+                    ),
+                    mapX: blockX,
+                    mapY: blockY,
+                    atlas: atlas,
+                    blockset: blockset,
+                    into: context
+                )
+            }
+        }
+    }
 
-                let block = blockset.blocks[blockID]
-                for tileRow in 0..<blockset.blockTileHeight {
-                    for tileColumn in 0..<blockset.blockTileWidth {
-                        let tileIndex = Int(block[(tileRow * blockset.blockTileWidth) + tileColumn])
-                        let tileImage = try atlas.tile(at: tileIndex)
-                        let x = (blockX * blockPixelSize) + (tileColumn * tilePixelSize)
-                        let y = (blockY * blockPixelSize) + (tileRow * tilePixelSize)
-                        context.draw(tileImage, in: CGRect(x: x, y: y, width: tilePixelSize, height: tilePixelSize))
-                    }
-                }
+    private static func drawPaddedBackground(
+        map: MapManifest,
+        atlas: PreparedTileAtlas,
+        blockset: FieldBlockset,
+        metrics: FieldSceneMetrics,
+        into context: CGContext
+    ) throws {
+        let paddingBlocksX = metrics.paddingPixels.width / blockPixelSize
+        let paddingBlocksY = metrics.paddingPixels.height / blockPixelSize
+        let totalBlocksX = map.blockWidth + (paddingBlocksX * 2)
+        let totalBlocksY = map.blockHeight + (paddingBlocksY * 2)
+
+        for paddedBlockY in 0..<totalBlocksY {
+            for paddedBlockX in 0..<totalBlocksX {
+                let mapBlockX = paddedBlockX - paddingBlocksX
+                let mapBlockY = paddedBlockY - paddingBlocksY
+                let blockID = blockID(
+                    in: map,
+                    blockX: mapBlockX,
+                    blockY: mapBlockY,
+                    useBorderForOutOfBounds: true
+                )
+                try drawBlock(
+                    blockID: blockID,
+                    mapX: paddedBlockX,
+                    mapY: paddedBlockY,
+                    atlas: atlas,
+                    blockset: blockset,
+                    into: context
+                )
+            }
+        }
+    }
+
+    private static func blockID(
+        in map: MapManifest,
+        blockX: Int,
+        blockY: Int,
+        useBorderForOutOfBounds: Bool
+    ) -> Int {
+        if (0..<map.blockWidth).contains(blockX), (0..<map.blockHeight).contains(blockY) {
+            let mapIndex = (blockY * map.blockWidth) + blockX
+            guard map.blockIDs.indices.contains(mapIndex) else {
+                return map.borderBlockID
+            }
+            return map.blockIDs[mapIndex]
+        }
+        return useBorderForOutOfBounds ? map.borderBlockID : 0
+    }
+
+    private static func drawBlock(
+        blockID: Int,
+        mapX: Int,
+        mapY: Int,
+        atlas: PreparedTileAtlas,
+        blockset: FieldBlockset,
+        into context: CGContext
+    ) throws {
+        guard blockset.blocks.indices.contains(blockID) else {
+            throw FieldRendererError.invalidBlockIndex(blockID)
+        }
+
+        let block = blockset.blocks[blockID]
+        for tileRow in 0..<blockset.blockTileHeight {
+            for tileColumn in 0..<blockset.blockTileWidth {
+                let tileIndex = Int(block[(tileRow * blockset.blockTileWidth) + tileColumn])
+                let tileImage = try atlas.tile(at: tileIndex)
+                let x = (mapX * blockPixelSize) + (tileColumn * tilePixelSize)
+                let y = (mapY * blockPixelSize) + (tileRow * tilePixelSize)
+                context.draw(tileImage, in: CGRect(x: x, y: y, width: tilePixelSize, height: tilePixelSize))
             }
         }
     }
@@ -692,6 +1158,30 @@ struct FieldSceneRenderer {
             bytesPerRow: bytesPerRow,
             space: CGColorSpaceCreateDeviceGray(),
             bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else {
+            throw FieldRendererError.bitmapContextCreationFailed
+        }
+        context.interpolationQuality = .none
+        context.setShouldAntialias(false)
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return bytes
+    }
+
+    private static func rgbaPixels(for image: CGImage) throws -> [UInt8] {
+        let width = image.width
+        let height = image.height
+        let bytesPerRow = width * 4
+        var bytes = [UInt8](repeating: 0, count: height * bytesPerRow)
+        guard let context = CGContext(
+            data: &bytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo.byteOrder32Big.union(
+                CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+            ).rawValue
         ) else {
             throw FieldRendererError.bitmapContextCreationFailed
         }

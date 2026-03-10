@@ -84,6 +84,45 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(FieldRenderStyle.rawGrayscale.sidebarOptionTitle, "Raw Gray")
     }
 
+    func testFieldSceneMetricsUseFixedGameplayViewportPadding() {
+        let metrics = FieldSceneRenderer.sceneMetrics(for: makePaletteMap(blockWidth: 2, blockHeight: 2))
+
+        XCTAssertEqual(FieldSceneRenderer.viewportPixelSize, .init(width: 160, height: 144))
+        XCTAssertEqual(metrics.mapPixelSize, .init(width: 64, height: 64))
+        XCTAssertEqual(metrics.paddingPixels, .init(width: 160, height: 160))
+        XCTAssertEqual(metrics.contentPixelSize, .init(width: 384, height: 384))
+    }
+
+    func testFieldCameraTargetsCenteredPlayerInFixedViewport() {
+        let map = makePaletteMap(blockWidth: 10, blockHeight: 9)
+        let metrics = FieldSceneRenderer.sceneMetrics(for: map)
+        let playerWorld = FieldSceneRenderer.playerWorldPosition(for: .init(x: 8, y: 7), metrics: metrics)
+
+        let camera = FieldCameraState.target(
+            playerWorldPosition: playerWorld,
+            contentPixelSize: metrics.contentPixelSize
+        )
+
+        XCTAssertEqual(camera.origin, .init(x: 216, y: 208))
+        XCTAssertEqual(camera.viewportSize, FieldSceneRenderer.viewportPixelSize)
+    }
+
+    func testFieldCameraKeepsSmallMapsInsideBorderPaddedScene() {
+        let map = makePaletteMap(blockWidth: 1, blockHeight: 1)
+        let metrics = FieldSceneRenderer.sceneMetrics(for: map)
+        let playerWorld = FieldSceneRenderer.playerWorldPosition(for: .init(x: 0, y: 0), metrics: metrics)
+
+        let camera = FieldCameraState.target(
+            playerWorldPosition: playerWorld,
+            contentPixelSize: metrics.contentPixelSize
+        )
+
+        XCTAssertGreaterThan(camera.origin.x, 0)
+        XCTAssertGreaterThan(camera.origin.y, 0)
+        XCTAssertLessThanOrEqual(camera.origin.x + camera.viewportSize.width, metrics.contentPixelSize.width)
+        XCTAssertLessThanOrEqual(camera.origin.y + camera.viewportSize.height, metrics.contentPixelSize.height)
+    }
+
     func testSidebarPropBuilderMapsEmptyPartyProfile() {
         let profile = GameplaySidebarPropsBuilder.makeProfile(
             trainerName: "RED",
@@ -353,6 +392,63 @@ final class PokeUITests: XCTestCase {
         XCTAssertTrue(rgbValues(in: image).isSubset(of: dmgPaletteValues()))
     }
 
+    func testRenderSceneBuildsBorderPaddedBackgroundAndLayeredActors() throws {
+        let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": FieldSpriteDefinition(
+                    id: "SPRITE_RED",
+                    imageURL: fixtureRoot.appendingPathComponent("sprite.png"),
+                    facingFrames: [
+                        .down: .init(x: 0, y: 0, width: 16, height: 16),
+                        .up: .init(x: 0, y: 0, width: 16, height: 16),
+                        .left: .init(x: 0, y: 0, width: 16, height: 16),
+                        .right: .init(x: 0, y: 0, width: 16, height: 16),
+                    ]
+                ),
+            ]
+        )
+        let map = MapManifest(
+            id: "TEST_MAP",
+            displayName: "Test Map",
+            defaultMusicID: "MUSIC_PALLET_TOWN",
+            borderBlockID: 0,
+            blockWidth: 1,
+            blockHeight: 1,
+            stepWidth: 2,
+            stepHeight: 2,
+            tileset: "TEST",
+            blockIDs: [0],
+            stepCollisionTileIDs: Array(repeating: 0x00, count: 4),
+            warps: [],
+            backgroundEvents: [],
+            objects: []
+        )
+
+        let scene = try FieldSceneRenderer.renderScene(
+            map: map,
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: [],
+            assets: assets,
+            style: .dmgAuthentic
+        )
+
+        XCTAssertEqual(scene.backgroundImage.width, scene.metrics.contentPixelSize.width)
+        XCTAssertEqual(scene.backgroundImage.height, scene.metrics.contentPixelSize.height)
+        XCTAssertEqual(scene.actors.count, 1)
+        XCTAssertEqual(scene.actors.first?.worldPosition, FieldSceneRenderer.playerWorldPosition(for: .init(x: 0, y: 0), metrics: scene.metrics))
+        XCTAssertTrue(rgbValues(in: scene.backgroundImage).isSubset(of: dmgPaletteValues()))
+    }
+
     func testRendererTreatsWhiteSpritePixelsAsTransparentInsteadOfMultiplying() throws {
         let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
         defer { try? FileManager.default.removeItem(at: fixtureRoot) }
@@ -523,6 +619,66 @@ final class PokeUITests: XCTestCase {
         )
     }
 
+    func testRenderSceneKeepsStyledSpriteTransparency() throws {
+        let fixtureRoot = try makeSyntheticFieldFixture(tileValue: 85, spriteBodyValue: 170)
+        defer { try? FileManager.default.removeItem(at: fixtureRoot) }
+
+        let assets = FieldRenderAssets(
+            tileset: .init(
+                id: "TEST",
+                imageURL: fixtureRoot.appendingPathComponent("tileset.png"),
+                blocksetURL: fixtureRoot.appendingPathComponent("test.bst")
+            ),
+            overworldSprites: [
+                "SPRITE_RED": FieldSpriteDefinition(
+                    id: "SPRITE_RED",
+                    imageURL: fixtureRoot.appendingPathComponent("sprite.png"),
+                    facingFrames: [
+                        .down: .init(x: 0, y: 0, width: 16, height: 16),
+                        .up: .init(x: 0, y: 0, width: 16, height: 16),
+                        .left: .init(x: 0, y: 0, width: 16, height: 16),
+                        .right: .init(x: 0, y: 0, width: 16, height: 16),
+                    ]
+                ),
+            ]
+        )
+
+        let scene = try FieldSceneRenderer.renderScene(
+            map: MapManifest(
+                id: "TEST_MAP",
+                displayName: "Test Map",
+                defaultMusicID: "MUSIC_PALLET_TOWN",
+                borderBlockID: 0,
+                blockWidth: 1,
+                blockHeight: 1,
+                stepWidth: 2,
+                stepHeight: 2,
+                tileset: "TEST",
+                blockIDs: [0],
+                stepCollisionTileIDs: Array(repeating: 0x00, count: 4),
+                warps: [],
+                backgroundEvents: [],
+                objects: []
+            ),
+            playerPosition: .init(x: 0, y: 0),
+            playerFacing: .down,
+            playerSpriteID: "SPRITE_RED",
+            objects: [],
+            assets: assets,
+            style: .dmgAuthentic
+        )
+
+        guard let playerActor = scene.actors.first else {
+            return XCTFail("Expected layered player actor")
+        }
+
+        XCTAssertTrue(alphaValues(in: playerActor.image).contains(0))
+        XCTAssertEqual(
+            visibleRGBValues(in: playerActor.image),
+            Set([RGBTriplet(red: 139, green: 172, blue: 15)])
+        )
+    }
+
     private func spriteDefinition(id: String, filename: String) -> FieldSpriteDefinition {
         let root = repoRoot()
         return FieldSpriteDefinition(
@@ -621,6 +777,48 @@ final class PokeUITests: XCTestCase {
             let rowStart = row * image.bytesPerRow
             for column in 0..<image.width {
                 let pixelStart = rowStart + (column * 4)
+                values.insert(
+                    RGBTriplet(
+                        red: bytes[pixelStart],
+                        green: bytes[pixelStart + 1],
+                        blue: bytes[pixelStart + 2]
+                    )
+                )
+            }
+        }
+        return values
+    }
+
+    private func alphaValues(in image: CGImage) -> Set<UInt8> {
+        guard let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return []
+        }
+
+        var values: Set<UInt8> = []
+        for row in 0..<image.height {
+            let rowStart = row * image.bytesPerRow
+            for column in 0..<image.width {
+                values.insert(bytes[rowStart + (column * 4) + 3])
+            }
+        }
+        return values
+    }
+
+    private func visibleRGBValues(in image: CGImage) -> Set<RGBTriplet> {
+        guard let provider = image.dataProvider,
+              let data = provider.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return []
+        }
+
+        var values: Set<RGBTriplet> = []
+        for row in 0..<image.height {
+            let rowStart = row * image.bytesPerRow
+            for column in 0..<image.width {
+                let pixelStart = rowStart + (column * 4)
+                guard bytes[pixelStart + 3] > 0 else { continue }
                 values.insert(
                     RGBTriplet(
                         red: bytes[pixelStart],

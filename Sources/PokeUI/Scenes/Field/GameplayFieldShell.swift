@@ -63,44 +63,230 @@ public struct FieldMapStage<MapContent: View, Footer: View, OverlayContent: View
     }
 
     public var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(FieldRetroPalette.stageOuter)
-
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(FieldRetroPalette.stageMiddle)
-                .padding(10)
-
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(FieldRetroPalette.stageInner)
-                .padding(22)
-
-            ZStack(alignment: .bottom) {
+        ZStack(alignment: .topTrailing) {
+            DMGFieldDisplayShell {
                 mapContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 22)
-                    .padding(.bottom, 36)
-
+            } footer: {
                 footer
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 18)
             }
-            .padding(22)
+            .frame(maxWidth: 920)
+            .padding(.top, 24)
+            .padding(.leading, 28)
+            .padding(.trailing, 48)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             overlayContent
-                .padding(36)
+                .frame(maxWidth: 420, alignment: .topTrailing)
+                .padding(.top, 52)
+                .padding(.trailing, 24)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .fill(Color(red: 0.9, green: 0.9, blue: 0.86))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.46),
+                                    Color.clear,
+                                    Color.black.opacity(0.05),
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .stroke(FieldRetroPalette.outline.opacity(0.5), lineWidth: 3)
+                .stroke(FieldRetroPalette.outline.opacity(0.38), lineWidth: 3)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 25, style: .continuous)
-                        .stroke(.white.opacity(0.28), lineWidth: 1)
-                        .padding(12)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(.white.opacity(0.44), lineWidth: 1)
+                        .padding(8)
                 }
         }
-        .shadow(color: .black.opacity(0.16), radius: 24, y: 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .shadow(color: .black.opacity(0.14), radius: 24, y: 12)
+    }
+}
+
+private struct DMGFieldDisplayShell<Content: View, Footer: View>: View {
+    private let content: Content
+    private let footer: Footer
+
+    init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+        self.content = content()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            DMGFieldScreenWell {
+                content
+            } footer: {
+                footer
+            }
+            .frame(maxWidth: 920)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Nintendo")
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
+                    .tracking(-0.3)
+                Text("GAME BOY")
+                    .font(.system(size: 30, weight: .light, design: .rounded))
+                    .tracking(0.4)
+            }
+            .foregroundStyle(Color(red: 0.17, green: 0.22, blue: 0.68))
+            .padding(.leading, 10)
+        }
+    }
+}
+
+private struct DMGFieldScreenWell<Content: View, Footer: View>: View {
+    private let content: Content
+    private let footer: Footer
+
+    init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+        self.content = content()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let headerTopPadding: CGFloat = 12
+            let headerLabelHeight = max(12, size.width * 0.015)
+            let screenVerticalGap = max(8, size.height * 0.012)
+            let screenSideInset = max(20, size.width * 0.05)
+            let screenTopInset = headerTopPadding + headerLabelHeight + screenVerticalGap
+            let screenBottomInset = screenVerticalGap
+            let availableScreenWidth = max(40, size.width - (screenSideInset * 2))
+            let availableScreenHeight = max(40, size.height - screenTopInset - screenBottomInset)
+            let lcdScale = max(
+                1,
+                floor(
+                    min(
+                        availableScreenWidth / CGFloat(FieldSceneRenderer.viewportPixelSize.width),
+                        availableScreenHeight / CGFloat(FieldSceneRenderer.viewportPixelSize.height)
+                    )
+                )
+            )
+            let screenWidth = CGFloat(FieldSceneRenderer.viewportPixelSize.width) * lcdScale
+            let screenHeight = CGFloat(FieldSceneRenderer.viewportPixelSize.height) * lcdScale
+            let screenOrigin = CGPoint(
+                x: (size.width - screenWidth) / 2,
+                y: screenTopInset + ((availableScreenHeight - screenHeight) / 2)
+            )
+            let screenRect = CGRect(
+                origin: screenOrigin, size: CGSize(width: screenWidth, height: screenHeight))
+            let wellShape = UnevenRoundedRectangle(
+                cornerRadii: .init(
+                    topLeading: 22,
+                    bottomLeading: 16,
+                    bottomTrailing: 56,
+                    topTrailing: 16
+                ),
+                style: .continuous
+            )
+
+            ZStack(alignment: .topLeading) {
+                wellShape
+                    .fill(Color(red: 0.36, green: 0.37, blue: 0.43))
+                    .overlay {
+                        wellShape
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.08),
+                                        Color.clear,
+                                        Color.black.opacity(0.12),
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+
+                HStack(spacing: 12) {
+                    DMGAccentBarStack()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+
+                    Text("DOT MATRIX WITH STEREO SOUND")
+                        .font(
+                            .system(
+                                size: max(8, size.width * 0.015), weight: .semibold,
+                                design: .rounded)
+                        )
+                        .tracking(0.22)
+                        .foregroundStyle(Color.white.opacity(0.78))
+                        .fixedSize()
+
+                    DMGAccentBarStack()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, headerTopPadding)
+                .padding(.horizontal, 36)
+
+                VStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(red: 0.96, green: 0.23, blue: 0.2))
+                        .frame(width: 10, height: 10)
+                        .shadow(color: Color.red.opacity(0.35), radius: 6)
+                    Text("BATTERY")
+                        .font(
+                            .system(
+                                size: max(7, size.width * 0.013), weight: .bold, design: .rounded)
+                        )
+                        .foregroundStyle(Color.white.opacity(0.74))
+                }
+                .position(x: size.width * 0.07, y: screenRect.midY)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(Color(red: 0.18, green: 0.28, blue: 0.08), lineWidth: 1)
+                    .frame(width: screenRect.width, height: screenRect.height)
+                    .position(x: screenRect.midX, y: screenRect.midY)
+
+                content
+                    .frame(width: screenRect.width, height: screenRect.height)
+                    .position(x: screenRect.midX, y: screenRect.midY)
+
+                ZStack(alignment: .bottom) {
+                    footer
+                        .frame(
+                            width: screenRect.width - (max(10, lcdScale * 2) * 2),
+                            alignment: .leading
+                        )
+                        .padding(.horizontal, max(10, lcdScale * 2))
+                        .padding(.bottom, max(10, lcdScale * 2))
+                }
+                .frame(width: screenRect.width, height: screenRect.height, alignment: .bottom)
+                .position(x: screenRect.midX, y: screenRect.midY)
+            }
+        }
+        .aspectRatio(1.14, contentMode: .fit)
+    }
+}
+
+private struct DMGAccentBar: View {
+    let color: Color
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(color)
+            .frame(maxWidth: .infinity)
+            .frame(height: 4)
+    }
+}
+
+private struct DMGAccentBarStack: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            DMGAccentBar(color: Color(red: 0.42, green: 0.07, blue: 0.27))
+            DMGAccentBar(color: Color(red: 0.16, green: 0.17, blue: 0.55))
+        }
+        .frame(minWidth: 56, maxWidth: .infinity)
     }
 }

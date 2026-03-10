@@ -11,29 +11,80 @@ public struct DialogueBoxView: View {
     }
 
     public var body: some View {
-        PlainWhitePanel {
-            VStack(alignment: .leading, spacing: 10) {
+        GameBoyDialogueFrame {
+            VStack(alignment: .leading, spacing: 8) {
                 if let title {
                     GameBoyPixelText(
                         title.uppercased(),
                         scale: 1,
-                        color: .black.opacity(0.55),
-                        fallbackFont: .system(size: 12, weight: .bold, design: .monospaced)
+                        color: .black.opacity(0.48),
+                        fallbackFont: .system(size: 11, weight: .bold, design: .monospaced)
                     )
+                    .padding(.bottom, 2)
                 }
 
                 ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                     GameBoyPixelText(
                         line,
-                        scale: 1.5,
+                        scale: 2,
                         color: .black,
-                        fallbackFont: .system(size: 22, weight: .medium, design: .monospaced)
+                        fallbackFont: .system(size: 20, weight: .medium, design: .monospaced)
                     )
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(6)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct GameBoyDialogueFrame<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
+            .frame(minHeight: 92, alignment: .topLeading)
+            .background {
+                ZStack {
+                    Rectangle()
+                        .fill(.black)
+
+                    Rectangle()
+                        .fill(Color(red: 0.95, green: 0.95, blue: 0.92))
+                        .padding(4)
+
+                    Rectangle()
+                        .fill(.black)
+                        .padding(8)
+
+                    Rectangle()
+                        .fill(Color(red: 0.98, green: 0.98, blue: 0.95))
+                        .padding(12)
+                }
+            }
+        .overlay(alignment: .bottomTrailing) {
+            HStack(spacing: 4) {
+                Rectangle()
+                    .fill(.black.opacity(0.18))
+                    .frame(width: 6, height: 6)
+                Rectangle()
+                    .fill(.black.opacity(0.38))
+                    .frame(width: 6, height: 6)
+                Rectangle()
+                    .fill(.black.opacity(0.72))
+                    .frame(width: 6, height: 6)
+            }
+            .padding(.trailing, 18)
+            .padding(.bottom, 16)
+        }
+        .shadow(color: .black.opacity(0.08), radius: 18, y: 8)
     }
 }
 

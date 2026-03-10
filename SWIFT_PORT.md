@@ -65,7 +65,7 @@ The repo now contains:
 - corrected overworld sprite compositing for the accepted M3/M4A slice so sprite color-0 white is treated as transparent instead of multiply-blending against the field background
 - Oak Lab rival battle hardening for the accepted M3 slice: battle sprites, queued battle text phases, accuracy/evasion, STAB, type effectiveness, critical hits, bounded move-effect handling, and deterministic trainer AI better than first-PP selection
 - Oak Lab battle presentation polish for the accepted M3 slice: GBC-style left/right battler composition and native HP bars with on-bar numeric readouts on battle status cards
-- a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets` and the native field view now presenting those scenes through a tinted Game Boy green treatment plus a more visible pixel-matrix overlay
+- a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets` and the native field view now presenting those scenes through a tinted Game Boy green treatment, a fixed `160x144` LCD viewport with camera scrolling, and a DMG-style screen well with a more visible pixel-matrix overlay
 - bounded native M3 music playback driven from extracted ASM-backed audio manifests, including title, map-default, scripted override, battle, rival-exit, and Mom-heal routing
 - battle telemetry that now exposes phase, queued/current text, and move-slot state so the UI and harness can consume turn sequencing directly
 - audio telemetry that now exposes current track, entry, playback reason, and revision so the harness can validate music transitions during the slice
@@ -443,6 +443,7 @@ When a blocker is discovered, add:
 - Strengthened the scale-aware pixel-matrix overlay in the SwiftUI field view so the retro screen texture reads more clearly at gameplay sizes, including a subtle recessed highlight/shadow bevel on the field cell lattice plus per-cell aperture highlights and shadows.
 - Added a working field-filter switcher in the gameplay sidebar options section so the UI can swap between authentic DMG, tinted, and raw grayscale field presentation without touching runtime state contracts.
 - Optimized field presentation updates so the SwiftUI field view no longer regenerates the full scene bitmap during ordinary body invalidations, and the renderer now caches decoded assets plus recent rendered frames by render signature.
+- Reworked gameplay field presentation around a fixed `160x144` Game Boy LCD viewport with a scrolling camera, layered actor composition, border-block padding at map edges, and a DMG-style screen well that keeps interiors and exteriors at the same logical gameplay scale.
 - Revalidated the accepted M3/M4A baseline with `./scripts/extract_red.sh`, `./scripts/validate_milestone.sh`, and `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`.
 
 ### 2026-03-09
