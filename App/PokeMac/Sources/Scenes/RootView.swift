@@ -4,6 +4,7 @@ import PokeCore
 import PokeUI
 
 struct RootView: View {
+    private static let windowSize = CGSize(width: 1150, height: 800)
     @Bindable var coordinator: AppCoordinator
 
     var body: some View {
@@ -27,7 +28,7 @@ struct RootView: View {
                 }
             }
         }
-        .frame(minWidth: 1150, minHeight: 800)
+        .frame(width: Self.windowSize.width, height: Self.windowSize.height)
         .toolbar {
             ToolbarItem {
                 Button("Debug") {
