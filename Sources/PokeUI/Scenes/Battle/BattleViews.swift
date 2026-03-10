@@ -93,7 +93,8 @@ private struct BattleViewportCanvas: View {
                 BattleStatusCard(
                     title: trainerName,
                     pokemon: enemyPokemon,
-                    alignment: .leading
+                    alignment: .leading,
+                    showsExperience: false
                 )
                 .frame(width: layout.enemyCardSize.width, height: layout.enemyCardSize.height)
                 .position(x: layout.enemyCardCenter.x, y: layout.enemyCardCenter.y)
@@ -101,7 +102,8 @@ private struct BattleViewportCanvas: View {
                 BattleStatusCard(
                     title: "RED",
                     pokemon: playerPokemon,
-                    alignment: .leading
+                    alignment: .leading,
+                    showsExperience: true
                 )
                 .frame(width: layout.playerCardSize.width, height: layout.playerCardSize.height)
                 .position(x: layout.playerCardCenter.x, y: layout.playerCardCenter.y)
@@ -225,6 +227,7 @@ private struct BattleStatusCard: View {
     let title: String
     let pokemon: PartyPokemonTelemetry
     let alignment: HorizontalAlignment
+    let showsExperience: Bool
 
     var body: some View {
         GeometryReader { proxy in
@@ -235,7 +238,7 @@ private struct BattleStatusCard: View {
             let hpLabelFont = max(10, size.height * 0.17)
             let hpValueFont = max(12, size.height * 0.2)
 
-            VStack(alignment: alignment, spacing: size.height * 0.08) {
+            VStack(alignment: alignment, spacing: size.height * 0.06) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(title.uppercased())
                         .font(.system(size: metaFont, weight: .bold, design: .monospaced))
@@ -264,6 +267,18 @@ private struct BattleStatusCard: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: max(10, size.height * 0.14))
                 }
+
+                if showsExperience {
+                    HStack(alignment: .center, spacing: 10) {
+                        Text("EXP")
+                            .font(.system(size: hpLabelFont, weight: .bold, design: .monospaced))
+                            .foregroundStyle(FieldRetroPalette.ink.opacity(0.74))
+
+                        BattleExperienceBar(experience: pokemon.experience)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(8, size.height * 0.11))
+                    }
+                }
             }
             .padding(contentPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -281,6 +296,32 @@ private struct BattleStatusCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(FieldRetroPalette.outline.opacity(0.06), lineWidth: 1)
+        }
+    }
+}
+
+private struct BattleExperienceBar: View {
+    let experience: ExperienceProgressTelemetry
+
+    private var fraction: CGFloat {
+        let range = max(0, experience.nextLevel - experience.levelStart)
+        guard range > 0 else { return 1 }
+        let progress = min(range, max(0, experience.total - experience.levelStart))
+        return CGFloat(progress) / CGFloat(range)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(0, proxy.size.width * fraction)
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(FieldRetroPalette.track)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color(red: 0.28, green: 0.46, blue: 0.62))
+                    .frame(width: width)
+            }
         }
     }
 }

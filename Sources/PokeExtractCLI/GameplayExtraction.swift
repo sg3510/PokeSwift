@@ -1072,8 +1072,10 @@ private func parseSpecies(repoRoot: URL, file: String, id: String, displayName: 
     let contents = try String(contentsOf: repoRoot.appendingPathComponent(file))
     guard let statsMatch = contents.firstMatch(of: /db\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\n\s*;\s*hp\s+atk\s+def\s+spd\s+spc/),
           let typeMatch = contents.firstMatch(of: /db\s+([A-Z_]+),\s+([A-Z_]+)\s*;\s*type/),
+          let baseExpMatch = contents.firstMatch(of: /db\s+(\d+)\s*;\s*base exp/),
           let spriteMatch = contents.firstMatch(of: /dw\s+([A-Za-z0-9_]+),\s+([A-Za-z0-9_]+)/),
-          let moveMatch = contents.firstMatch(of: /db\s+([A-Z_]+),\s+([A-Z_]+),\s+([A-Z_]+),\s+([A-Z_]+)\s*; level 1 learnset/)
+          let moveMatch = contents.firstMatch(of: /db\s+([A-Z_]+),\s+([A-Z_]+),\s+([A-Z_]+),\s+([A-Z_]+)\s*; level 1 learnset/),
+          let growthRateMatch = contents.firstMatch(of: /db\s+([A-Z_]+)\s*;\s*growth rate/)
     else {
         throw ExtractorError.invalidArguments("missing species data for \(id)")
     }
@@ -1093,6 +1095,11 @@ private func parseSpecies(repoRoot: URL, file: String, id: String, displayName: 
     ]
     let primaryType = String(typeMatch.output.1)
     let rawSecondaryType = String(typeMatch.output.2)
+    let baseExp = Int(baseExpMatch.output.1) ?? 0
+    let growthRateRawValue = String(growthRateMatch.output.1)
+    guard let growthRate = PokemonGrowthRate(rawValue: growthRateRawValue) else {
+        throw ExtractorError.invalidArguments("unsupported growth rate \(growthRateRawValue) for \(id)")
+    }
     let battleSprite = try battleSpriteManifest(
         speciesID: id,
         frontSymbol: String(spriteMatch.output.1),
@@ -1105,6 +1112,8 @@ private func parseSpecies(repoRoot: URL, file: String, id: String, displayName: 
         primaryType: primaryType,
         secondaryType: primaryType == rawSecondaryType ? nil : rawSecondaryType,
         battleSprite: battleSprite,
+        baseExp: baseExp,
+        growthRate: growthRate,
         baseHP: statsValues[safe: 0] ?? 0,
         baseAttack: statsValues[safe: 1] ?? 0,
         baseDefense: statsValues[safe: 2] ?? 0,

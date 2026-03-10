@@ -114,6 +114,7 @@ public struct DialogueTelemetry: Codable, Equatable, Sendable {
 }
 
 public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
+    public let experience: ExperienceProgressTelemetry
     public let speciesID: String
     public let displayName: String
     public let level: Int
@@ -121,13 +122,55 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
     public let maxHP: Int
     public let moves: [String]
 
-    public init(speciesID: String, displayName: String, level: Int, currentHP: Int, maxHP: Int, moves: [String]) {
+    public init(
+        speciesID: String,
+        displayName: String,
+        level: Int,
+        currentHP: Int,
+        maxHP: Int,
+        moves: [String],
+        experience: ExperienceProgressTelemetry = .init(total: 0, levelStart: 0, nextLevel: 1)
+    ) {
+        self.experience = experience
         self.speciesID = speciesID
         self.displayName = displayName
         self.level = level
         self.currentHP = currentHP
         self.maxHP = maxHP
         self.moves = moves
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case experience
+        case speciesID
+        case displayName
+        case level
+        case currentHP
+        case maxHP
+        case moves
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        experience = try container.decodeIfPresent(ExperienceProgressTelemetry.self, forKey: .experience) ?? .init(total: 0, levelStart: 0, nextLevel: 1)
+        speciesID = try container.decode(String.self, forKey: .speciesID)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        level = try container.decode(Int.self, forKey: .level)
+        currentHP = try container.decode(Int.self, forKey: .currentHP)
+        maxHP = try container.decode(Int.self, forKey: .maxHP)
+        moves = try container.decode([String].self, forKey: .moves)
+    }
+}
+
+public struct ExperienceProgressTelemetry: Codable, Equatable, Sendable {
+    public let total: Int
+    public let levelStart: Int
+    public let nextLevel: Int
+
+    public init(total: Int, levelStart: Int, nextLevel: Int) {
+        self.total = total
+        self.levelStart = levelStart
+        self.nextLevel = nextLevel
     }
 }
 

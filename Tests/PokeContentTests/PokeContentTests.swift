@@ -18,6 +18,8 @@ final class PokeContentTests: XCTestCase {
         XCTAssertEqual(loaded.mapScript(for: "REDS_HOUSE_2F")?.triggers.first?.scriptID, "oak_intro")
         XCTAssertEqual(loaded.species(id: "SQUIRTLE")?.startingMoves, ["TACKLE", "TAIL_WHIP"])
         XCTAssertEqual(loaded.species(id: "SQUIRTLE")?.primaryType, "WATER")
+        XCTAssertEqual(loaded.species(id: "SQUIRTLE")?.baseExp, 66)
+        XCTAssertEqual(loaded.species(id: "SQUIRTLE")?.growthRate, .mediumSlow)
         XCTAssertEqual(
             loaded.species(id: "SQUIRTLE")?.battleSprite,
             .init(
@@ -216,6 +218,8 @@ final class PokeContentTests: XCTestCase {
                         frontImagePath: "Assets/battle/pokemon/front/squirtle.png",
                         backImagePath: "Assets/battle/pokemon/back/squirtle.png"
                     ),
+                    baseExp: 66,
+                    growthRate: .mediumSlow,
                     baseHP: 44,
                     baseAttack: 48,
                     baseDefense: 65,

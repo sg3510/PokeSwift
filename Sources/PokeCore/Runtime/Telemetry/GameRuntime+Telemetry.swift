@@ -123,7 +123,14 @@ extension GameRuntime {
             level: pokemon.level,
             currentHP: pokemon.currentHP,
             maxHP: pokemon.maxHP,
-            moves: pokemon.moves.map(\.id)
+            moves: pokemon.moves.map(\.id),
+            experience: .init(
+                total: pokemon.experience,
+                levelStart: experienceRequired(for: pokemon.level, speciesID: pokemon.speciesID),
+                nextLevel: pokemon.level >= 100
+                    ? experienceRequired(for: pokemon.level, speciesID: pokemon.speciesID)
+                    : experienceRequired(for: pokemon.level + 1, speciesID: pokemon.speciesID)
+            )
         )
     }
 }

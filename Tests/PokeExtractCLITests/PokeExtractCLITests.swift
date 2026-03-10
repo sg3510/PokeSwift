@@ -110,6 +110,8 @@ final class PokeExtractCLITests: XCTestCase {
         let charmander = try XCTUnwrap(manifest.species.first { $0.id == "CHARMANDER" })
         XCTAssertEqual(charmander.primaryType, "FIRE")
         XCTAssertNil(charmander.secondaryType)
+        XCTAssertEqual(charmander.baseExp, 65)
+        XCTAssertEqual(charmander.growthRate, .mediumSlow)
         XCTAssertEqual(
             charmander.battleSprite,
             .init(
@@ -120,9 +122,13 @@ final class PokeExtractCLITests: XCTestCase {
         let squirtle = try XCTUnwrap(manifest.species.first { $0.id == "SQUIRTLE" })
         XCTAssertEqual(squirtle.primaryType, "WATER")
         XCTAssertNil(squirtle.secondaryType)
+        XCTAssertEqual(squirtle.baseExp, 66)
+        XCTAssertEqual(squirtle.growthRate, .mediumSlow)
         let bulbasaur = try XCTUnwrap(manifest.species.first { $0.id == "BULBASAUR" })
         XCTAssertEqual(bulbasaur.primaryType, "GRASS")
         XCTAssertEqual(bulbasaur.secondaryType, "POISON")
+        XCTAssertEqual(bulbasaur.baseExp, 64)
+        XCTAssertEqual(bulbasaur.growthRate, .mediumSlow)
         XCTAssertEqual(manifest.moves.map(\.id), ["SCRATCH", "TACKLE", "TAIL_WHIP", "GROWL"])
         XCTAssertFalse(manifest.typeEffectiveness.isEmpty)
         XCTAssertEqual(

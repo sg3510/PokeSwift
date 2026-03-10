@@ -6,7 +6,7 @@ import PokeDataModel
 @MainActor
 @Observable
 public final class GameRuntime {
-    public static let saveSchemaVersion = 1
+    nonisolated public static let saveSchemaVersion = 2
 
     public let content: LoadedContent
 

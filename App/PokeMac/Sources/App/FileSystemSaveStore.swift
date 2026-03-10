@@ -14,7 +14,7 @@ enum FileSystemSaveStoreError: LocalizedError {
 }
 
 final class FileSystemSaveStore: SaveStore {
-    private static let supportedSchemaVersion = 1
+    private static let supportedSchemaVersion = GameRuntime.saveSchemaVersion
     private let saveURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder

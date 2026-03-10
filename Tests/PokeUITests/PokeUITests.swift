@@ -350,7 +350,8 @@ final class PokeUITests: XCTestCase {
                     level: 5,
                     currentHP: 19,
                     maxHP: 19,
-                    moves: ["TACKLE", "GROWL"]
+                    moves: ["TACKLE", "GROWL"],
+                    experience: .init(total: 150, levelStart: 135, nextLevel: 179)
                 ),
             ]
         )
@@ -399,6 +400,9 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(sidebarParty.pokemon.count, 1)
         XCTAssertEqual(sidebarParty.pokemon.first?.displayName, "Bulbasaur")
         XCTAssertEqual(sidebarParty.pokemon.first?.level, 5)
+        XCTAssertEqual(sidebarParty.pokemon.first?.totalExperience, 150)
+        XCTAssertEqual(sidebarParty.pokemon.first?.levelStartExperience, 135)
+        XCTAssertEqual(sidebarParty.pokemon.first?.nextLevelExperience, 179)
         XCTAssertEqual(sidebarParty.pokemon.first?.currentHP, 19)
         XCTAssertEqual(sidebarParty.pokemon.first?.maxHP, 19)
         XCTAssertEqual(sidebarParty.pokemon.first?.isLead, true)

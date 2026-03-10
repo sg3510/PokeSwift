@@ -418,12 +418,23 @@ public struct MoveManifest: Codable, Equatable, Sendable {
     }
 }
 
+public enum PokemonGrowthRate: String, Codable, Equatable, Sendable, CaseIterable {
+    case mediumFast = "GROWTH_MEDIUM_FAST"
+    case slightlyFast = "GROWTH_SLIGHTLY_FAST"
+    case slightlySlow = "GROWTH_SLIGHTLY_SLOW"
+    case mediumSlow = "GROWTH_MEDIUM_SLOW"
+    case fast = "GROWTH_FAST"
+    case slow = "GROWTH_SLOW"
+}
+
 public struct SpeciesManifest: Codable, Equatable, Sendable {
     public let primaryType: String
     public let secondaryType: String?
     public let battleSprite: BattleSpriteManifest?
     public let id: String
     public let displayName: String
+    public let baseExp: Int
+    public let growthRate: PokemonGrowthRate
     public let baseHP: Int
     public let baseAttack: Int
     public let baseDefense: Int
@@ -437,6 +448,8 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         primaryType: String = "NORMAL",
         secondaryType: String? = nil,
         battleSprite: BattleSpriteManifest? = nil,
+        baseExp: Int = 0,
+        growthRate: PokemonGrowthRate = .mediumFast,
         baseHP: Int,
         baseAttack: Int,
         baseDefense: Int,
@@ -449,6 +462,8 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         self.primaryType = primaryType
         self.secondaryType = secondaryType
         self.battleSprite = battleSprite
+        self.baseExp = baseExp
+        self.growthRate = growthRate
         self.baseHP = baseHP
         self.baseAttack = baseAttack
         self.baseDefense = baseDefense
@@ -463,6 +478,8 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         case battleSprite
         case id
         case displayName
+        case baseExp
+        case growthRate
         case baseHP
         case baseAttack
         case baseDefense
@@ -478,6 +495,8 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         primaryType = try container.decodeIfPresent(String.self, forKey: .primaryType) ?? "NORMAL"
         secondaryType = try container.decodeIfPresent(String.self, forKey: .secondaryType)
         battleSprite = try container.decodeIfPresent(BattleSpriteManifest.self, forKey: .battleSprite)
+        baseExp = try container.decodeIfPresent(Int.self, forKey: .baseExp) ?? 0
+        growthRate = try container.decodeIfPresent(PokemonGrowthRate.self, forKey: .growthRate) ?? .mediumFast
         baseHP = try container.decode(Int.self, forKey: .baseHP)
         baseAttack = try container.decode(Int.self, forKey: .baseAttack)
         baseDefense = try container.decode(Int.self, forKey: .baseDefense)

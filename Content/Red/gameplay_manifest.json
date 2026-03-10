@@ -2829,6 +2829,7 @@
     {
       "baseAttack" : 52,
       "baseDefense" : 43,
+      "baseExp" : 65,
       "baseHP" : 39,
       "baseSpecial" : 50,
       "baseSpeed" : 65,
@@ -2837,6 +2838,7 @@
         "frontImagePath" : "Assets/battle/pokemon/front/charmander.png"
       },
       "displayName" : "Charmander",
+      "growthRate" : "GROWTH_MEDIUM_SLOW",
       "id" : "CHARMANDER",
       "primaryType" : "FIRE",
       "startingMoves" : [
@@ -2847,6 +2849,7 @@
     {
       "baseAttack" : 48,
       "baseDefense" : 65,
+      "baseExp" : 66,
       "baseHP" : 44,
       "baseSpecial" : 50,
       "baseSpeed" : 43,
@@ -2855,6 +2858,7 @@
         "frontImagePath" : "Assets/battle/pokemon/front/squirtle.png"
       },
       "displayName" : "Squirtle",
+      "growthRate" : "GROWTH_MEDIUM_SLOW",
       "id" : "SQUIRTLE",
       "primaryType" : "WATER",
       "startingMoves" : [
@@ -2865,6 +2869,7 @@
     {
       "baseAttack" : 49,
       "baseDefense" : 49,
+      "baseExp" : 64,
       "baseHP" : 45,
       "baseSpecial" : 65,
       "baseSpeed" : 45,
@@ -2873,6 +2878,7 @@
         "frontImagePath" : "Assets/battle/pokemon/front/bulbasaur.png"
       },
       "displayName" : "Bulbasaur",
+      "growthRate" : "GROWTH_MEDIUM_SLOW",
       "id" : "BULBASAUR",
       "primaryType" : "GRASS",
       "secondaryType" : "POISON",

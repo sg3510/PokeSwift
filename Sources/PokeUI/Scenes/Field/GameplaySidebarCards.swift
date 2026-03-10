@@ -206,13 +206,15 @@ private struct BattleSummaryContent: View {
             BattleCombatantStatusRow(
                 title: "FOE",
                 pokemon: props.enemyPokemon,
-                accentFill: FieldRetroPalette.slotFill.opacity(0.82)
+                accentFill: FieldRetroPalette.slotFill.opacity(0.82),
+                showsExperience: false
             )
 
             BattleCombatantStatusRow(
                 title: "YOU",
                 pokemon: props.playerPokemon,
-                accentFill: FieldRetroPalette.leadSlotFill
+                accentFill: FieldRetroPalette.leadSlotFill,
+                showsExperience: true
             )
 
             Text(props.promptText)
@@ -255,6 +257,7 @@ private struct BattleCombatantStatusRow: View {
     let title: String
     let pokemon: PartyPokemonTelemetry
     let accentFill: Color
+    let showsExperience: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -278,6 +281,21 @@ private struct BattleCombatantStatusRow: View {
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
             }
+
+            if showsExperience {
+                HStack(spacing: 10) {
+                    ExperienceBar(
+                        totalExperience: pokemon.experience.total,
+                        levelStartExperience: pokemon.experience.levelStart,
+                        nextLevelExperience: pokemon.experience.nextLevel
+                    )
+                    .frame(maxWidth: .infinity)
+
+                    Text(experienceSummary)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -286,6 +304,12 @@ private struct BattleCombatantStatusRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(FieldRetroPalette.outline.opacity(0.14), lineWidth: 1)
         }
+    }
+
+    private var experienceSummary: String {
+        let progress = max(0, pokemon.experience.total - pokemon.experience.levelStart)
+        let needed = max(1, pokemon.experience.nextLevel - pokemon.experience.levelStart)
+        return "EXP \(progress)/\(needed)"
     }
 }
 
@@ -730,6 +754,19 @@ private struct PartySidebarRow: View {
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
                     }
+
+                    HStack(spacing: 10) {
+                        ExperienceBar(
+                            totalExperience: props.totalExperience,
+                            levelStartExperience: props.levelStartExperience,
+                            nextLevelExperience: props.nextLevelExperience
+                        )
+                        .frame(maxWidth: .infinity)
+
+                        Text(experienceSummary)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -749,6 +786,12 @@ private struct PartySidebarRow: View {
             PartyPokemonHoverCard(props: props)
         }
         .zIndex(isHovered ? 1 : 0)
+    }
+
+    private var experienceSummary: String {
+        let progress = max(0, props.totalExperience - props.levelStartExperience)
+        let needed = max(1, props.nextLevelExperience - props.levelStartExperience)
+        return "EXP \(progress)/\(needed)"
     }
 }
 
@@ -810,6 +853,35 @@ private struct PartyHPBar: View {
     }
 }
 
+private struct ExperienceBar: View {
+    let totalExperience: Int
+    let levelStartExperience: Int
+    let nextLevelExperience: Int
+
+    private var experienceFraction: CGFloat {
+        let range = max(0, nextLevelExperience - levelStartExperience)
+        guard range > 0 else { return 1 }
+        let progress = min(range, max(0, totalExperience - levelStartExperience))
+        return CGFloat(progress) / CGFloat(range)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(0, proxy.size.width * experienceFraction)
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(FieldRetroPalette.track)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color(red: 0.28, green: 0.46, blue: 0.62))
+                    .frame(width: width)
+            }
+        }
+        .frame(height: 8)
+    }
+}
+
 private struct PartyPokemonSpriteTile: View {
     let props: PartySidebarPokemonProps
 
@@ -864,6 +936,10 @@ private struct PartyPokemonHoverCard: View {
                     Text("Lv\(props.level)  HP \(props.currentHP)/\(props.maxHP)")
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+
+                    Text(experienceSummary)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
                 }
             }
 
@@ -912,6 +988,12 @@ private struct PartyPokemonHoverCard: View {
                 }
         }
         .shadow(color: .black.opacity(0.14), radius: 18, y: 10)
+    }
+
+    private var experienceSummary: String {
+        let progress = max(0, props.totalExperience - props.levelStartExperience)
+        let needed = max(1, props.nextLevelExperience - props.levelStartExperience)
+        return "EXP \(progress)/\(needed)"
     }
 }
 

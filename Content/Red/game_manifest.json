@@ -1,7 +1,7 @@
 {
   "contentVersion" : "m3-red-first-slice-v1",
   "extractorVersion" : "0.1.0",
-  "sourceCommit" : "6c52fd0aeb71",
+  "sourceCommit" : "cd714a9fdcc2",
   "sourceFiles" : [
     {
       "path" : "constants/charmap.asm",

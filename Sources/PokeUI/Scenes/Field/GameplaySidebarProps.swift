@@ -79,6 +79,9 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
     public let speciesID: String
     public let displayName: String
     public let level: Int
+    public let totalExperience: Int
+    public let levelStartExperience: Int
+    public let nextLevelExperience: Int
     public let currentHP: Int
     public let maxHP: Int
     public let isLead: Bool
@@ -96,6 +99,9 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         speciesID: String,
         displayName: String,
         level: Int,
+        totalExperience: Int = 0,
+        levelStartExperience: Int = 0,
+        nextLevelExperience: Int = 1,
         currentHP: Int,
         maxHP: Int,
         isLead: Bool,
@@ -112,6 +118,9 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         self.speciesID = speciesID
         self.displayName = displayName
         self.level = level
+        self.totalExperience = totalExperience
+        self.levelStartExperience = levelStartExperience
+        self.nextLevelExperience = nextLevelExperience
         self.currentHP = currentHP
         self.maxHP = maxHP
         self.isLead = isLead
@@ -390,6 +399,9 @@ public enum GameplaySidebarPropsBuilder {
                 speciesID: pokemon.speciesID,
                 displayName: pokemon.displayName,
                 level: pokemon.level,
+                totalExperience: pokemon.experience.total,
+                levelStartExperience: pokemon.experience.levelStart,
+                nextLevelExperience: pokemon.experience.nextLevel,
                 currentHP: pokemon.currentHP,
                 maxHP: max(1, pokemon.maxHP),
                 isLead: index == 0,
