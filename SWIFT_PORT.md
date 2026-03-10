@@ -67,8 +67,10 @@ The repo now contains:
 - Oak Lab battle presentation polish for the accepted M3 slice: battles now render inside the shared Game Boy shell without the field LCD shader, while battle text stays in the viewport footer, battle controls/status move into the modern sidebar, battle sprites honor border-connected white-as-transparent compositing so internal highlights stay opaque, and the in-viewport HUD uses field-style LCD-tinted surfaces instead of raw white panels
 - a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets` and the native field view now presenting those scenes through a tinted Game Boy green treatment, a fixed `160x144` LCD viewport with camera scrolling, and a shader-based DMG LCD treatment with a restrained reflective screen sheen
 - bounded native M3 music playback driven from extracted ASM-backed audio manifests, including title, map-default, scripted override, battle, rival-exit, and Mom-heal routing
+- a native-first single-slot save/load foundation using schema-versioned JSON save envelopes, title-menu `Continue` gating from readable save metadata, in-session sidebar save/load actions, and save telemetry/control endpoints for the harness
 - battle telemetry that now exposes phase, queued/current text, and move-slot state so the UI and harness can consume turn sequencing directly
 - audio telemetry that now exposes current track, entry, playback reason, and revision so the harness can validate music transitions during the slice
+- save telemetry that now exposes metadata, save/load availability, the last save operation result, and save-store error details so title flow, the gameplay shell, and the harness can verify restore behavior explicitly
 - a passing workspace test run across the current module test targets
 - a macOS `26.0+` baseline for the Swift port so native Liquid Glass UI can be used without legacy fallback surfaces
 
@@ -268,7 +270,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Keyboard mapping | directional, confirm, cancel, start | `in progress` | `PokeMac`, `PokeCore` | harness input drive tests |
 | Debug overlay / panel | scene, manifest version, input events | `in progress` | `PokeUI`, `PokeTelemetry` | UI smoke checks and telemetry parity |
 | Settings / Options shell | native host for future options | `not started` | `PokeMac`, `PokeUI` | route placeholder exists in M2 |
-| Save slots UI | native save management | `in progress` | `PokeMac`, `PokeUI`, `PokeCore` | save/load acceptance and restore validation |
+| Save slots UI | single-slot native save management with title `Continue` and in-session restore affordances | `in progress` | `PokeMac`, `PokeUI`, `PokeCore` | save/load acceptance and restore validation |
 | Accessibility basics | readable text, focus order, scaling policy | `not started` | `PokeUI`, `PokeMac` | future accessibility checklist |
 
 ## Telemetry and Agentic Validation Matrix
@@ -287,8 +289,9 @@ The M1/M2 contract requires telemetry that is stable enough for repeated build-l
 | Build command | one stable app build command | `done` | repo script / harness command | `PokeHarness` | used in milestone automation |
 | Launch command | one stable app launch command | `done` | repo script / harness command | `PokeHarness` | used in milestone automation |
 | Synthetic input injection | up/down/confirm/cancel/start | `done` | harness to telemetry control surface | `PokeHarness`, `PokeTelemetry` | validated end to end |
+| Save/load control surface | native save, in-session load, and relaunch `Continue` behavior are externally observable and driveable | `done` | runtime snapshot plus `/save` and `/load` control endpoints | `PokeCore`, `PokeTelemetry`, `PokeHarness` | validated through post-battle save, relaunch, and `Continue` restore in the milestone harness |
 | Clean shutdown | deterministic stop path | `done` | harness command | `PokeHarness` | quit handshake fixed and validated |
-| Smoke validator | end-to-end milestone acceptance script | `done` | harness validate command | `PokeHarness` | `./scripts/validate_milestone.sh` now passes for M3 |
+| Smoke validator | end-to-end milestone acceptance script | `done` | harness validate command | `PokeHarness` | `./scripts/validate_milestone.sh` now passes for M3 and covers post-battle save plus relaunch/`Continue` restore |
 
 ### Telemetry Contract for M2
 
@@ -329,8 +332,9 @@ The project must support the following repeatable loop:
 | content loader tests | yes | yes | `done` | `PokeContentTests` passes |
 | runtime scene tests | no | yes | `done` | `PokeCoreTests` covers title-flow transitions |
 | input navigation tests | no | yes | `done` | `PokeCoreTests` covers disabled `Continue` behavior |
+| save/load runtime tests | no | no | `done` | `PokeCoreTests` covers save + `Continue` restore and unreadable-save handling |
 | telemetry schema tests | no | yes | `done` | `PokeTelemetryTests` plus harness/validation coverage |
-| harness command tests | no | yes | `done` | build/launch/latest/input/quit/validate exercised through M2 loop |
+| harness command tests | no | yes | `done` | build/launch/latest/input/save/load/quit/validate are exercised through the current M3/M4A validation loop |
 | render smoke test | no | yes | `done` | app boots with extracted assets and zero asset-loading failures in validation |
 | ROM build non-regression | yes | no | `not started` | keep existing pokered build path intact if applicable |
 | parity harness | no | future | `not started` | compare original behavior vs Swift engine over time |
@@ -393,7 +397,7 @@ The project must support the following repeatable loop:
 - The exact extracted schema surface can drift if multiple agents add fields without freezing `PokeDataModel` first.
 - Title flow implementation can appear complete while still lacking deterministic telemetry, which would block true milestone acceptance.
 - Asset path conventions can drift between extractor output and runtime loading unless the runtime-facing layout is explicitly frozen.
-- Save format strategy is still undecided; postponing it too long may create avoidable rework in menus and progression state.
+- The native-first save format is now real, so any future ROM-compatible or dual-format adapter must preserve schema-versioned restores, title `Continue` gating, and harness validation semantics instead of bypassing them.
 - Script/event extraction will likely become the highest-complexity subsystem after M2 and should not be improvised ad hoc.
 - Battle implementation risk is high if battle data contracts are not separated cleanly from UI concerns.
 
@@ -412,7 +416,7 @@ When a blocker is discovered, add:
 
 ## Deferred Decisions
 
-- Whether save data should be ROM-compatible, app-native, or dual-format
+- Whether to add ROM-compatible or dual-format save adapters on top of the native primary save format
 - Remaining audio fidelity/parity strategy beyond the bounded native M3 playback implementation
 - How much title/intro timing should be driven directly by extracted manifests versus native reinterpretation layers
 - When to introduce Blue support after Red reaches stable parity milestones
@@ -449,6 +453,9 @@ When a blocker is discovered, add:
 - Normal field movement now paces both repeated key input and the visible walk cycle to the step cadence instead of accepting macOS key-repeat bursts mid-step, removing the acceleration feel during sustained directional movement.
 - The macOS field input bridge now watches when the runtime can accept the next directional step instead of sleeping a whole extra repeat interval, so held movement and direction changes chain without the added standing pause between steps.
 - Added runtime-owned field transition sequencing with a field-local DMG-style black fade-out/fade-in for both door and stair warps, while keeping automatic step-out limited to destination door tiles, plus explicit field transition telemetry for harnesses and tests.
+- Added a native-first save/load foundation with schema-versioned JSON envelopes, a primary save file under Application Support (or `POKESWIFT_SAVE_ROOT` in harness mode), title-menu `Continue` restore, sidebar save/load actions with confirmation, and save telemetry surfaced through `RuntimeTelemetrySnapshot`.
+- Extended the milestone harness and tests to validate post-battle save, relaunch, and `Continue` restore into the Oak's Lab post-rival state, and added focused `PokeCoreTests` coverage for save/restore plus unreadable-save handling.
+- Raised the player's battle HUD/platform/sprite row inside the shared Game Boy battle shell so the in-viewport presentation sits correctly after the gameplay-shell migration.
 - Revalidated the accepted M3/M4A baseline with `./scripts/extract_red.sh`, `./scripts/validate_milestone.sh`, and `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`.
 
 ### 2026-03-09
