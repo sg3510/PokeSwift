@@ -75,6 +75,22 @@ public final class GameRuntime {
         gameplayState?.facing ?? .down
     }
 
+    public var playerName: String {
+        gameplayState?.playerName ?? "RED"
+    }
+
+    public var playerMoney: Int {
+        gameplayState?.money ?? 0
+    }
+
+    public var earnedBadgeIDs: Set<String> {
+        gameplayState?.earnedBadgeIDs ?? []
+    }
+
+    public var chosenStarterSpeciesID: String? {
+        gameplayState?.chosenStarterSpeciesID
+    }
+
     public var currentFieldObjects: [FieldObjectRenderState] {
         guard let gameplayState, let map = currentMapManifest else { return [] }
         return map.objects.compactMap { object in

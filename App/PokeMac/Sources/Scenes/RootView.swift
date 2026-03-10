@@ -27,7 +27,7 @@ struct RootView: View {
                 }
             }
         }
-        .frame(minWidth: 960, minHeight: 640)
+        .frame(minWidth: 1150, minHeight: 800)
         .toolbar {
             ToolbarItem {
                 Button("Debug") {

@@ -183,6 +183,8 @@ extension GameRuntime {
             facing: start.facing,
             objectStates: objectStates,
             activeFlags: Set(start.initialFlags),
+            money: 3000,
+            earnedBadgeIDs: [],
             gotStarterBit: false,
             playerName: start.playerName,
             rivalName: start.rivalName,

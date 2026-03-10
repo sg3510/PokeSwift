@@ -18,6 +18,7 @@ public struct DialogueBoxView: View {
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                         .foregroundStyle(.black.opacity(0.55))
                 }
+
                 ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                     Text(line)
                         .font(.system(size: 22, weight: .medium, design: .monospaced))
@@ -45,16 +46,19 @@ public struct StarterChoicePanel: View {
                 Text("Choose Your Starter")
                     .font(.system(size: 18, weight: .bold, design: .monospaced))
                     .foregroundStyle(.black)
+
                 ForEach(Array(options.enumerated()), id: \.element.id) { index, species in
                     HStack(spacing: 12) {
                         Text(index == focusedIndex ? "▶" : " ")
                             .frame(width: 18, alignment: .leading)
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(species.displayName)
                                 .font(.system(size: 20, weight: .bold, design: .monospaced))
                             Text("HP \(species.baseHP)  ATK \(species.baseAttack)  DEF \(species.baseDefense)")
                                 .font(.system(size: 11, weight: .regular, design: .monospaced))
                         }
+
                         Spacer()
                     }
                     .padding(.horizontal, 10)

@@ -24,7 +24,7 @@ struct RuntimeSceneRouter: View {
                 )
             )
         case .field, .dialogue, .scriptedSequence, .starterChoice:
-            GameplayFieldScene(props: gameplayFieldSceneProps)
+            GameplayFieldScene(props: GameplayFieldScenePropsFactory.make(runtime: runtime))
         case .battle:
             if let battleSceneProps {
                 BattleScene(props: battleSceneProps)
@@ -32,20 +32,6 @@ struct RuntimeSceneRouter: View {
         case .placeholder:
             PlaceholderScene(props: .init(title: runtime.placeholderTitle))
         }
-    }
-
-    private var gameplayFieldSceneProps: GameplayFieldSceneProps {
-        return GameplayFieldSceneProps(
-            map: runtime.currentMapManifest,
-            playerPosition: runtime.playerPosition,
-            playerFacing: runtime.playerFacing,
-            objects: runtime.currentFieldObjects,
-            playerSpriteID: runtime.playerSpriteID,
-            renderAssets: makeFieldRenderAssets(runtime: runtime),
-            dialogueLines: runtime.currentDialoguePage?.lines,
-            starterChoiceOptions: runtime.scene == .starterChoice ? runtime.starterChoiceOptions : [],
-            starterChoiceFocusedIndex: runtime.starterChoiceFocusedIndex
-        )
     }
 
     private var battleSceneProps: BattleSceneProps? {

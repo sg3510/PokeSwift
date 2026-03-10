@@ -13,6 +13,11 @@ struct GameplayFieldSceneProps {
     let dialogueLines: [String]?
     let starterChoiceOptions: [SpeciesManifest]
     let starterChoiceFocusedIndex: Int
+    let profile: TrainerProfileProps
+    let party: PartySidebarProps
+    let inventory: InventorySidebarProps
+    let save: SaveSidebarProps
+    let options: OptionsSidebarProps
 }
 
 struct BattleSceneProps {
@@ -35,36 +40,56 @@ struct GameplayFieldScene: View {
     let props: GameplayFieldSceneProps
 
     var body: some View {
-        GameBoyScreen {
-            ZStack {
-                if let map = props.map,
-                   let playerPosition = props.playerPosition {
-                    FieldMapView(
-                        map: map,
-                        playerPosition: playerPosition,
-                        playerFacing: props.playerFacing,
-                        objects: props.objects,
-                        playerSpriteID: props.playerSpriteID,
-                        renderAssets: props.renderAssets
-                    )
-                    .padding(36)
-                }
-
-                if let dialogueLines = props.dialogueLines {
-                    VStack {
-                        Spacer()
+        GameBoyScreen(style: .fieldShell) {
+            GameplayFieldShell(
+                profile: props.profile,
+                party: props.party,
+                inventory: props.inventory,
+                save: props.save,
+                options: props.options
+            ) {
+                FieldMapStage {
+                    mapStageContent
+                } footer: {
+                    if let dialogueLines = props.dialogueLines {
                         DialogueBoxView(lines: dialogueLines)
                             .frame(maxWidth: 760)
                     }
-                    .padding(28)
-                } else if props.starterChoiceOptions.isEmpty == false {
-                    StarterChoicePanel(
-                        options: props.starterChoiceOptions,
-                        focusedIndex: props.starterChoiceFocusedIndex
-                    )
-                    .frame(width: 420)
+                } overlayContent: {
+                    if props.starterChoiceOptions.isEmpty == false {
+                        StarterChoicePanel(
+                            options: props.starterChoiceOptions,
+                            focusedIndex: props.starterChoiceFocusedIndex
+                        )
+                        .frame(width: 420)
+                    }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var mapStageContent: some View {
+        if let map = props.map,
+           let playerPosition = props.playerPosition {
+            FieldMapView(
+                map: map,
+                playerPosition: playerPosition,
+                playerFacing: props.playerFacing,
+                objects: props.objects,
+                playerSpriteID: props.playerSpriteID,
+                renderAssets: props.renderAssets
+            )
+        } else {
+            VStack(spacing: 14) {
+                Text("Field data unavailable")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                Text("The runtime has not produced a map payload for this scene yet.")
+                    .font(.system(size: 16, weight: .medium, design: .monospaced))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(.black.opacity(0.78))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

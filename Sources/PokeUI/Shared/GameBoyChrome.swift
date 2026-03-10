@@ -1,19 +1,26 @@
 import SwiftUI
 
+public enum GameBoyScreenStyle: Sendable {
+    case classic
+    case fieldShell
+}
+
 public struct GameBoyScreen<Content: View>: View {
+    private let style: GameBoyScreenStyle
     private let content: Content
 
-    public init(@ViewBuilder content: () -> Content) {
+    public init(style: GameBoyScreenStyle = .classic, @ViewBuilder content: () -> Content) {
+        self.style = style
         self.content = content()
     }
 
     public var body: some View {
         ZStack {
-            Color.white
+            GameBoyScreenBackground(style: style)
             content
         }
         .overlay {
-            GameBoyGridOverlay()
+            GameBoyGridOverlay(style: style)
         }
     }
 }
@@ -57,6 +64,8 @@ public struct PlainWhitePanel<Content: View>: View {
 }
 
 private struct GameBoyGridOverlay: View {
+    let style: GameBoyScreenStyle
+
     var body: some View {
         GeometryReader { _ in
             Canvas { context, size in
@@ -94,7 +103,7 @@ private struct GameBoyGridOverlay: View {
                         )
                         context.fill(
                             Path(ellipseIn: rect),
-                            with: .color(Color(red: 0.45, green: 0.5, blue: 0.35).opacity(0.12))
+                            with: .color(gridDotColor)
                         )
                         dotX += spacing
                     }
@@ -103,9 +112,68 @@ private struct GameBoyGridOverlay: View {
             }
             .overlay {
                 Rectangle()
-                    .fill(Color(red: 0.88, green: 0.94, blue: 0.84).opacity(0.08))
+                    .fill(gridTint)
             }
             .allowsHitTesting(false)
+        }
+    }
+
+    private var gridDotColor: Color {
+        switch style {
+        case .classic:
+            return Color(red: 0.45, green: 0.5, blue: 0.35).opacity(0.12)
+        case .fieldShell:
+            return Color(red: 0.37, green: 0.42, blue: 0.29).opacity(0.09)
+        }
+    }
+
+    private var gridTint: Color {
+        switch style {
+        case .classic:
+            return Color(red: 0.88, green: 0.94, blue: 0.84).opacity(0.08)
+        case .fieldShell:
+            return Color(red: 0.94, green: 0.94, blue: 0.85).opacity(0.05)
+        }
+    }
+}
+
+private struct GameBoyScreenBackground: View {
+    let style: GameBoyScreenStyle
+
+    var body: some View {
+        switch style {
+        case .classic:
+            Color.white
+        case .fieldShell:
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.83, green: 0.86, blue: 0.72),
+                        Color(red: 0.73, green: 0.79, blue: 0.64),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                RadialGradient(
+                    colors: [
+                        Color.white.opacity(0.2),
+                        Color.clear,
+                    ],
+                    center: .topLeading,
+                    startRadius: 20,
+                    endRadius: 380
+                )
+
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.92, green: 0.91, blue: 0.81).opacity(0.12),
+                        Color(red: 0.39, green: 0.45, blue: 0.31).opacity(0.05),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
         }
     }
 }

@@ -128,6 +128,8 @@ struct GameplayState {
     var facing: FacingDirection
     var objectStates: [String: RuntimeObjectState]
     var activeFlags: Set<String>
+    var money: Int
+    var earnedBadgeIDs: Set<String>
     var gotStarterBit: Bool
     var playerName: String
     var rivalName: String

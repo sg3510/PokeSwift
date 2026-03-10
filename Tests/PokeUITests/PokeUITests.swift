@@ -1,6 +1,7 @@
 import XCTest
 import ImageIO
 import UniformTypeIdentifiers
+import SwiftUI
 @testable import PokeUI
 import PokeDataModel
 import PokeCore
@@ -10,6 +11,162 @@ final class PokeUITests: XCTestCase {
     func testTitleMenuPanelCanBeConstructed() {
         let view = TitleMenuPanel(entries: [.init(id: "newGame", label: "New Game", enabledByDefault: true)], focusedIndex: 0)
         XCTAssertNotNil(view)
+    }
+
+    func testGameplayFieldShellCanBeConstructed() {
+        let view = GameplayFieldShell(
+            profile: .init(
+                trainerName: "RED",
+                locationName: "Pallet Town",
+                portrait: .init(label: "RED", spriteURL: nil, spriteFrame: nil),
+                badges: [],
+                badgeSummaryText: "0/8",
+                moneyText: "¥3,000",
+                statusItems: ["FIELD", "X4 Y6", "DOWN"]
+            ),
+            party: .init(
+                pokemon: [
+                    .init(
+                        id: "bulbasaur-0",
+                        speciesID: "BULBASAUR",
+                        displayName: "Bulbasaur",
+                        level: 5,
+                        currentHP: 19,
+                        maxHP: 19,
+                        isLead: true
+                    ),
+                ]
+            ),
+            inventory: GameplaySidebarPropsBuilder.makeInventory(),
+            save: GameplaySidebarPropsBuilder.makeSaveSection(),
+            options: GameplaySidebarPropsBuilder.makeOptionsSection()
+        ) {
+            FieldMapStage {
+                Color.black
+            } footer: {
+                Text("Dialogue")
+            } overlayContent: {
+                Text("Overlay")
+            }
+        }
+
+        XCTAssertNotNil(view)
+    }
+
+    func testSidebarPropBuilderMapsEmptyPartyProfile() {
+        let profile = GameplaySidebarPropsBuilder.makeProfile(
+            trainerName: "RED",
+            locationName: "Red's House",
+            scene: .field,
+            playerPosition: .init(x: 4, y: 4),
+            facing: .down,
+            portrait: .init(label: "RED", spriteURL: nil, spriteFrame: nil),
+            money: 3000,
+            ownedBadgeIDs: []
+        )
+        let party = GameplaySidebarPropsBuilder.makeParty(from: nil)
+        let inventory = GameplaySidebarPropsBuilder.makeInventory()
+
+        XCTAssertEqual(profile.moneyText, "¥3,000")
+        XCTAssertEqual(profile.badgeSummaryText, "0/8")
+        XCTAssertEqual(profile.badges.count, 8)
+        XCTAssertEqual(profile.statusItems, ["FIELD", "X4 Y4", "DOWN"])
+        XCTAssertTrue(party.pokemon.isEmpty)
+        XCTAssertEqual(inventory.emptyStateTitle, "No items yet")
+    }
+
+    func testSidebarPropBuilderMapsPartyAfterStarterSelection() {
+        let party = PartyTelemetry(
+            pokemon: [
+                .init(
+                    speciesID: "BULBASAUR",
+                    displayName: "Bulbasaur",
+                    level: 5,
+                    currentHP: 19,
+                    maxHP: 19,
+                    moves: ["TACKLE", "GROWL"]
+                ),
+            ]
+        )
+        let speciesDetailsByID = [
+            "BULBASAUR": PartySidebarSpeciesDetails(
+                spriteURL: URL(fileURLWithPath: "/tmp/bulbasaur.png"),
+                primaryType: "GRASS",
+                secondaryType: "POISON",
+                baseHP: 45,
+                baseAttack: 49,
+                baseDefense: 49,
+                baseSpeed: 45,
+                baseSpecial: 65
+            ),
+        ]
+        let moveDisplayNamesByID = [
+            "TACKLE": "Tackle",
+            "GROWL": "Growl",
+        ]
+
+        let profile = GameplaySidebarPropsBuilder.makeProfile(
+            trainerName: "RED",
+            locationName: "Oak's Lab",
+            scene: .starterChoice,
+            playerPosition: .init(x: 5, y: 6),
+            facing: .up,
+            portrait: .init(
+                label: "RED",
+                spriteURL: URL(fileURLWithPath: "/tmp/red.png"),
+                spriteFrame: .init(x: 0, y: 16, width: 16, height: 16)
+            ),
+            money: 4242,
+            ownedBadgeIDs: ["cascade", "boulder"]
+        )
+        let sidebarParty = GameplaySidebarPropsBuilder.makeParty(
+            from: party,
+            speciesDetailsByID: speciesDetailsByID,
+            moveDisplayNamesByID: moveDisplayNamesByID
+        )
+
+        XCTAssertEqual(profile.locationName, "Oak's Lab")
+        XCTAssertEqual(profile.moneyText, "¥4,242")
+        XCTAssertEqual(profile.badgeSummaryText, "2/8")
+        XCTAssertEqual(profile.badges.prefix(2).map(\.isEarned), [true, true])
+        XCTAssertEqual(profile.portrait.spriteURL?.path, "/tmp/red.png")
+        XCTAssertEqual(sidebarParty.pokemon.count, 1)
+        XCTAssertEqual(sidebarParty.pokemon.first?.displayName, "Bulbasaur")
+        XCTAssertEqual(sidebarParty.pokemon.first?.level, 5)
+        XCTAssertEqual(sidebarParty.pokemon.first?.currentHP, 19)
+        XCTAssertEqual(sidebarParty.pokemon.first?.maxHP, 19)
+        XCTAssertEqual(sidebarParty.pokemon.first?.isLead, true)
+        XCTAssertEqual(sidebarParty.pokemon.first?.typeLabels, ["GRASS", "POISON"])
+        XCTAssertEqual(sidebarParty.pokemon.first?.moveNames, ["Tackle", "Growl"])
+        XCTAssertEqual(sidebarParty.pokemon.first?.spriteURL?.path, "/tmp/bulbasaur.png")
+    }
+
+    func testSidebarExpansionStateKeepsExactlyOneSectionOpen() {
+        var expansion = GameplaySidebarExpansionState()
+
+        XCTAssertEqual(expansion.expandedSection, .trainer)
+
+        expansion.activate(.bag)
+        XCTAssertEqual(expansion.expandedSection, .bag)
+
+        expansion.activate(.save)
+        XCTAssertEqual(expansion.expandedSection, .save)
+
+        expansion.activate(.save)
+        XCTAssertEqual(expansion.expandedSection, .save)
+
+        expansion.activate(.options)
+        XCTAssertEqual(expansion.expandedSection, .options)
+    }
+
+    func testSaveAndOptionsBuildersProduceDisabledRows() {
+        let save = GameplaySidebarPropsBuilder.makeSaveSection()
+        let options = GameplaySidebarPropsBuilder.makeOptionsSection()
+
+        XCTAssertEqual(save.actions.map(\.title), ["Save Game", "Load Save"])
+        XCTAssertTrue(save.actions.allSatisfy { $0.isEnabled == false })
+        XCTAssertEqual(options.rows.map(\.title), ["Text Speed", "Battle Scene", "Battle Style", "Sound"])
+        XCTAssertTrue(options.rows.allSatisfy { $0.isEnabled == false })
     }
 
     func testBlocksetDecoderBuilds4x4BlocksFromRepoData() throws {
