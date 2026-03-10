@@ -51,30 +51,56 @@ extension GameRuntime {
     func resolveBattleTurn(battle: inout RuntimeBattleState) {
         guard battle.playerPokemon.moves.indices.contains(battle.focusedMoveIndex) else { return }
 
-        let playerActsFirst = battle.playerPokemon.speed >= battle.enemyPokemon.speed
+        var playerPokemon = battle.playerPokemon
+        var enemyPokemon = battle.enemyPokemon
+        var message = battle.message
+        let playerActsFirst = playerPokemon.speed >= enemyPokemon.speed
         if playerActsFirst {
-            applyMove(attacker: &battle.playerPokemon, defender: &battle.enemyPokemon, moveIndex: battle.focusedMoveIndex, messageTarget: &battle.message)
-            if battle.enemyPokemon.currentHP > 0 {
-                applyEnemyTurn(battle: &battle)
+            applyMove(attacker: &playerPokemon, defender: &enemyPokemon, moveIndex: battle.focusedMoveIndex, messageTarget: &message)
+            if enemyPokemon.currentHP > 0 {
+                applyEnemyTurn(enemyPokemon: &enemyPokemon, playerPokemon: &playerPokemon, messageTarget: &message)
             }
         } else {
-            applyEnemyTurn(battle: &battle)
-            if battle.playerPokemon.currentHP > 0 {
-                applyMove(attacker: &battle.playerPokemon, defender: &battle.enemyPokemon, moveIndex: battle.focusedMoveIndex, messageTarget: &battle.message)
+            applyEnemyTurn(enemyPokemon: &enemyPokemon, playerPokemon: &playerPokemon, messageTarget: &message)
+            if playerPokemon.currentHP > 0 {
+                applyMove(attacker: &playerPokemon, defender: &enemyPokemon, moveIndex: battle.focusedMoveIndex, messageTarget: &message)
             }
         }
 
-        if battle.enemyPokemon.currentHP == 0 || battle.playerPokemon.currentHP == 0 {
-            finishBattle(won: battle.enemyPokemon.currentHP == 0)
+        battle.playerPokemon = playerPokemon
+        battle.enemyPokemon = enemyPokemon
+        battle.message = message
+
+        if playerPokemon.currentHP == 0 {
+            finishBattle(won: false)
+        } else if enemyPokemon.currentHP == 0 {
+            if advanceEnemyPartyIfNeeded(battle: &battle) == false {
+                finishBattle(won: true)
+            }
         } else {
             battle.message = "Pick the next move."
         }
     }
 
-    func applyEnemyTurn(battle: inout RuntimeBattleState) {
-        let availableMoves = battle.enemyPokemon.moves.enumerated().filter { $0.element.currentPP > 0 }
+    func advanceEnemyPartyIfNeeded(battle: inout RuntimeBattleState) -> Bool {
+        guard battle.enemyActiveIndex + 1 < battle.enemyParty.count else {
+            return false
+        }
+
+        battle.enemyActiveIndex += 1
+        let nextPokemon = battle.enemyPokemon
+        battle.message = "\(battle.trainerName) sent out \(nextPokemon.nickname)."
+        return true
+    }
+
+    func applyEnemyTurn(
+        enemyPokemon: inout RuntimePokemonState,
+        playerPokemon: inout RuntimePokemonState,
+        messageTarget: inout String
+    ) {
+        let availableMoves = enemyPokemon.moves.enumerated().filter { $0.element.currentPP > 0 }
         guard let moveChoice = availableMoves.min(by: { $0.offset < $1.offset })?.offset else { return }
-        applyMove(attacker: &battle.enemyPokemon, defender: &battle.playerPokemon, moveIndex: moveChoice, messageTarget: &battle.message)
+        applyMove(attacker: &enemyPokemon, defender: &playerPokemon, moveIndex: moveChoice, messageTarget: &messageTarget)
     }
 
     func applyMove(
@@ -136,40 +162,28 @@ extension GameRuntime {
             return
         }
 
-        let battleID: String
-        if id == "AUTO" {
-            switch rivalStarter(for: chosenStarter) {
-            case "SQUIRTLE":
-                battleID = "rival_lab_squirtle"
-            case "BULBASAUR":
-                battleID = "rival_lab_bulbasaur"
-            default:
-                battleID = "rival_lab_charmander"
-            }
-        } else {
-            battleID = id
-        }
-
-        guard let battleManifest = content.trainerBattle(id: battleID) else {
+        guard let battleManifest = content.trainerBattle(id: id) else {
             return
         }
 
         let playerPokemon = gameplayState.playerParty.first ?? makePokemon(speciesID: chosenStarter, level: 5, nickname: chosenStarter.capitalized)
-        let enemyPokemon = makePokemon(speciesID: battleManifest.enemySpeciesID, level: battleManifest.enemyLevel, nickname: battleManifest.enemySpeciesID.capitalized)
+        let enemyParty = battleManifest.party.map {
+            makePokemon(speciesID: $0.speciesID, level: $0.level, nickname: $0.speciesID.capitalized)
+        }
+        guard enemyParty.isEmpty == false else { return }
         gameplayState.battle = RuntimeBattleState(
             battleID: battleManifest.id,
-            trainerName: gameplayState.rivalName,
-            playerStarterSpeciesID: chosenStarter,
-            enemyStarterSpeciesID: battleManifest.enemySpeciesID,
+            trainerName: battleManifest.displayName,
             completionFlagID: battleManifest.completionFlagID,
             healsPartyAfterBattle: battleManifest.healsPartyAfterBattle,
             preventsBlackoutOnLoss: battleManifest.preventsBlackoutOnLoss,
             winDialogueID: battleManifest.winDialogueID,
             loseDialogueID: battleManifest.loseDialogueID,
             playerPokemon: playerPokemon,
-            enemyPokemon: enemyPokemon,
+            enemyParty: enemyParty,
+            enemyActiveIndex: 0,
             focusedMoveIndex: 0,
-            message: "\(gameplayState.rivalName) challenges you."
+            message: "\(battleManifest.displayName) challenges you."
         )
         self.gameplayState = gameplayState
         scene = .battle

@@ -42,9 +42,6 @@ struct RootView: View {
                     .frame(minWidth: 520, minHeight: 320)
             }
         }
-        .task {
-            coordinator.bootstrap()
-        }
         .onDisappear {
             coordinator.shutdown()
         }

@@ -80,6 +80,8 @@ public struct MapObjectManifest: Codable, Equatable, Sendable {
     public let interactionDialogueID: String?
     public let movementType: String
     public let trainerBattleID: String?
+    public let trainerClass: String?
+    public let trainerNumber: Int?
     public let visibleByDefault: Bool
 
     public init(
@@ -91,6 +93,8 @@ public struct MapObjectManifest: Codable, Equatable, Sendable {
         interactionDialogueID: String?,
         movementType: String,
         trainerBattleID: String?,
+        trainerClass: String? = nil,
+        trainerNumber: Int? = nil,
         visibleByDefault: Bool
     ) {
         self.id = id
@@ -101,27 +105,53 @@ public struct MapObjectManifest: Codable, Equatable, Sendable {
         self.interactionDialogueID = interactionDialogueID
         self.movementType = movementType
         self.trainerBattleID = trainerBattleID
+        self.trainerClass = trainerClass
+        self.trainerNumber = trainerNumber
         self.visibleByDefault = visibleByDefault
     }
 }
 
-public struct TriggerRegionManifest: Codable, Equatable, Sendable {
-    public let id: String
-    public let origin: TilePoint
-    public let size: TileSize
-    public let scriptID: String
+public struct TilePairCollisionManifest: Codable, Equatable, Sendable {
+    public let fromTileID: Int
+    public let toTileID: Int
 
-    public init(id: String, origin: TilePoint, size: TileSize, scriptID: String) {
-        self.id = id
-        self.origin = origin
-        self.size = size
-        self.scriptID = scriptID
+    public init(fromTileID: Int, toTileID: Int) {
+        self.fromTileID = fromTileID
+        self.toTileID = toTileID
     }
+}
 
-    public func contains(point: TilePoint) -> Bool {
-        let xRange = origin.x..<(origin.x + size.width)
-        let yRange = origin.y..<(origin.y + size.height)
-        return xRange.contains(point.x) && yRange.contains(point.y)
+public struct LedgeCollisionManifest: Codable, Equatable, Sendable {
+    public let facing: FacingDirection
+    public let standingTileID: Int
+    public let ledgeTileID: Int
+
+    public init(facing: FacingDirection, standingTileID: Int, ledgeTileID: Int) {
+        self.facing = facing
+        self.standingTileID = standingTileID
+        self.ledgeTileID = ledgeTileID
+    }
+}
+
+public struct TilesetCollisionManifest: Codable, Equatable, Sendable {
+    public let passableTileIDs: [Int]
+    public let warpTileIDs: [Int]
+    public let doorTileIDs: [Int]
+    public let tilePairCollisions: [TilePairCollisionManifest]
+    public let ledges: [LedgeCollisionManifest]
+
+    public init(
+        passableTileIDs: [Int],
+        warpTileIDs: [Int],
+        doorTileIDs: [Int],
+        tilePairCollisions: [TilePairCollisionManifest],
+        ledges: [LedgeCollisionManifest]
+    ) {
+        self.passableTileIDs = passableTileIDs
+        self.warpTileIDs = warpTileIDs
+        self.doorTileIDs = doorTileIDs
+        self.tilePairCollisions = tilePairCollisions
+        self.ledges = ledges
     }
 }
 
@@ -134,12 +164,11 @@ public struct MapManifest: Codable, Equatable, Sendable {
     public let stepWidth: Int
     public let stepHeight: Int
     public let tileset: String
-    public let collisionBlockIDs: [Int]
     public let blockIDs: [Int]
+    public let stepCollisionTileIDs: [Int]
     public let warps: [WarpManifest]
     public let backgroundEvents: [BackgroundEventManifest]
     public let objects: [MapObjectManifest]
-    public let triggerRegions: [TriggerRegionManifest]
 
     public init(
         id: String,
@@ -150,12 +179,11 @@ public struct MapManifest: Codable, Equatable, Sendable {
         stepWidth: Int,
         stepHeight: Int,
         tileset: String,
-        collisionBlockIDs: [Int],
         blockIDs: [Int],
+        stepCollisionTileIDs: [Int],
         warps: [WarpManifest],
         backgroundEvents: [BackgroundEventManifest],
-        objects: [MapObjectManifest],
-        triggerRegions: [TriggerRegionManifest]
+        objects: [MapObjectManifest]
     ) {
         self.id = id
         self.displayName = displayName
@@ -165,12 +193,11 @@ public struct MapManifest: Codable, Equatable, Sendable {
         self.stepWidth = stepWidth
         self.stepHeight = stepHeight
         self.tileset = tileset
-        self.collisionBlockIDs = collisionBlockIDs
         self.blockIDs = blockIDs
+        self.stepCollisionTileIDs = stepCollisionTileIDs
         self.warps = warps
         self.backgroundEvents = backgroundEvents
         self.objects = objects
-        self.triggerRegions = triggerRegions
     }
 }
 
@@ -181,6 +208,7 @@ public struct TilesetManifest: Codable, Equatable, Sendable {
     public let sourceTileSize: Int
     public let blockTileWidth: Int
     public let blockTileHeight: Int
+    public let collision: TilesetCollisionManifest
 
     public init(
         id: String,
@@ -188,7 +216,8 @@ public struct TilesetManifest: Codable, Equatable, Sendable {
         blocksetPath: String,
         sourceTileSize: Int,
         blockTileWidth: Int,
-        blockTileHeight: Int
+        blockTileHeight: Int,
+        collision: TilesetCollisionManifest
     ) {
         self.id = id
         self.imagePath = imagePath
@@ -196,6 +225,7 @@ public struct TilesetManifest: Codable, Equatable, Sendable {
         self.sourceTileSize = sourceTileSize
         self.blockTileWidth = blockTileWidth
         self.blockTileHeight = blockTileHeight
+        self.collision = collision
     }
 }
 
@@ -283,6 +313,8 @@ public struct ScriptStep: Codable, Equatable, Sendable {
     public let objectID: String?
     public let dialogueID: String?
     public let battleID: String?
+    public let trainerClass: String?
+    public let trainerNumber: Int?
     public let visible: Bool?
 
     public init(
@@ -295,6 +327,8 @@ public struct ScriptStep: Codable, Equatable, Sendable {
         objectID: String? = nil,
         dialogueID: String? = nil,
         battleID: String? = nil,
+        trainerClass: String? = nil,
+        trainerNumber: Int? = nil,
         visible: Bool? = nil
     ) {
         self.action = action
@@ -306,6 +340,8 @@ public struct ScriptStep: Codable, Equatable, Sendable {
         self.objectID = objectID
         self.dialogueID = dialogueID
         self.battleID = battleID
+        self.trainerClass = trainerClass
+        self.trainerNumber = trainerNumber
         self.visible = visible
     }
 }
@@ -317,6 +353,42 @@ public struct ScriptManifest: Codable, Equatable, Sendable {
     public init(id: String, steps: [ScriptStep]) {
         self.id = id
         self.steps = steps
+    }
+}
+
+public struct ScriptConditionManifest: Codable, Equatable, Sendable {
+    public let kind: String
+    public let flagID: String?
+    public let intValue: Int?
+    public let stringValue: String?
+
+    public init(kind: String, flagID: String? = nil, intValue: Int? = nil, stringValue: String? = nil) {
+        self.kind = kind
+        self.flagID = flagID
+        self.intValue = intValue
+        self.stringValue = stringValue
+    }
+}
+
+public struct MapScriptTriggerManifest: Codable, Equatable, Sendable {
+    public let id: String
+    public let scriptID: String
+    public let conditions: [ScriptConditionManifest]
+
+    public init(id: String, scriptID: String, conditions: [ScriptConditionManifest]) {
+        self.id = id
+        self.scriptID = scriptID
+        self.conditions = conditions
+    }
+}
+
+public struct MapScriptManifest: Codable, Equatable, Sendable {
+    public let mapID: String
+    public let triggers: [MapScriptTriggerManifest]
+
+    public init(mapID: String, triggers: [MapScriptTriggerManifest]) {
+        self.mapID = mapID
+        self.triggers = triggers
     }
 }
 
@@ -371,13 +443,22 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
     }
 }
 
+public struct TrainerPokemonManifest: Codable, Equatable, Sendable {
+    public let speciesID: String
+    public let level: Int
+
+    public init(speciesID: String, level: Int) {
+        self.speciesID = speciesID
+        self.level = level
+    }
+}
+
 public struct TrainerBattleManifest: Codable, Equatable, Sendable {
     public let id: String
     public let trainerClass: String
     public let trainerNumber: Int
     public let displayName: String
-    public let enemySpeciesID: String
-    public let enemyLevel: Int
+    public let party: [TrainerPokemonManifest]
     public let winDialogueID: String
     public let loseDialogueID: String
     public let healsPartyAfterBattle: Bool
@@ -389,8 +470,7 @@ public struct TrainerBattleManifest: Codable, Equatable, Sendable {
         trainerClass: String,
         trainerNumber: Int,
         displayName: String,
-        enemySpeciesID: String,
-        enemyLevel: Int,
+        party: [TrainerPokemonManifest],
         winDialogueID: String,
         loseDialogueID: String,
         healsPartyAfterBattle: Bool,
@@ -401,8 +481,7 @@ public struct TrainerBattleManifest: Codable, Equatable, Sendable {
         self.trainerClass = trainerClass
         self.trainerNumber = trainerNumber
         self.displayName = displayName
-        self.enemySpeciesID = enemySpeciesID
-        self.enemyLevel = enemyLevel
+        self.party = party
         self.winDialogueID = winDialogueID
         self.loseDialogueID = loseDialogueID
         self.healsPartyAfterBattle = healsPartyAfterBattle
@@ -435,6 +514,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
     public let overworldSprites: [OverworldSpriteManifest]
     public let dialogues: [DialogueManifest]
     public let eventFlags: EventFlagManifest
+    public let mapScripts: [MapScriptManifest]
     public let scripts: [ScriptManifest]
     public let species: [SpeciesManifest]
     public let moves: [MoveManifest]
@@ -447,6 +527,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
         overworldSprites: [OverworldSpriteManifest],
         dialogues: [DialogueManifest],
         eventFlags: EventFlagManifest,
+        mapScripts: [MapScriptManifest],
         scripts: [ScriptManifest],
         species: [SpeciesManifest],
         moves: [MoveManifest],
@@ -458,6 +539,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
         self.overworldSprites = overworldSprites
         self.dialogues = dialogues
         self.eventFlags = eventFlags
+        self.mapScripts = mapScripts
         self.scripts = scripts
         self.species = species
         self.moves = moves

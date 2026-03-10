@@ -45,7 +45,7 @@ The port target is not "run the ROM." The target is:
 
 ### Current State Summary
 
-Milestones `M1`, `M2`, `M3`, and `M4A` are complete as of `2026-03-09`.
+Milestones `M1`, `M2`, `M3`, and `M4A` remain complete as of `2026-03-10`.
 
 The repo now contains:
 
@@ -56,13 +56,20 @@ The repo now contains:
 - telemetry and harness targets with working build, launch, input, latest-snapshot, quit, and validate flows
 - bounded M3 gameplay extraction for `REDS_HOUSE_2F`, `REDS_HOUSE_1F`, `PALLET_TOWN`, and `OAKS_LAB`
 - a playable field/dialogue/starter-choice/battle runtime slice from `New Game` through the first rival battle
+- source-driven tileset collision metadata and per-map step collision grids for the four-map M3 slice
+- source-driven Pallet Town and Oak's Lab map-script triggers and extracted script manifests, with no fallback Swift-only story paths for the slice
+- source-driven trainer battle manifests with extracted enemy parties and starter-dependent rival selection for Oak's Lab
 - a native overworld/dialogue/battle UI shell for the M3 slice
 - real extracted field tilesets, blocksets, and overworld sprite sheets for the M3 slice
 - a real GB-style field compositor for M3 maps and actors, with telemetry proving `renderMode == realAssets`
 - a passing workspace test run across the current module test targets
 - a macOS `26.0+` baseline for the Swift port so native Liquid Glass UI can be used without legacy fallback surfaces
 
-Acceptance was proven with the documented validation command, a deterministic extraction diff check, and a successful `xcodebuild test` run for the workspace scheme.
+The current accepted baseline was revalidated on `2026-03-10` with:
+
+- `./scripts/extract_red.sh`
+- `./scripts/validate_milestone.sh`
+- `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`
 
 ### M1 Acceptance Criteria
 
@@ -132,12 +139,12 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Save / load / persistence | `not started` | Usable save system for full-game progression and restart | save format references, WRAM/SRAM behaviors, menu flows | `PokeCore`, `PokeContent`, `PokeMac`, `PokeTelemetry` | save slot inventory, load failures, save/load timing traces | Decide save compatibility strategy before implementation |
 | Overworld map loading | `in progress` | All maps load with correct tilesets, warps, objects, metadata | `maps/**`, `data/maps/**`, tileset data | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeUI` | current map id/name, tileset id, warp traces, missing map asset reports | M3 covers four maps only; expand map coverage and edge rules next |
 | Overworld rendering | `in progress` | Native tile and sprite rendering with deterministic visual composition | map assets, sprite assets, tilesets | `PokeUI`, `PokeCore`, `PokeContent` | render surface dimensions, visible map region, sprite layer traces, render mode | Real extracted tile and sprite rendering is accepted for the M3 slice; camera polish and full asset parity remain |
-| Player movement and collisions | `in progress` | Correct grid movement, collision, ledges, doors, warps, cut/surf/bike gating | movement/collision logic in disassembly | `PokeCore`, `PokeTelemetry` | player position, heading, blocked movement reasons, warp transitions | M3 supports bounded movement, collisions, and warps; special movement rules remain |
+| Player movement and collisions | `in progress` | Correct grid movement, collision, ledges, doors, warps, cut/surf/bike gating | movement/collision logic in disassembly | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeTelemetry` | player position, heading, blocked movement reasons, warp transitions | M3 movement now uses extracted tileset collision metadata plus resolved per-map step grids for the four-map slice; broader movement rules and more map coverage remain |
 | NPC objects and trainer objects | `in progress` | Correct object spawning, movement, facing, trainer line-of-sight, interactions | object event data, scripts, map data | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | object states, interaction target ids, trainer trigger traces | M3 lab/Pallet objects are extracted and interactive; general NPC behavior remains |
-| Script engine and event flags | `in progress` | Full script execution and event flag parity | `scripts/**`, event tables, map scripts, flag constants | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | current script id, active flags, script transitions, blocking reasons | Bounded M3 IR and slice flags are live; do not generalize until next milestone needs it |
+| Script engine and event flags | `in progress` | Full script execution and event flag parity | `scripts/**`, event tables, map scripts, flag constants | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | current script id, active flags, script transitions, blocking reasons | Pallet Town and Oak's Lab now run extracted map-script triggers and script manifests end to end in M3; broaden the extracted script subset only as new map coverage demands it |
 | Inventory, items, shops, PC | `not started` | Functional bag, PC storage, marts, item use, hidden items | item data, shop tables, menu scripts | `PokeExtractCLI`, `PokeCore`, `PokeUI`, `PokeTelemetry` | bag contents, item actions, mart transactions, storage traces | Extract item catalogs and menu layouts |
 | Party, stats, moves, evolution | `in progress` | Correct party state, stat growth, level up, learnsets, evolution rules | species/move data, evolution tables | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | party summary, move learn events, evolution triggers, stat deltas | Starter acquisition and bounded battle stats/moves are implemented for M3 |
-| Battle engine | `in progress` | Wild, trainer, scripted, and special battle parity | battle engine code, move data, trainer data, effects tables | `PokeExtractCLI`, `PokeCore`, `PokeUI`, `PokeTelemetry` | battle state snapshots, turn/action logs, HP/status deltas | Current scope is the first rival battle only: one Pokemon per side, deterministic AI, simple turn order and damage, bounded stat-stage effects, KO resolution, and post-battle flags/dialogue; missing full trainer parties, wild battles, capture, items, switching, type/STAB/crit/status/accuracy parity, and generalized move effects |
+| Battle engine | `in progress` | Wild, trainer, scripted, and special battle parity | battle engine code, move data, trainer data, effects tables | `PokeExtractCLI`, `PokeCore`, `PokeUI`, `PokeTelemetry` | battle state snapshots, turn/action logs, HP/status deltas | M3 now consumes extracted trainer battle manifests with source-driven rival selection and enemy party arrays; current runtime/UI still remains slice-bounded with deterministic AI, simple turn order and damage, bounded stat-stage effects, auto-advance through enemy party members, and no wild battles, capture, items, switching, or full type/status parity |
 | Battle UI | `in progress` | Native battle presentation, menus, animations, text, outcomes | battle assets, menu text, move/item strings | `PokeUI`, `PokeMac`, `PokeCore` | active combatants, current menu, damage/result events | Current scope is a minimal move-selection UI for the first rival battle only; missing the full command stack, switch/item/run flows, richer battle text sequencing, and animation/outcome polish |
 | Encounters, fishing, gifts, trades, fossils, legendaries | `not started` | Full world content progression parity | encounter tables, map scripts, NPC scripts, gift/trade data | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | encounter source, gift/trade state, one-off content completion flags | Expand extraction beyond core loop data |
 | Menus, naming, Pokedex, party UI | `not started` | Full native menu/navigation stack with gameplay parity | menu scripts, text resources, species data | `PokeCore`, `PokeUI`, `PokeMac`, `PokeTelemetry` | current menu stack, selection state, naming input events | Build generic menu framework after title menu is stable |
@@ -225,10 +232,10 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Font assets | yes | `done` | `gfx/font/**` | copied/normalized assets | `PokeExtractCLI` | Expand glyph/render validation with dialogue systems |
 | Audio ids stub | optional | `done` | title/intro track references | `audio_manifest.json` | `PokeExtractCLI` | Replace stub-only behavior with playback later |
 | Maps | no | `in progress` | `maps/**`, `data/maps/**` | `gameplay_manifest.json` map section | `PokeExtractCLI` | Expand beyond the four M3 maps |
-| Tilesets / blocksets / overworld sprites | no | `in progress` | `gfx/tilesets/**`, `gfx/blocksets/**`, `gfx/sprites/**` | `gameplay_manifest.json` tileset/sprite sections and copied field assets | `PokeExtractCLI` | M3 slice assets are extracted and rendered; expand coverage beyond the current slice |
+| Tilesets / blocksets / overworld sprites | no | `in progress` | `gfx/tilesets/**`, `gfx/blocksets/**`, `gfx/sprites/**` | `gameplay_manifest.json` tileset/sprite sections, collision metadata, and copied field assets | `PokeExtractCLI` | M3 slice assets and collision metadata are extracted and consumed; expand coverage beyond the current slice |
 | Species / moves / items | no | `in progress` | `data/pokemon/**`, `data/moves/**`, `data/items/**` | `gameplay_manifest.json` species/moves sections | `PokeExtractCLI` | Add broader catalogs beyond M3 starter and battle scope |
 | Scripts / events / flags | no | `in progress` | `scripts/**`, event constants | `gameplay_manifest.json` script/event sections | `PokeExtractCLI` | Grow the bounded IR only as the next slice requires |
-| Battle data | no | `in progress` | battle engine data, trainer/move tables | `gameplay_manifest.json` trainer battle section | `PokeExtractCLI` | Add more battle cases after the first rival fight |
+| Battle data | no | `in progress` | battle engine data, trainer/move tables | `gameplay_manifest.json` trainer battle section | `PokeExtractCLI` | Trainer parties and Oak's Lab rival variants are source-driven for M3; add more trainer and wild battle cases after the first rival fight |
 
 ## Gameplay Parity Matrix
 
@@ -237,10 +244,10 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Boot and scene progression | Native app reaches title menu reliably | `done` | content loader, title assets, runtime state machine | current scene, scene timestamps, failures | Accepted in harness and validation script |
 | Title menu input | Directional navigation and confirm/cancel/start | `done` | runtime input mapping, app key routing | recent input events, focused entry, disabled states | `Continue` is disabled and validated in M2 |
 | Placeholder routing | Explicit non-silent routing for unavailable paths | `done` | scene state machine, placeholder view | active placeholder id/reason | `New Game` and `Options` route to placeholders in M2 |
-| Overworld movement | Full field control and collisions | `in progress` | maps, object data, collision rules, renderer | map id, position, heading, blocked reasons | Bounded four-map slice is live in M3 |
-| NPC interaction | Correct interaction and script triggering | `in progress` | objects, scripts, text engine | target object id, script id, dialogue state | Oak, Mom, starter balls, and rival flow are wired for M3 |
-| Story progression | Event flag and scripted sequence parity | `in progress` | event flags, script runner, map triggers | active flags, story milestones, last trigger | First playable story slice is accepted in M3 |
-| Battles | Correct outcomes and flow | `in progress` | species/move/trainer data, battle engine, UI | battle snapshots, turn logs, HP/status, rewards | First rival battle is accepted in M3, but current combat remains slice-bounded rather than full Red battle parity |
+| Overworld movement | Full field control and collisions | `in progress` | maps, object data, collision rules, renderer | map id, position, heading, blocked reasons | Bounded four-map slice is live in M3 and now uses extracted collision metadata instead of manual blocked-tile shapes |
+| NPC interaction | Correct interaction and script triggering | `in progress` | objects, scripts, text engine | target object id, script id, dialogue state | Oak, Mom, starter balls, and rival flow are wired for M3, with Pallet/Oak/Lab progression now driven by extracted script contracts rather than fallback runtime branches |
+| Story progression | Event flag and scripted sequence parity | `in progress` | event flags, script runner, map triggers | active flags, story milestones, last trigger | First playable story slice is accepted in M3 and its Pallet/Oak/Lab trigger flow is now source-driven within the fixed four-map boundary |
+| Battles | Correct outcomes and flow | `in progress` | species/move/trainer data, battle engine, UI | battle snapshots, turn logs, HP/status, rewards | First rival battle is accepted in M3, and battle setup now comes from extracted trainer-party data; overall combat remains slice-bounded rather than full Red battle parity |
 | Save/load | Persistent progression | `not started` | save schema, runtime serialization, UI | slot metadata, save result, load result | M3+ |
 | End-to-end full game | Start to credits fully playable | `not started` | every major subsystem | milestone dashboard plus parity checkpoints | Final target |
 
@@ -413,6 +420,15 @@ When a blocker is discovered, add:
 5. Keep this ledger current as milestone scope and acceptance evidence change.
 
 ## Progress Log
+
+### 2026-03-10
+
+- Kept M3 coverage fixed to `REDS_HOUSE_2F`, `REDS_HOUSE_1F`, `PALLET_TOWN`, and `OAKS_LAB` while removing remaining manual runtime glue inside that slice.
+- Replaced hardcoded blocked-tile logic with extracted tileset collision metadata and per-map resolved step collision grids consumed by `PokeContent` and `PokeCore`.
+- Replaced fallback Pallet Town and Oak's Lab script paths with extracted map-script triggers and script manifests, including the Pallet north-exit Oak intro and Oak's Lab starter/rival flow.
+- Expanded trainer battle extraction/runtime contracts from single-enemy assumptions to source-driven trainer parties and starter-dependent rival resolution.
+- Extended telemetry to surface active map-script triggers and enemy party progress so harnesses and tests can validate the source-driven runtime path directly.
+- Revalidated the accepted M3/M4A baseline with `./scripts/extract_red.sh`, `./scripts/validate_milestone.sh`, and `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`.
 
 ### 2026-03-09
 

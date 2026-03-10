@@ -15,6 +15,10 @@ final class AppCoordinator {
     private var telemetryServer: TelemetryControlServer?
     private let keyInputBridge = RuntimeKeyInputBridge()
 
+    init() {
+        bootstrap()
+    }
+
     func bootstrap() {
         guard runtime == nil, bootError == nil else { return }
 

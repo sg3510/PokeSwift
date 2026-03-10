@@ -15,10 +15,12 @@ final class PokeContentTests: XCTestCase {
         XCTAssertEqual(loaded.map(id: "REDS_HOUSE_2F")?.displayName, "Red's House 2F")
         XCTAssertEqual(loaded.dialogue(id: "hello")?.pages.first?.lines, ["Hi"])
         XCTAssertEqual(loaded.script(id: "oak_intro")?.steps.map(\.action), ["showDialogue"])
+        XCTAssertEqual(loaded.mapScript(for: "REDS_HOUSE_2F")?.triggers.first?.scriptID, "oak_intro")
         XCTAssertEqual(loaded.species(id: "SQUIRTLE")?.startingMoves, ["TACKLE", "TAIL_WHIP"])
         XCTAssertEqual(loaded.move(id: "TACKLE")?.power, 35)
-        XCTAssertEqual(loaded.trainerBattle(id: "rival_lab_bulbasaur")?.enemySpeciesID, "BULBASAUR")
+        XCTAssertEqual(loaded.trainerBattle(id: "opp_rival1_2")?.party.first?.speciesID, "BULBASAUR")
         XCTAssertEqual(loaded.tileset(id: "REDS_HOUSE_2")?.imagePath, "Assets/field/tilesets/reds_house.png")
+        XCTAssertEqual(loaded.tileset(id: "REDS_HOUSE_2")?.collision.passableTileIDs, [0x01, 0x02])
         XCTAssertEqual(loaded.overworldSprite(id: "SPRITE_RED")?.frameHeight, 16)
     }
 
@@ -95,12 +97,11 @@ final class PokeContentTests: XCTestCase {
                     stepWidth: 8,
                     stepHeight: 8,
                     tileset: "REDS_HOUSE_2",
-                    collisionBlockIDs: [0x10],
                     blockIDs: Array(repeating: 0x05, count: 16),
+                    stepCollisionTileIDs: Array(repeating: 0x01, count: 64),
                     warps: [],
                     backgroundEvents: [],
-                    objects: [],
-                    triggerRegions: []
+                    objects: []
                 ),
             ],
             tilesets: [
@@ -110,7 +111,14 @@ final class PokeContentTests: XCTestCase {
                     blocksetPath: "Assets/field/blocksets/reds_house.bst",
                     sourceTileSize: 8,
                     blockTileWidth: 4,
-                    blockTileHeight: 4
+                    blockTileHeight: 4,
+                    collision: .init(
+                        passableTileIDs: [0x01, 0x02],
+                        warpTileIDs: [0x1A],
+                        doorTileIDs: [0x1A],
+                        tilePairCollisions: [],
+                        ledges: []
+                    )
                 ),
             ],
             overworldSprites: [
@@ -129,6 +137,7 @@ final class PokeContentTests: XCTestCase {
             ],
             dialogues: [.init(id: "hello", pages: [.init(lines: ["Hi"], waitsForPrompt: true)])],
             eventFlags: .init(flags: [.init(id: "EVENT_GOT_STARTER", sourceConstant: "EVENT_GOT_STARTER")]),
+            mapScripts: [.init(mapID: "REDS_HOUSE_2F", triggers: [.init(id: "intro", scriptID: "oak_intro", conditions: [])])],
             scripts: [.init(id: "oak_intro", steps: [.init(action: "showDialogue", dialogueID: "hello")])],
             species: [
                 .init(
@@ -155,12 +164,11 @@ final class PokeContentTests: XCTestCase {
             ],
             trainerBattles: [
                 .init(
-                    id: "rival_lab_bulbasaur",
+                    id: "opp_rival1_2",
                     trainerClass: "OPP_RIVAL1",
                     trainerNumber: 2,
                     displayName: "BLUE",
-                    enemySpeciesID: "BULBASAUR",
-                    enemyLevel: 5,
+                    party: [.init(speciesID: "BULBASAUR", level: 5)],
                     winDialogueID: "hello",
                     loseDialogueID: "hello",
                     healsPartyAfterBattle: true,

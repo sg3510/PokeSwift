@@ -85,17 +85,6 @@ extension GameRuntime {
             showDialogue(id: dialogueID, completion: .returnToField)
         case let .battle(battleID):
             startBattle(id: battleID)
-        case .startLabIntro:
-            if var gameplayState {
-                gameplayState.objectStates["pallet_town_oak"]?.position = TilePoint(x: 12, y: 10)
-                gameplayState.playerPosition = TilePoint(x: 12, y: 11)
-                gameplayState.facing = .up
-                gameplayState.mapID = "OAKS_LAB"
-                gameplayState.activeFlags.insert("EVENT_FOLLOWED_OAK_INTO_LAB")
-                gameplayState.activeFlags.insert("EVENT_FOLLOWED_OAK_INTO_LAB_2")
-                self.gameplayState = gameplayState
-            }
-            runFallbackLabIntro()
         case let .hideObject(objectID):
             gameplayState?.objectStates[objectID]?.visible = false
             scene = .field

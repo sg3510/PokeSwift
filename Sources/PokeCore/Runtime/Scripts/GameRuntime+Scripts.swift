@@ -3,42 +3,50 @@ import PokeContent
 import PokeDataModel
 
 extension GameRuntime {
-    func canRunScript(id: String) -> Bool {
-        switch id {
-        case _ where id.contains("oak_intro"):
-            return hasFlag("EVENT_FOLLOWED_OAK_INTO_LAB") == false
-        case _ where id.contains("dont_go_away"):
-            return gameplayState?.gotStarterBit == false
-        case _ where id.contains("rival_challenge"):
-            return gameplayState?.gotStarterBit == true && hasFlag("EVENT_BATTLED_RIVAL_IN_OAKS_LAB") == false
-        default:
-            return true
-        }
-    }
-
-    func runMapScriptIfAvailable(named id: String) {
-        if content.script(id: id) != nil {
-            beginScript(id: id)
+    func evaluateMapScriptsIfNeeded(blockedMoveFacing: FacingDirection? = nil) {
+        guard scene == .field, dialogueState == nil, let gameplayState else { return }
+        guard let mapScript = content.mapScript(for: gameplayState.mapID) else {
+            substate = "field"
+            self.gameplayState?.activeMapScriptTriggerID = nil
             return
         }
 
-        switch id {
-        case _ where id.contains("oak_intro"):
-            runFallbackOakIntro()
-        case _ where id.contains("oaks_lab_intro"):
-            runFallbackLabIntro()
-        case _ where id.contains("dont_go_away"):
-            showDialogue(id: "oaks_lab_oak_dont_go_away_yet", completion: .returnToField)
-            if var gameplayState {
-                gameplayState.playerPosition = TilePoint(x: 4, y: 5)
-                gameplayState.facing = .up
-                self.gameplayState = gameplayState
-            }
-        case _ where id.contains("rival_challenge"):
-            runFallbackRivalChallenge()
-        default:
-            scene = .field
+        guard let trigger = mapScript.triggers.first(where: { conditionsMatch($0, blockedMoveFacing: blockedMoveFacing) }) else {
+            self.gameplayState?.activeMapScriptTriggerID = nil
             substate = "field"
+            return
+        }
+
+        self.gameplayState?.activeMapScriptTriggerID = trigger.id
+        beginScript(id: trigger.scriptID)
+    }
+
+    private func conditionsMatch(_ trigger: MapScriptTriggerManifest, blockedMoveFacing: FacingDirection?) -> Bool {
+        trigger.conditions.allSatisfy { conditionMatches($0, blockedMoveFacing: blockedMoveFacing) }
+    }
+
+    private func conditionMatches(_ condition: ScriptConditionManifest, blockedMoveFacing: FacingDirection?) -> Bool {
+        switch condition.kind {
+        case "flagSet":
+            guard let flagID = condition.flagID else { return false }
+            return hasFlag(flagID)
+        case "flagUnset":
+            guard let flagID = condition.flagID else { return false }
+            return hasFlag(flagID) == false
+        case "playerYEquals":
+            guard let intValue = condition.intValue else { return false }
+            return gameplayState?.playerPosition.y == intValue
+        case "playerXEquals":
+            guard let intValue = condition.intValue else { return false }
+            return gameplayState?.playerPosition.x == intValue
+        case "chosenStarterEquals":
+            guard let stringValue = condition.stringValue else { return false }
+            return gameplayState?.chosenStarterSpeciesID == stringValue
+        case "blockedMoveFacingEquals":
+            guard let stringValue = condition.stringValue else { return false }
+            return blockedMoveFacing?.rawValue == stringValue
+        default:
+            return false
         }
     }
 
@@ -74,44 +82,6 @@ extension GameRuntime {
             guard let dialogueID = step.dialogueID else { return false }
             showDialogue(id: dialogueID, completion: .continueScript)
             return true
-        case "setFlag":
-            if let flagID = step.flagID {
-                gameplayState?.activeFlags.insert(flagID)
-            }
-        case "clearFlag":
-            if let flagID = step.flagID {
-                gameplayState?.activeFlags.remove(flagID)
-            }
-        case "setObjectVisibility":
-            if let objectID = step.objectID, let visible = step.visible {
-                gameplayState?.objectStates[objectID]?.visible = visible
-            }
-        case "moveObject":
-            if let objectID = step.objectID {
-                moveObject(id: objectID, through: step.path)
-            }
-        case "movePlayer":
-            for direction in step.path {
-                gameplayState?.playerPosition = translated(gameplayState?.playerPosition ?? TilePoint(x: 0, y: 0), by: direction)
-                gameplayState?.facing = direction
-            }
-        case "faceObject":
-            if let objectID = step.objectID, let raw = step.stringValue, let facing = FacingDirection(rawValue: raw) {
-                gameplayState?.objectStates[objectID]?.facing = facing
-            }
-        case "facePlayer":
-            if let raw = step.stringValue, let facing = FacingDirection(rawValue: raw) {
-                gameplayState?.facing = facing
-            }
-        case "setObjectPosition":
-            if let objectID = step.objectID, let point = step.point {
-                gameplayState?.objectStates[objectID]?.position = point
-            }
-        case "setMap":
-            if let mapID = step.stringValue, let point = step.point {
-                gameplayState?.mapID = mapID
-                gameplayState?.playerPosition = point
-            }
         case "startStarterChoice":
             scene = .starterChoice
             substate = "starter_choice"
@@ -125,10 +95,59 @@ extension GameRuntime {
             return true
         case "healParty":
             healParty()
+            return false
         default:
-            break
+            guard var gameplayState else { return false }
+            switch step.action {
+            case "setFlag":
+                if let flagID = step.flagID {
+                    gameplayState.activeFlags.insert(flagID)
+                }
+            case "clearFlag":
+                if let flagID = step.flagID {
+                    gameplayState.activeFlags.remove(flagID)
+                }
+            case "setObjectVisibility":
+                if let objectID = step.objectID, let visible = step.visible {
+                    gameplayState.objectStates[objectID]?.visible = visible
+                }
+            case "moveObject":
+                if let objectID = step.objectID, var object = gameplayState.objectStates[objectID] {
+                    for direction in step.path {
+                        object.position = translated(object.position, by: direction)
+                        object.facing = direction
+                    }
+                    gameplayState.objectStates[objectID] = object
+                }
+            case "movePlayer":
+                for direction in step.path {
+                    gameplayState.playerPosition = translated(gameplayState.playerPosition, by: direction)
+                    gameplayState.facing = direction
+                }
+            case "faceObject":
+                if let objectID = step.objectID, let raw = step.stringValue {
+                    gameplayState.objectStates[objectID]?.facing = facingDirection(for: raw)
+                }
+            case "facePlayer":
+                if let raw = step.stringValue {
+                    gameplayState.facing = facingDirection(for: raw)
+                }
+            case "setObjectPosition":
+                if let objectID = step.objectID, let point = step.point {
+                    gameplayState.objectStates[objectID]?.position = point
+                }
+            case "setMap":
+                if let mapID = step.stringValue, let point = step.point {
+                    gameplayState.mapID = mapID
+                    gameplayState.playerPosition = point
+                    gameplayState.activeMapScriptTriggerID = nil
+                }
+            default:
+                break
+            }
+            self.gameplayState = gameplayState
+            return false
         }
-        return false
     }
 
     func finishScript() {
@@ -138,45 +157,6 @@ extension GameRuntime {
             scene = .field
             substate = "field"
         }
-    }
-
-    func runFallbackOakIntro() {
-        guard var gameplayState else { return }
-        gameplayState.activeFlags.insert("EVENT_OAK_APPEARED_IN_PALLET")
-        gameplayState.objectStates["pallet_town_oak"]?.visible = true
-        gameplayState.objectStates["pallet_town_oak"]?.position = TilePoint(x: 8, y: 3)
-        gameplayState.objectStates["pallet_town_oak"]?.facing = .down
-        self.gameplayState = gameplayState
-        showDialogue(id: "pallet_town_oak_hey_wait", completion: .returnToField)
-        queueDeferredActions([
-            .dialogue("pallet_town_oak_its_unsafe"),
-            .startLabIntro,
-        ])
-    }
-
-    func runFallbackLabIntro() {
-        guard var gameplayState else { return }
-        gameplayState.mapID = "OAKS_LAB"
-        gameplayState.playerPosition = TilePoint(x: 5, y: 10)
-        gameplayState.facing = .up
-        gameplayState.objectStates["oaks_lab_oak_1"]?.visible = true
-        gameplayState.objectStates["oaks_lab_oak_2"]?.visible = false
-        self.gameplayState = gameplayState
-
-        showDialogue(id: "oaks_lab_rival_fed_up_with_waiting", completion: .returnToField)
-        gameplayState.activeFlags.insert("EVENT_OAK_ASKED_TO_CHOOSE_MON")
-        self.gameplayState = gameplayState
-        queueDeferredActions([
-            .dialogue("oaks_lab_oak_choose_mon"),
-            .dialogue("oaks_lab_rival_what_about_me"),
-            .dialogue("oaks_lab_oak_be_patient"),
-        ])
-    }
-
-    func runFallbackRivalChallenge() {
-        guard gameplayState?.chosenStarterSpeciesID != nil else { return }
-        showDialogue(id: "oaks_lab_rival_ill_take_you_on", completion: .returnToField)
-        queueDeferredActions([.battle("AUTO")])
     }
 
     func makeInitialGameplayState() -> GameplayState {
@@ -203,9 +183,14 @@ extension GameRuntime {
             chosenStarterSpeciesID: nil,
             rivalStarterSpeciesID: nil,
             pendingStarterSpeciesID: nil,
+            activeMapScriptTriggerID: nil,
             activeScriptID: nil,
             activeScriptStep: nil,
             battle: nil
         )
+    }
+
+    private func facingDirection(for rawValue: String) -> FacingDirection {
+        FacingDirection(rawValue: rawValue) ?? .down
     }
 }

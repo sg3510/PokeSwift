@@ -60,6 +60,7 @@ public struct FieldTelemetry: Codable, Equatable, Sendable {
     public let mapName: String
     public let playerPosition: TilePoint
     public let facing: FacingDirection
+    public let activeMapScriptTriggerID: String?
     public let activeScriptID: String?
     public let activeScriptStep: Int?
     public let renderMode: String
@@ -69,6 +70,7 @@ public struct FieldTelemetry: Codable, Equatable, Sendable {
         mapName: String,
         playerPosition: TilePoint,
         facing: FacingDirection,
+        activeMapScriptTriggerID: String?,
         activeScriptID: String?,
         activeScriptStep: Int?,
         renderMode: String
@@ -77,6 +79,7 @@ public struct FieldTelemetry: Codable, Equatable, Sendable {
         self.mapName = mapName
         self.playerPosition = playerPosition
         self.facing = facing
+        self.activeMapScriptTriggerID = activeMapScriptTriggerID
         self.activeScriptID = activeScriptID
         self.activeScriptStep = activeScriptStep
         self.renderMode = renderMode
@@ -128,6 +131,8 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
     public let trainerName: String
     public let playerPokemon: PartyPokemonTelemetry
     public let enemyPokemon: PartyPokemonTelemetry
+    public let enemyPartyCount: Int
+    public let enemyActiveIndex: Int
     public let focusedMoveIndex: Int
     public let battleMessage: String
 
@@ -136,6 +141,8 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         trainerName: String,
         playerPokemon: PartyPokemonTelemetry,
         enemyPokemon: PartyPokemonTelemetry,
+        enemyPartyCount: Int,
+        enemyActiveIndex: Int,
         focusedMoveIndex: Int,
         battleMessage: String
     ) {
@@ -143,6 +150,8 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         self.trainerName = trainerName
         self.playerPokemon = playerPokemon
         self.enemyPokemon = enemyPokemon
+        self.enemyPartyCount = enemyPartyCount
+        self.enemyActiveIndex = enemyActiveIndex
         self.focusedMoveIndex = focusedMoveIndex
         self.battleMessage = battleMessage
     }

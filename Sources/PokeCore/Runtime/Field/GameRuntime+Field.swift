@@ -23,9 +23,14 @@ extension GameRuntime {
     func movePlayer(in direction: FacingDirection) {
         guard var gameplayState, let map = currentMapManifest else { return }
         gameplayState.facing = direction
-        let nextPoint = translated(gameplayState.playerPosition, by: direction)
-        guard canMove(to: nextPoint, in: map, objectStates: gameplayState.objectStates) else {
+        let currentPoint = gameplayState.playerPosition
+        let nextPoint = translated(currentPoint, by: direction)
+        guard canMove(from: currentPoint, to: nextPoint, in: map, facing: direction) else {
             self.gameplayState = gameplayState
+            evaluateMapScriptsIfNeeded(blockedMoveFacing: direction)
+            guard scene == .field, dialogueState == nil, self.gameplayState?.activeScriptID == nil else {
+                return
+            }
             substate = "blocked"
             return
         }
@@ -35,7 +40,7 @@ extension GameRuntime {
         if handleWarpIfNeeded() {
             return
         }
-        evaluateTriggers(on: map, position: nextPoint)
+        evaluateMapScriptsIfNeeded()
     }
 
     func interactAhead() {
@@ -116,82 +121,58 @@ extension GameRuntime {
             return false
         }
 
-        if map.id == "OAKS_LAB" {
-            if gameplayState.gotStarterBit == false {
-                runMapScriptIfAvailable(named: "oaks_lab_dont_go_away")
-                return true
-            }
-            if gameplayState.activeFlags.contains("EVENT_BATTLED_RIVAL_IN_OAKS_LAB") == false {
-                runMapScriptIfAvailable(named: "oaks_lab_rival_challenge")
-                return true
-            }
-        }
-
         gameplayState.mapID = targetMap.id
         gameplayState.playerPosition = warp.targetPosition
         gameplayState.facing = warp.targetFacing
+        gameplayState.activeMapScriptTriggerID = nil
         self.gameplayState = gameplayState
 
-        if targetMap.id == "OAKS_LAB" && hasFlag("EVENT_FOLLOWED_OAK_INTO_LAB") == false {
-            runMapScriptIfAvailable(named: "oaks_lab_intro")
-        } else {
-            scene = .field
-            substate = "field"
-        }
+        scene = .field
+        substate = "field"
+        evaluateMapScriptsIfNeeded()
         return true
     }
 
-    func evaluateTriggers(on map: MapManifest, position: TilePoint) {
-        guard let trigger = map.triggerRegions.first(where: { $0.contains(point: position) && canRunScript(id: $0.scriptID) }) else {
-            substate = "field"
-            return
+    func canMove(from currentPoint: TilePoint, to nextPoint: TilePoint, in map: MapManifest, facing: FacingDirection) -> Bool {
+        guard nextPoint.x >= 0, nextPoint.y >= 0, nextPoint.x < map.stepWidth, nextPoint.y < map.stepHeight else {
+            return false
         }
-        runMapScriptIfAvailable(named: trigger.scriptID)
+
+        if currentFieldObjects.contains(where: { $0.position == nextPoint }) {
+            return false
+        }
+
+        guard let tileset = currentTilesetManifest,
+              let currentTileID = collisionTileID(at: currentPoint, in: map),
+              let nextTileID = collisionTileID(at: nextPoint, in: map) else {
+            return true
+        }
+
+        let passableTileIDs = Set(tileset.collision.passableTileIDs)
+        let ledgeAllowsStep = tileset.collision.ledges.contains {
+            $0.facing == facing && $0.standingTileID == currentTileID && $0.ledgeTileID == nextTileID
+        }
+
+        if passableTileIDs.contains(nextTileID) == false && ledgeAllowsStep == false {
+            return false
+        }
+
+        if tileset.collision.tilePairCollisions.contains(where: {
+            ($0.fromTileID == currentTileID && $0.toTileID == nextTileID) ||
+            ($0.fromTileID == nextTileID && $0.toTileID == currentTileID)
+        }) {
+            return false
+        }
+
+        return true
     }
 
-    func canMove(to point: TilePoint, in map: MapManifest, objectStates: [String: RuntimeObjectState]) -> Bool {
+    func collisionTileID(at point: TilePoint, in map: MapManifest) -> Int? {
         guard point.x >= 0, point.y >= 0, point.x < map.stepWidth, point.y < map.stepHeight else {
-            return false
+            return nil
         }
-
-        if currentFieldObjects.contains(where: { $0.position == point }) {
-            return false
-        }
-
-        let blockedTiles = blockedTiles(for: map.id)
-        return blockedTiles.contains(point) == false
-    }
-
-    func blockedTiles(for mapID: String) -> Set<TilePoint> {
-        switch mapID {
-        case "REDS_HOUSE_2F":
-            return perimeter(width: 8, height: 8).subtracting([TilePoint(x: 7, y: 1)])
-        case "REDS_HOUSE_1F":
-            var blocked = perimeter(width: 8, height: 8)
-            blocked.subtract([TilePoint(x: 2, y: 7), TilePoint(x: 3, y: 7), TilePoint(x: 7, y: 1)])
-            return blocked
-        case "PALLET_TOWN":
-            var blocked = perimeter(width: 20, height: 18)
-            blocked.formUnion(rect(minX: 2, minY: 2, maxX: 6, maxY: 5))
-            blocked.formUnion(rect(minX: 10, minY: 2, maxX: 14, maxY: 5))
-            blocked.formUnion(rect(minX: 10, minY: 8, maxX: 14, maxY: 11))
-            blocked.subtract([
-                TilePoint(x: 5, y: 5),
-                TilePoint(x: 13, y: 5),
-                TilePoint(x: 12, y: 11),
-                TilePoint(x: 8, y: 1),
-                TilePoint(x: 9, y: 1),
-                TilePoint(x: 10, y: 1),
-            ])
-            return blocked
-        case "OAKS_LAB":
-            var blocked = perimeter(width: 10, height: 12)
-            blocked.subtract([TilePoint(x: 4, y: 11), TilePoint(x: 5, y: 11)])
-            blocked.formUnion(rect(minX: 4, minY: 1, maxX: 8, maxY: 2))
-            blocked.subtract([TilePoint(x: 6, y: 3), TilePoint(x: 7, y: 3), TilePoint(x: 8, y: 3)])
-            return blocked
-        default:
-            return []
-        }
+        let index = (point.y * map.stepWidth) + point.x
+        guard map.stepCollisionTileIDs.indices.contains(index) else { return nil }
+        return map.stepCollisionTileIDs[index]
     }
 }

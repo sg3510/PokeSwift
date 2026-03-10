@@ -56,6 +56,10 @@ public struct LoadedContent: Sendable {
         gameplayManifest.scripts.first { $0.id == id }
     }
 
+    public func mapScript(for mapID: String) -> MapScriptManifest? {
+        gameplayManifest.mapScripts.first { $0.mapID == mapID }
+    }
+
     public func species(id: String) -> SpeciesManifest? {
         gameplayManifest.species.first { $0.id == id }
     }
@@ -66,5 +70,9 @@ public struct LoadedContent: Sendable {
 
     public func trainerBattle(id: String) -> TrainerBattleManifest? {
         gameplayManifest.trainerBattles.first { $0.id == id }
+    }
+
+    public func trainerBattle(trainerClass: String, trainerNumber: Int) -> TrainerBattleManifest? {
+        gameplayManifest.trainerBattles.first { $0.trainerClass == trainerClass && $0.trainerNumber == trainerNumber }
     }
 }

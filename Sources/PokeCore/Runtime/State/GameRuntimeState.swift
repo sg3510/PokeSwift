@@ -58,17 +58,21 @@ struct RuntimePokemonState {
 struct RuntimeBattleState {
     let battleID: String
     let trainerName: String
-    let playerStarterSpeciesID: String
-    let enemyStarterSpeciesID: String
     let completionFlagID: String
     let healsPartyAfterBattle: Bool
     let preventsBlackoutOnLoss: Bool
     let winDialogueID: String
     let loseDialogueID: String
     var playerPokemon: RuntimePokemonState
-    var enemyPokemon: RuntimePokemonState
+    var enemyParty: [RuntimePokemonState]
+    var enemyActiveIndex: Int
     var focusedMoveIndex: Int
     var message: String
+
+    var enemyPokemon: RuntimePokemonState {
+        get { enemyParty[enemyActiveIndex] }
+        set { enemyParty[enemyActiveIndex] = newValue }
+    }
 }
 
 struct DialogueState {
@@ -89,7 +93,6 @@ struct DialogueState {
 enum DeferredAction {
     case dialogue(String)
     case battle(String)
-    case startLabIntro
     case hideObject(String)
 }
 
@@ -106,6 +109,7 @@ struct GameplayState {
     var chosenStarterSpeciesID: String?
     var rivalStarterSpeciesID: String?
     var pendingStarterSpeciesID: String?
+    var activeMapScriptTriggerID: String?
     var activeScriptID: String?
     var activeScriptStep: Int?
     var battle: RuntimeBattleState?

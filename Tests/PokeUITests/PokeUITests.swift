@@ -76,12 +76,11 @@ final class PokeUITests: XCTestCase {
             stepWidth: 4,
             stepHeight: 4,
             tileset: "OVERWORLD",
-            collisionBlockIDs: [],
             blockIDs: [0, 1, 2, 3],
+            stepCollisionTileIDs: Array(repeating: 0x00, count: 16),
             warps: [],
             backgroundEvents: [],
-            objects: [],
-            triggerRegions: []
+            objects: []
         )
         let objects = [
             FieldObjectRenderState(

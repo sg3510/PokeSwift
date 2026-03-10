@@ -176,7 +176,7 @@ private struct HarnessCLI {
         try postInput("down")
         snapshot = try poll(until: { $0.scene == .field && $0.field?.mapID == "PALLET_TOWN" }, timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "PALLET_TOWN")
-        snapshot = try walk(to: TilePoint(x: 8, y: 2), on: "PALLET_TOWN", startingFrom: snapshot)
+        snapshot = try walk(to: TilePoint(x: 10, y: 2), on: "PALLET_TOWN", startingFrom: snapshot)
         try postInput("up")
 
         snapshot = try poll(until: { $0.scene == .dialogue && ($0.dialogue?.dialogueID.contains("oak") ?? false) }, timeout: 4)
@@ -184,7 +184,14 @@ private struct HarnessCLI {
         snapshot = try poll(until: { $0.field?.mapID == "OAKS_LAB" && ($0.eventFlags?.activeFlags.contains("EVENT_OAK_ASKED_TO_CHOOSE_MON") ?? false) }, timeout: 6)
         try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
 
-        snapshot = try walk(to: TilePoint(x: 7, y: 4), on: "OAKS_LAB", startingFrom: snapshot)
+        snapshot = try walk(to: TilePoint(x: 7, y: 4), on: "OAKS_LAB", startingFrom: snapshot, yFirst: true)
+        try postInput("up")
+        snapshot = try poll(until: {
+            $0.scene == .field &&
+            $0.field?.mapID == "OAKS_LAB" &&
+            $0.field?.playerPosition == TilePoint(x: 7, y: 4) &&
+            $0.field?.facing == .up
+        }, timeout: 3)
         try postInput("confirm")
         snapshot = try poll(until: { $0.scene == .dialogue && $0.dialogue?.dialogueID == "oaks_lab_you_want_squirtle" }, timeout: 4)
         snapshot = try drainDialogues(startingFrom: snapshot, maxInteractions: 4)
@@ -199,9 +206,13 @@ private struct HarnessCLI {
         snapshot = try poll(until: { $0.scene == .field && ($0.eventFlags?.activeFlags.contains("EVENT_GOT_STARTER") ?? false) }, timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
 
-        snapshot = try walk(to: TilePoint(x: 4, y: 10), on: "OAKS_LAB", startingFrom: snapshot)
-        try postInput("down")
-        snapshot = try poll(until: { $0.scene == .dialogue && $0.dialogue?.dialogueID == "oaks_lab_rival_ill_take_you_on" }, timeout: 4)
+        snapshot = try walk(to: TilePoint(x: 4, y: 6), on: "OAKS_LAB", startingFrom: snapshot)
+        if snapshot.scene != .dialogue || snapshot.dialogue?.dialogueID != "oaks_lab_rival_ill_take_you_on" {
+            snapshot = try poll(until: {
+                $0.scene == .dialogue &&
+                $0.dialogue?.dialogueID == "oaks_lab_rival_ill_take_you_on"
+            }, timeout: 4)
+        }
         snapshot = try drainDialogues(startingFrom: snapshot, maxInteractions: 6)
         snapshot = try poll(until: { $0.scene == .battle }, timeout: 4)
 

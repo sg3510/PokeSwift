@@ -3,9 +3,9 @@ import PokeDataModel
 
 func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
     let mapSizes = try parseMapSizes(repoRoot: source.repoRoot)
-    let collisionSets = try parseCollisionSets(repoRoot: source.repoRoot)
     let mapHeaders = try parseMapHeaders(repoRoot: source.repoRoot)
     let eventFlags = try parseEventFlags(repoRoot: source.repoRoot)
+    let tilesets = try buildTilesets(repoRoot: source.repoRoot)
 
     let maps = try [
         makeMapManifest(
@@ -16,8 +16,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             blockFile: "maps/RedsHouse2F.blk",
             size: mapSizes["REDS_HOUSE_2F"] ?? TileSize(width: 4, height: 4),
             tileset: mapHeaders["REDS_HOUSE_2F"] ?? "REDS_HOUSE_2",
-            collisionBlockIDs: collisionSets[collisionKey(for: mapHeaders["REDS_HOUSE_2F"] ?? "REDS_HOUSE_2")] ?? [],
-            triggerRegions: []
+            tilesets: tilesets
         ),
         makeMapManifest(
             repoRoot: source.repoRoot,
@@ -27,8 +26,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             blockFile: "maps/RedsHouse1F.blk",
             size: mapSizes["REDS_HOUSE_1F"] ?? TileSize(width: 4, height: 4),
             tileset: mapHeaders["REDS_HOUSE_1F"] ?? "REDS_HOUSE_1",
-            collisionBlockIDs: collisionSets[collisionKey(for: mapHeaders["REDS_HOUSE_1F"] ?? "REDS_HOUSE_1")] ?? [],
-            triggerRegions: []
+            tilesets: tilesets
         ),
         makeMapManifest(
             repoRoot: source.repoRoot,
@@ -38,10 +36,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             blockFile: "maps/PalletTown.blk",
             size: mapSizes["PALLET_TOWN"] ?? TileSize(width: 10, height: 9),
             tileset: mapHeaders["PALLET_TOWN"] ?? "OVERWORLD",
-            collisionBlockIDs: collisionSets[collisionKey(for: mapHeaders["PALLET_TOWN"] ?? "OVERWORLD")] ?? [],
-            triggerRegions: [
-                .init(id: "north_exit", origin: .init(x: 0, y: 1), size: .init(width: 20, height: 1), scriptID: "pallet_town_oak_intro"),
-            ]
+            tilesets: tilesets
         ),
         makeMapManifest(
             repoRoot: source.repoRoot,
@@ -51,21 +46,21 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             blockFile: "maps/OaksLab.blk",
             size: mapSizes["OAKS_LAB"] ?? TileSize(width: 5, height: 6),
             tileset: mapHeaders["OAKS_LAB"] ?? "DOJO",
-            collisionBlockIDs: collisionSets[collisionKey(for: mapHeaders["OAKS_LAB"] ?? "DOJO")] ?? [],
-            triggerRegions: []
+            tilesets: tilesets
         ),
     ]
 
     return GameplayManifest(
         maps: maps,
-        tilesets: buildTilesets(),
+        tilesets: tilesets,
         overworldSprites: buildOverworldSprites(),
         dialogues: try buildDialogues(repoRoot: source.repoRoot),
         eventFlags: EventFlagManifest(flags: eventFlags),
+        mapScripts: buildMapScripts(),
         scripts: buildScripts(),
         species: try buildSpecies(repoRoot: source.repoRoot),
         moves: try buildMoves(repoRoot: source.repoRoot),
-        trainerBattles: buildTrainerBattles(),
+        trainerBattles: try buildTrainerBattles(repoRoot: source.repoRoot),
         playerStart: .init(
             mapID: "REDS_HOUSE_2F",
             position: .init(x: 4, y: 4),
@@ -75,6 +70,14 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             initialFlags: []
         )
     )
+}
+
+private struct ParsedTilesetCollisionData {
+    let passableTilesByKey: [String: [Int]]
+    let warpTilesByLabel: [String: [Int]]
+    let doorTilesByLabel: [String: [Int]]
+    let tilePairCollisionsByTileset: [String: [TilePairCollisionManifest]]
+    let ledges: [LedgeCollisionManifest]
 }
 
 private func parseMapSizes(repoRoot: URL) throws -> [String: TileSize] {
@@ -170,6 +173,26 @@ private func collisionKey(for tileset: String) -> String {
     }
 }
 
+private func tilesetLabel(for tileset: String) -> String {
+    switch tileset {
+    case "OVERWORLD": return "Overworld"
+    case "REDS_HOUSE_1": return "RedsHouse1"
+    case "REDS_HOUSE_2": return "RedsHouse2"
+    case "DOJO": return "Dojo"
+    default: return "Overworld"
+    }
+}
+
+private func parseTilesetCollisionData(repoRoot: URL) throws -> ParsedTilesetCollisionData {
+    ParsedTilesetCollisionData(
+        passableTilesByKey: try parseCollisionSets(repoRoot: repoRoot),
+        warpTilesByLabel: try parseTilesetTileTable(repoRoot: repoRoot, path: "data/tilesets/warp_tile_ids.asm"),
+        doorTilesByLabel: try parseTilesetTileTable(repoRoot: repoRoot, path: "data/tilesets/door_tile_ids.asm"),
+        tilePairCollisionsByTileset: try parseTilePairCollisions(repoRoot: repoRoot),
+        ledges: try parseLedgeRules(repoRoot: repoRoot)
+    )
+}
+
 private func makeMapManifest(
     repoRoot: URL,
     mapID: String,
@@ -178,13 +201,23 @@ private func makeMapManifest(
     blockFile: String,
     size: TileSize,
     tileset: String,
-    collisionBlockIDs: [Int],
-    triggerRegions: [TriggerRegionManifest]
+    tilesets: [TilesetManifest]
 ) throws -> MapManifest {
     let objectURL = repoRoot.appendingPathComponent(objectFile)
     let contents = try String(contentsOf: objectURL)
     let blockData = try Data(contentsOf: repoRoot.appendingPathComponent(blockFile))
     let borderBlockID = try parseBorderBlockID(contents: contents)
+    guard let tilesetManifest = tilesets.first(where: { $0.id == tileset }) else {
+        throw ExtractorError.invalidArguments("missing tileset manifest for \(tileset)")
+    }
+    let resolvedStepCollisionTileIDs = try resolveStepCollisionTileIDs(
+        repoRoot: repoRoot,
+        tileset: tilesetManifest,
+        borderBlockID: borderBlockID,
+        blockWidth: size.width,
+        blockHeight: size.height,
+        blockIDs: blockData.map(Int.init)
+    )
 
     return MapManifest(
         id: mapID,
@@ -195,12 +228,11 @@ private func makeMapManifest(
         stepWidth: size.width * 2,
         stepHeight: size.height * 2,
         tileset: tileset,
-        collisionBlockIDs: collisionBlockIDs,
         blockIDs: blockData.map(Int.init),
+        stepCollisionTileIDs: resolvedStepCollisionTileIDs,
         warps: parseWarps(mapID: mapID, contents: contents),
         backgroundEvents: parseBackgroundEvents(mapID: mapID, contents: contents),
-        objects: parseObjects(mapID: mapID, contents: contents),
-        triggerRegions: triggerRegions
+        objects: parseObjects(mapID: mapID, contents: contents)
     )
 }
 
@@ -214,15 +246,17 @@ private func parseBorderBlockID(contents: String) throws -> Int {
     return value
 }
 
-private func buildTilesets() -> [TilesetManifest] {
-    [
+private func buildTilesets(repoRoot: URL) throws -> [TilesetManifest] {
+    let collisionData = try parseTilesetCollisionData(repoRoot: repoRoot)
+    return [
         .init(
             id: "REDS_HOUSE_1",
             imagePath: "Assets/field/tilesets/reds_house.png",
             blocksetPath: "Assets/field/blocksets/reds_house.bst",
             sourceTileSize: 8,
             blockTileWidth: 4,
-            blockTileHeight: 4
+            blockTileHeight: 4,
+            collision: tilesetCollisionManifest(for: "REDS_HOUSE_1", parsed: collisionData)
         ),
         .init(
             id: "REDS_HOUSE_2",
@@ -230,7 +264,8 @@ private func buildTilesets() -> [TilesetManifest] {
             blocksetPath: "Assets/field/blocksets/reds_house.bst",
             sourceTileSize: 8,
             blockTileWidth: 4,
-            blockTileHeight: 4
+            blockTileHeight: 4,
+            collision: tilesetCollisionManifest(for: "REDS_HOUSE_2", parsed: collisionData)
         ),
         .init(
             id: "OVERWORLD",
@@ -238,7 +273,8 @@ private func buildTilesets() -> [TilesetManifest] {
             blocksetPath: "Assets/field/blocksets/overworld.bst",
             sourceTileSize: 8,
             blockTileWidth: 4,
-            blockTileHeight: 4
+            blockTileHeight: 4,
+            collision: tilesetCollisionManifest(for: "OVERWORLD", parsed: collisionData)
         ),
         .init(
             id: "DOJO",
@@ -246,9 +282,153 @@ private func buildTilesets() -> [TilesetManifest] {
             blocksetPath: "Assets/field/blocksets/gym.bst",
             sourceTileSize: 8,
             blockTileWidth: 4,
-            blockTileHeight: 4
+            blockTileHeight: 4,
+            collision: tilesetCollisionManifest(for: "DOJO", parsed: collisionData)
         ),
     ]
+}
+
+private func tilesetCollisionManifest(for tileset: String, parsed: ParsedTilesetCollisionData) -> TilesetCollisionManifest {
+    let label = tilesetLabel(for: tileset)
+    return TilesetCollisionManifest(
+        passableTileIDs: parsed.passableTilesByKey[collisionKey(for: tileset)] ?? [],
+        warpTileIDs: parsed.warpTilesByLabel["\(label)WarpTileIDs"] ?? [],
+        doorTileIDs: parsed.doorTilesByLabel["\(label)DoorTileIDs"] ?? [],
+        tilePairCollisions: parsed.tilePairCollisionsByTileset[tileset] ?? [],
+        ledges: parsed.ledges
+    )
+}
+
+private func parseTilesetTileTable(repoRoot: URL, path: String) throws -> [String: [Int]] {
+    let contents = try String(contentsOf: repoRoot.appendingPathComponent(path))
+    let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
+    var labels: [String] = []
+    var result: [String: [Int]] = [:]
+
+    for rawLine in lines {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        if line.hasPrefix(".") && line.hasSuffix(":") {
+            labels.append(String(line.dropFirst().dropLast()))
+            continue
+        }
+        guard line.hasPrefix("warp_tiles") || line.hasPrefix("door_tiles") else { continue }
+        let values = line
+            .split(separator: ";", maxSplits: 1, omittingEmptySubsequences: true)
+            .first?
+            .replacingOccurrences(of: "warp_tiles", with: "")
+            .replacingOccurrences(of: "door_tiles", with: "")
+            .split(separator: ",")
+            .compactMap { token -> Int? in
+                let cleaned = token.trimmingCharacters(in: .whitespaces)
+                guard cleaned.isEmpty == false else { return nil }
+                return Int(cleaned.replacingOccurrences(of: "$", with: ""), radix: 16)
+            } ?? []
+        for label in labels {
+            result[label] = values
+        }
+        labels.removeAll()
+    }
+
+    return result
+}
+
+private func parseTilePairCollisions(repoRoot: URL) throws -> [String: [TilePairCollisionManifest]] {
+    let contents = try String(contentsOf: repoRoot.appendingPathComponent("data/tilesets/pair_collision_tile_ids.asm"))
+    let regex = try NSRegularExpression(pattern: #"db\s+([A-Z0-9_]+),\s+\$([0-9A-Fa-f]+),\s+\$([0-9A-Fa-f]+)"#)
+    let nsrange = NSRange(contents.startIndex..<contents.endIndex, in: contents)
+    var result: [String: [TilePairCollisionManifest]] = [:]
+
+    for match in regex.matches(in: contents, range: nsrange) {
+        guard
+            let tilesetRange = Range(match.range(at: 1), in: contents),
+            let fromRange = Range(match.range(at: 2), in: contents),
+            let toRange = Range(match.range(at: 3), in: contents),
+            let fromTileID = Int(contents[fromRange], radix: 16),
+            let toTileID = Int(contents[toRange], radix: 16)
+        else {
+            continue
+        }
+
+        let tilesetID = String(contents[tilesetRange])
+        result[tilesetID, default: []].append(.init(fromTileID: fromTileID, toTileID: toTileID))
+    }
+
+    return result
+}
+
+private func parseLedgeRules(repoRoot: URL) throws -> [LedgeCollisionManifest] {
+    let contents = try String(contentsOf: repoRoot.appendingPathComponent("data/tilesets/ledge_tiles.asm"))
+    let regex = try NSRegularExpression(pattern: #"db\s+([A-Z0-9_]+),\s+\$([0-9A-Fa-f]+),\s+\$([0-9A-Fa-f]+),\s+[A-Z0-9_]+"#)
+    let nsrange = NSRange(contents.startIndex..<contents.endIndex, in: contents)
+
+    return regex.matches(in: contents, range: nsrange).compactMap { match in
+        guard
+            let facingRange = Range(match.range(at: 1), in: contents),
+            let standingRange = Range(match.range(at: 2), in: contents),
+            let ledgeRange = Range(match.range(at: 3), in: contents),
+            let standingTileID = Int(contents[standingRange], radix: 16),
+            let ledgeTileID = Int(contents[ledgeRange], radix: 16)
+        else {
+            return nil
+        }
+
+        return LedgeCollisionManifest(
+            facing: facingDirection(from: String(contents[facingRange])),
+            standingTileID: standingTileID,
+            ledgeTileID: ledgeTileID
+        )
+    }
+}
+
+private func resolveStepCollisionTileIDs(
+    repoRoot: URL,
+    tileset: TilesetManifest,
+    borderBlockID: Int,
+    blockWidth: Int,
+    blockHeight: Int,
+    blockIDs: [Int]
+) throws -> [Int] {
+    let blocksetData = try Data(contentsOf: repoRoot.appendingPathComponent(blocksetSourcePath(for: tileset.id)))
+    let blocks = stride(from: 0, to: blocksetData.count, by: 16).map { start in
+        Array(blocksetData[start..<(start + 16)]).map(Int.init)
+    }
+
+    func blockIDAt(mapBlockX: Int, mapBlockY: Int) -> Int {
+        guard mapBlockX >= 0, mapBlockY >= 0, mapBlockX < blockWidth, mapBlockY < blockHeight else {
+            return borderBlockID
+        }
+        return blockIDs[(mapBlockY * blockWidth) + mapBlockX]
+    }
+
+    func collisionTileIDAt(stepX: Int, stepY: Int) -> Int {
+        let blockX = stepX / 2
+        let blockY = stepY / 2
+        let subX = stepX % 2
+        let subY = stepY % 2
+        let blockID = blockIDAt(mapBlockX: blockX, mapBlockY: blockY)
+        guard blocks.indices.contains(blockID) else { return 0 }
+        let block = blocks[blockID]
+        let tileIndex = ((subY * 2) + 1) * 4 + (subX * 2)
+        guard block.indices.contains(tileIndex) else { return 0 }
+        return block[tileIndex]
+    }
+
+    var result: [Int] = []
+    result.reserveCapacity(blockWidth * blockHeight * 4)
+    for stepY in 0..<(blockHeight * 2) {
+        for stepX in 0..<(blockWidth * 2) {
+            result.append(collisionTileIDAt(stepX: stepX, stepY: stepY))
+        }
+    }
+    return result
+}
+
+private func blocksetSourcePath(for tileset: String) -> String {
+    switch tileset {
+    case "OVERWORLD": return "gfx/blocksets/overworld.bst"
+    case "DOJO": return "gfx/blocksets/gym.bst"
+    default: return "gfx/blocksets/reds_house.bst"
+    }
 }
 
 private func buildOverworldSprites() -> [OverworldSpriteManifest] {
@@ -397,7 +577,9 @@ private func parseObjects(mapID: String, contents: String) -> [MapObjectManifest
         let facing = facingDirection(from: String(contents[facingRange]))
         let textID = String(contents[textRange])
         let objectID = objectIDFor(mapID: mapID, index: index, textID: textID)
-        let trainerBattleID = trainerBattleIDFor(mapID: mapID, textID: textID)
+        let trainerClass = Range(match.range(at: 7), in: contents).map { String(contents[$0]) }
+        let trainerNumber = Range(match.range(at: 8), in: contents).flatMap { Int(contents[$0]) }
+        let trainerBattleID = trainerBattleIDFor(trainerClass: trainerClass, trainerNumber: trainerNumber)
 
         return MapObjectManifest(
             id: objectID,
@@ -408,6 +590,8 @@ private func parseObjects(mapID: String, contents: String) -> [MapObjectManifest
             interactionDialogueID: dialogueID(for: mapID, textID: textID),
             movementType: movement,
             trainerBattleID: trainerBattleID,
+            trainerClass: trainerClass,
+            trainerNumber: trainerNumber,
             visibleByDefault: defaultVisibility(for: objectID)
         )
     }
@@ -447,8 +631,9 @@ private func displayNameForObject(objectID: String, textID: String) -> String {
     }
 }
 
-private func trainerBattleIDFor(mapID: String, textID: String) -> String? {
-    mapID == "OAKS_LAB" && textID == "TEXT_OAKSLAB_RIVAL" ? "AUTO" : nil
+private func trainerBattleIDFor(trainerClass: String?, trainerNumber: Int?) -> String? {
+    guard let trainerClass, let trainerNumber else { return nil }
+    return "\(trainerClass.lowercased())_\(trainerNumber)"
 }
 
 private func defaultVisibility(for objectID: String) -> Bool {
@@ -606,6 +791,68 @@ private func extractQuotedString(from line: String) -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
+private func buildMapScripts() -> [MapScriptManifest] {
+    [
+        MapScriptManifest(
+            mapID: "PALLET_TOWN",
+            triggers: [
+                .init(
+                    id: "north_exit_oak_intro",
+                    scriptID: "pallet_town_oak_intro",
+                    conditions: [
+                        .init(kind: "flagUnset", flagID: "EVENT_FOLLOWED_OAK_INTO_LAB"),
+                        .init(kind: "playerYEquals", intValue: 1),
+                    ]
+                ),
+            ]
+        ),
+        MapScriptManifest(
+            mapID: "OAKS_LAB",
+            triggers: [
+                .init(
+                    id: "dont_go_away_before_starter",
+                    scriptID: "oaks_lab_dont_go_away",
+                    conditions: [
+                        .init(kind: "flagSet", flagID: "EVENT_OAK_ASKED_TO_CHOOSE_MON"),
+                        .init(kind: "flagUnset", flagID: "EVENT_GOT_STARTER"),
+                        .init(kind: "playerYEquals", intValue: 6),
+                    ]
+                ),
+                .init(
+                    id: "rival_challenge_after_charmander",
+                    scriptID: "oaks_lab_rival_challenge_vs_squirtle",
+                    conditions: [
+                        .init(kind: "flagSet", flagID: "EVENT_GOT_STARTER"),
+                        .init(kind: "flagUnset", flagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"),
+                        .init(kind: "playerYEquals", intValue: 6),
+                        .init(kind: "chosenStarterEquals", stringValue: "CHARMANDER"),
+                    ]
+                ),
+                .init(
+                    id: "rival_challenge_after_squirtle",
+                    scriptID: "oaks_lab_rival_challenge_vs_bulbasaur",
+                    conditions: [
+                        .init(kind: "flagSet", flagID: "EVENT_GOT_STARTER"),
+                        .init(kind: "flagUnset", flagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"),
+                        .init(kind: "playerYEquals", intValue: 6),
+                        .init(kind: "chosenStarterEquals", stringValue: "SQUIRTLE"),
+                    ]
+                ),
+                .init(
+                    id: "rival_challenge_after_bulbasaur",
+                    scriptID: "oaks_lab_rival_challenge_vs_charmander",
+                    conditions: [
+                        .init(kind: "flagSet", flagID: "EVENT_GOT_STARTER"),
+                        .init(kind: "flagUnset", flagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"),
+                        .init(kind: "playerYEquals", intValue: 6),
+                        .init(kind: "chosenStarterEquals", stringValue: "BULBASAUR"),
+                    ]
+                ),
+            ]
+        ),
+    ]
+}
+
 private func buildScripts() -> [ScriptManifest] {
     [
         ScriptManifest(
@@ -613,14 +860,16 @@ private func buildScripts() -> [ScriptManifest] {
             steps: [
                 .init(action: "setFlag", flagID: "EVENT_OAK_APPEARED_IN_PALLET"),
                 .init(action: "setObjectVisibility", objectID: "pallet_town_oak", visible: true),
-                .init(action: "setObjectPosition", point: .init(x: 8, y: 3), objectID: "pallet_town_oak"),
+                .init(action: "setObjectPosition", point: .init(x: 8, y: 5), objectID: "pallet_town_oak"),
                 .init(action: "faceObject", stringValue: "down", objectID: "pallet_town_oak"),
                 .init(action: "showDialogue", dialogueID: "pallet_town_oak_hey_wait"),
+                .init(action: "moveObject", path: [.up, .up, .up], objectID: "pallet_town_oak"),
                 .init(action: "showDialogue", dialogueID: "pallet_town_oak_its_unsafe"),
                 .init(action: "setMap", stringValue: "OAKS_LAB", point: .init(x: 5, y: 10)),
-                .init(action: "facePlayer", stringValue: "up"),
+                .init(action: "movePlayer", path: [.up, .up, .up, .up, .up, .up, .up, .up]),
                 .init(action: "setFlag", flagID: "EVENT_FOLLOWED_OAK_INTO_LAB"),
                 .init(action: "setFlag", flagID: "EVENT_FOLLOWED_OAK_INTO_LAB_2"),
+                .init(action: "facePlayer", stringValue: "up"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_rival_fed_up_with_waiting"),
                 .init(action: "setFlag", flagID: "EVENT_OAK_ASKED_TO_CHOOSE_MON"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_oak_choose_mon"),
@@ -637,10 +886,24 @@ private func buildScripts() -> [ScriptManifest] {
             ]
         ),
         ScriptManifest(
-            id: "oaks_lab_rival_challenge",
+            id: "oaks_lab_rival_challenge_vs_squirtle",
             steps: [
                 .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_you_on"),
-                .init(action: "startBattle", battleID: "AUTO"),
+                .init(action: "startBattle", battleID: "opp_rival1_1"),
+            ]
+        ),
+        ScriptManifest(
+            id: "oaks_lab_rival_challenge_vs_bulbasaur",
+            steps: [
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_you_on"),
+                .init(action: "startBattle", battleID: "opp_rival1_2"),
+            ]
+        ),
+        ScriptManifest(
+            id: "oaks_lab_rival_challenge_vs_charmander",
+            steps: [
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_you_on"),
+                .init(action: "startBattle", battleID: "opp_rival1_3"),
             ]
         ),
     ]
@@ -708,56 +971,83 @@ private func buildMoves(repoRoot: URL) throws -> [MoveManifest] {
     }
 }
 
-private func buildTrainerBattles() -> [TrainerBattleManifest] {
-    [
-        .init(
-            id: "rival_lab_squirtle",
+private func buildTrainerBattles(repoRoot: URL) throws -> [TrainerBattleManifest] {
+    let parties = try parseTrainerParties(repoRoot: repoRoot, label: "Rival1Data")
+    return try [1, 2, 3].map { trainerNumber in
+        guard parties.indices.contains(trainerNumber - 1) else {
+            throw ExtractorError.invalidArguments("missing Rival1 trainer party \(trainerNumber)")
+        }
+        let party = parties[trainerNumber - 1]
+        return TrainerBattleManifest(
+            id: "opp_rival1_\(trainerNumber)",
             trainerClass: "OPP_RIVAL1",
-            trainerNumber: 1,
+            trainerNumber: trainerNumber,
             displayName: "BLUE",
-            enemySpeciesID: "SQUIRTLE",
-            enemyLevel: 5,
+            party: party,
             winDialogueID: "oaks_lab_rival_i_picked_the_wrong_pokemon",
             loseDialogueID: "oaks_lab_rival_am_i_great_or_what",
             healsPartyAfterBattle: true,
             preventsBlackoutOnLoss: true,
             completionFlagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
-        ),
-        .init(
-            id: "rival_lab_bulbasaur",
-            trainerClass: "OPP_RIVAL1",
-            trainerNumber: 2,
-            displayName: "BLUE",
-            enemySpeciesID: "BULBASAUR",
-            enemyLevel: 5,
-            winDialogueID: "oaks_lab_rival_i_picked_the_wrong_pokemon",
-            loseDialogueID: "oaks_lab_rival_am_i_great_or_what",
-            healsPartyAfterBattle: true,
-            preventsBlackoutOnLoss: true,
-            completionFlagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
-        ),
-        .init(
-            id: "rival_lab_charmander",
-            trainerClass: "OPP_RIVAL1",
-            trainerNumber: 3,
-            displayName: "BLUE",
-            enemySpeciesID: "CHARMANDER",
-            enemyLevel: 5,
-            winDialogueID: "oaks_lab_rival_i_picked_the_wrong_pokemon",
-            loseDialogueID: "oaks_lab_rival_am_i_great_or_what",
-            healsPartyAfterBattle: true,
-            preventsBlackoutOnLoss: true,
-            completionFlagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
-        ),
-    ]
+        )
+    }
+}
+
+private func parseTrainerParties(repoRoot: URL, label: String) throws -> [[TrainerPokemonManifest]] {
+    let contents = try String(contentsOf: repoRoot.appendingPathComponent("data/trainers/parties.asm"))
+    guard let labelRange = contents.range(of: "\(label):") else {
+        throw ExtractorError.invalidArguments("missing trainer party label \(label)")
+    }
+
+    let tail = contents[labelRange.upperBound...]
+    var parties: [[TrainerPokemonManifest]] = []
+
+    for rawLine in tail.split(separator: "\n", omittingEmptySubsequences: false) {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        if line.hasSuffix(":"), line.hasPrefix(label) == false, line.isEmpty == false {
+            break
+        }
+        guard line.hasPrefix("db ") else { continue }
+        let tokens = line
+            .replacingOccurrences(of: "db", with: "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard tokens.isEmpty == false else { continue }
+
+        if tokens[0] == "$FF" {
+            var party: [TrainerPokemonManifest] = []
+            var index = 1
+            while index + 1 < tokens.count {
+                if tokens[index] == "0" { break }
+                guard let level = Int(tokens[index]) else { break }
+                let speciesID = tokens[index + 1]
+                if speciesID == "0" { break }
+                party.append(.init(speciesID: speciesID, level: level))
+                index += 2
+            }
+            if party.isEmpty == false {
+                parties.append(party)
+            }
+            continue
+        }
+
+        guard let sharedLevel = Int(tokens[0]) else { continue }
+        let speciesIDs = tokens.dropFirst().prefix { $0 != "0" }
+        let party = speciesIDs.map { TrainerPokemonManifest(speciesID: $0, level: sharedLevel) }
+        if party.isEmpty == false {
+            parties.append(party)
+        }
+    }
+
+    return parties
 }
 
 private func facingDirection(from raw: String) -> FacingDirection {
     switch raw {
-    case "UP", "PLAYER_DIR_UP": return .up
-    case "DOWN", "PLAYER_DIR_DOWN": return .down
-    case "LEFT": return .left
-    case "RIGHT": return .right
+    case "UP", "PLAYER_DIR_UP", "SPRITE_FACING_UP": return .up
+    case "DOWN", "PLAYER_DIR_DOWN", "SPRITE_FACING_DOWN": return .down
+    case "LEFT", "SPRITE_FACING_LEFT": return .left
+    case "RIGHT", "SPRITE_FACING_RIGHT": return .right
     default: return .down
     }
 }

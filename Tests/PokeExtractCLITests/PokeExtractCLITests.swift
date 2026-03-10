@@ -50,14 +50,7 @@ final class PokeExtractCLITests: XCTestCase {
 
         let palletTown = try XCTUnwrap(manifest.maps.first { $0.id == "PALLET_TOWN" })
         XCTAssertEqual(palletTown.borderBlockID, 0x0B)
-        XCTAssertEqual(palletTown.triggerRegions, [
-            .init(
-                id: "north_exit",
-                origin: .init(x: 0, y: 1),
-                size: .init(width: 20, height: 1),
-                scriptID: "pallet_town_oak_intro"
-            ),
-        ])
+        XCTAssertEqual(palletTown.stepCollisionTileIDs.count, palletTown.stepWidth * palletTown.stepHeight)
         XCTAssertEqual(palletTown.warps.count, 3)
         XCTAssertEqual(palletTown.backgroundEvents.map(\.dialogueID), [
             "pallet_town_oaks_lab_sign",
@@ -65,6 +58,16 @@ final class PokeExtractCLITests: XCTestCase {
             "pallet_town_players_house_sign",
             "pallet_town_rivals_house_sign",
         ])
+        XCTAssertEqual(manifest.mapScripts.first { $0.mapID == "PALLET_TOWN" }?.triggers.map(\.scriptID), [
+            "pallet_town_oak_intro",
+        ])
+        XCTAssertEqual(
+            manifest.mapScripts.first { $0.mapID == "PALLET_TOWN" }?.triggers.first?.conditions,
+            [
+                .init(kind: "flagUnset", flagID: "EVENT_FOLLOWED_OAK_INTO_LAB"),
+                .init(kind: "playerYEquals", intValue: 1),
+            ]
+        )
         XCTAssertEqual(palletTown.objects.map(\.id), [
             "pallet_town_oak",
             "pallet_town_girl",
@@ -92,15 +95,19 @@ final class PokeExtractCLITests: XCTestCase {
         XCTAssertEqual(manifest.scripts.map(\.id), [
             "pallet_town_oak_intro",
             "oaks_lab_dont_go_away",
-            "oaks_lab_rival_challenge",
+            "oaks_lab_rival_challenge_vs_squirtle",
+            "oaks_lab_rival_challenge_vs_bulbasaur",
+            "oaks_lab_rival_challenge_vs_charmander",
         ])
         XCTAssertEqual(manifest.species.map(\.id), ["CHARMANDER", "SQUIRTLE", "BULBASAUR"])
         XCTAssertEqual(manifest.moves.map(\.id), ["SCRATCH", "TACKLE", "TAIL_WHIP", "GROWL"])
         XCTAssertEqual(manifest.trainerBattles.map(\.id), [
-            "rival_lab_squirtle",
-            "rival_lab_bulbasaur",
-            "rival_lab_charmander",
+            "opp_rival1_1",
+            "opp_rival1_2",
+            "opp_rival1_3",
         ])
+        XCTAssertEqual(manifest.trainerBattles.first?.party, [.init(speciesID: "SQUIRTLE", level: 5)])
+        XCTAssertEqual(manifest.tilesets.first?.collision.passableTileIDs, [0x01, 0x02, 0x03, 0x11, 0x12, 0x13, 0x14, 0x1c, 0x1a])
 
         let oakDialogue = try XCTUnwrap(manifest.dialogues.first { $0.id == "pallet_town_oak_its_unsafe" })
         XCTAssertEqual(oakDialogue.pages.first?.lines.first, "OAK: It's unsafe!")
@@ -132,7 +139,8 @@ final class PokeExtractCLITests: XCTestCase {
         XCTAssertEqual(decoded.overworldSprites.count, 9)
         XCTAssertGreaterThan(decoded.dialogues.count, 30)
         XCTAssertNotNil(decoded.dialogues.first { $0.id == "oaks_lab_rival_ill_take_you_on" })
-        XCTAssertNotNil(decoded.trainerBattles.first { $0.id == "rival_lab_squirtle" })
+        XCTAssertNotNil(decoded.mapScripts.first { $0.mapID == "OAKS_LAB" })
+        XCTAssertNotNil(decoded.trainerBattles.first { $0.id == "opp_rival1_1" })
         XCTAssertEqual(decoded.tilesets.first?.imagePath, "Assets/field/tilesets/reds_house.png")
         XCTAssertEqual(decoded.tilesets.first?.blocksetPath, "Assets/field/blocksets/reds_house.bst")
         XCTAssertEqual(decoded.overworldSprites.first?.facingFrames.down, .init(x: 0, y: 0, width: 16, height: 16))

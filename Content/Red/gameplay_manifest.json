@@ -694,6 +694,116 @@
       }
     ]
   },
+  "mapScripts" : [
+    {
+      "mapID" : "PALLET_TOWN",
+      "triggers" : [
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_FOLLOWED_OAK_INTO_LAB",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 1,
+              "kind" : "playerYEquals"
+            }
+          ],
+          "id" : "north_exit_oak_intro",
+          "scriptID" : "pallet_town_oak_intro"
+        }
+      ]
+    },
+    {
+      "mapID" : "OAKS_LAB",
+      "triggers" : [
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_OAK_ASKED_TO_CHOOSE_MON",
+              "kind" : "flagSet"
+            },
+            {
+              "flagID" : "EVENT_GOT_STARTER",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 6,
+              "kind" : "playerYEquals"
+            }
+          ],
+          "id" : "dont_go_away_before_starter",
+          "scriptID" : "oaks_lab_dont_go_away"
+        },
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_GOT_STARTER",
+              "kind" : "flagSet"
+            },
+            {
+              "flagID" : "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 6,
+              "kind" : "playerYEquals"
+            },
+            {
+              "kind" : "chosenStarterEquals",
+              "stringValue" : "CHARMANDER"
+            }
+          ],
+          "id" : "rival_challenge_after_charmander",
+          "scriptID" : "oaks_lab_rival_challenge_vs_squirtle"
+        },
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_GOT_STARTER",
+              "kind" : "flagSet"
+            },
+            {
+              "flagID" : "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 6,
+              "kind" : "playerYEquals"
+            },
+            {
+              "kind" : "chosenStarterEquals",
+              "stringValue" : "SQUIRTLE"
+            }
+          ],
+          "id" : "rival_challenge_after_squirtle",
+          "scriptID" : "oaks_lab_rival_challenge_vs_bulbasaur"
+        },
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_GOT_STARTER",
+              "kind" : "flagSet"
+            },
+            {
+              "flagID" : "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 6,
+              "kind" : "playerYEquals"
+            },
+            {
+              "kind" : "chosenStarterEquals",
+              "stringValue" : "BULBASAUR"
+            }
+          ],
+          "id" : "rival_challenge_after_bulbasaur",
+          "scriptID" : "oaks_lab_rival_challenge_vs_charmander"
+        }
+      ]
+    }
+  ],
   "maps" : [
     {
       "backgroundEvents" : [
@@ -720,28 +830,80 @@
       ],
       "blockWidth" : 4,
       "borderBlockID" : 10,
-      "collisionBlockIDs" : [
-        1,
-        2,
-        3,
-        17,
-        18,
-        19,
-        20,
-        28,
-        26
-      ],
       "displayName" : "Red's House 2F",
       "id" : "REDS_HOUSE_2F",
       "objects" : [
 
       ],
+      "stepCollisionTileIDs" : [
+        32,
+        38,
+        39,
+        0,
+        0,
+        52,
+        0,
+        52,
+        50,
+        60,
+        58,
+        1,
+        1,
+        1,
+        1,
+        26,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        22,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        30,
+        1,
+        1,
+        1,
+        1,
+        61,
+        1,
+        1,
+        1,
+        1,
+        1,
+        8,
+        1,
+        63,
+        1,
+        1,
+        1,
+        1,
+        1,
+        24,
+        1
+      ],
       "stepHeight" : 8,
       "stepWidth" : 8,
       "tileset" : "REDS_HOUSE_2",
-      "triggerRegions" : [
-
-      ],
       "warps" : [
         {
           "id" : "reds_house_2f_warp_0",
@@ -790,17 +952,6 @@
       ],
       "blockWidth" : 4,
       "borderBlockID" : 10,
-      "collisionBlockIDs" : [
-        1,
-        2,
-        3,
-        17,
-        18,
-        19,
-        20,
-        28,
-        26
-      ],
       "displayName" : "Red's House 1F",
       "id" : "REDS_HOUSE_1F",
       "objects" : [
@@ -818,12 +969,75 @@
           "visibleByDefault" : true
         }
       ],
+      "stepCollisionTileIDs" : [
+        48,
+        48,
+        0,
+        52,
+        0,
+        52,
+        0,
+        52,
+        50,
+        50,
+        1,
+        22,
+        1,
+        1,
+        1,
+        28,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        18,
+        54,
+        56,
+        18,
+        1,
+        1,
+        1,
+        1,
+        18,
+        60,
+        58,
+        18,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        20,
+        20,
+        1,
+        1,
+        1,
+        1
+      ],
       "stepHeight" : 8,
       "stepWidth" : 8,
       "tileset" : "REDS_HOUSE_1",
-      "triggerRegions" : [
-
-      ],
       "warps" : [
         {
           "id" : "reds_house_1f_warp_0",
@@ -996,27 +1210,6 @@
       ],
       "blockWidth" : 10,
       "borderBlockID" : 11,
-      "collisionBlockIDs" : [
-        0,
-        16,
-        27,
-        32,
-        33,
-        35,
-        44,
-        45,
-        46,
-        48,
-        49,
-        51,
-        57,
-        60,
-        62,
-        82,
-        84,
-        88,
-        91
-      ],
       "displayName" : "Pallet Town",
       "id" : "PALLET_TOWN",
       "objects" : [
@@ -1060,23 +1253,371 @@
           "visibleByDefault" : true
         }
       ],
+      "stepCollisionTileIDs" : [
+        44,
+        44,
+        44,
+        58,
+        44,
+        44,
+        44,
+        44,
+        44,
+        58,
+        82,
+        82,
+        58,
+        44,
+        44,
+        44,
+        44,
+        44,
+        58,
+        44,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        82,
+        82,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        44,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        44,
+        58,
+        58,
+        44,
+        35,
+        57,
+        21,
+        23,
+        23,
+        24,
+        35,
+        57,
+        35,
+        57,
+        21,
+        23,
+        23,
+        24,
+        35,
+        57,
+        44,
+        58,
+        58,
+        44,
+        57,
+        57,
+        92,
+        23,
+        23,
+        23,
+        57,
+        35,
+        57,
+        57,
+        92,
+        23,
+        23,
+        23,
+        57,
+        35,
+        44,
+        58,
+        58,
+        44,
+        57,
+        86,
+        78,
+        27,
+        26,
+        26,
+        35,
+        57,
+        57,
+        86,
+        78,
+        27,
+        26,
+        26,
+        35,
+        57,
+        44,
+        58,
+        58,
+        44,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        44,
+        58,
+        58,
+        44,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        44,
+        58,
+        58,
+        44,
+        57,
+        35,
+        57,
+        57,
+        57,
+        57,
+        57,
+        35,
+        21,
+        18,
+        18,
+        18,
+        18,
+        56,
+        57,
+        35,
+        44,
+        58,
+        58,
+        44,
+        35,
+        57,
+        85,
+        85,
+        85,
+        86,
+        35,
+        57,
+        21,
+        23,
+        23,
+        23,
+        23,
+        24,
+        35,
+        57,
+        44,
+        58,
+        58,
+        44,
+        57,
+        35,
+        44,
+        44,
+        44,
+        44,
+        57,
+        35,
+        15,
+        34,
+        75,
+        75,
+        75,
+        75,
+        57,
+        35,
+        44,
+        58,
+        58,
+        44,
+        35,
+        57,
+        44,
+        44,
+        44,
+        44,
+        35,
+        57,
+        78,
+        26,
+        27,
+        26,
+        26,
+        26,
+        35,
+        57,
+        44,
+        58,
+        58,
+        44,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        44,
+        58,
+        58,
+        44,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        35,
+        57,
+        85,
+        85,
+        85,
+        86,
+        85,
+        85,
+        57,
+        57,
+        44,
+        58,
+        58,
+        44,
+        44,
+        44,
+        50,
+        20,
+        20,
+        20,
+        57,
+        57,
+        44,
+        44,
+        44,
+        44,
+        44,
+        44,
+        57,
+        57,
+        44,
+        58,
+        58,
+        44,
+        44,
+        44,
+        50,
+        20,
+        20,
+        20,
+        57,
+        57,
+        44,
+        44,
+        44,
+        44,
+        44,
+        44,
+        57,
+        57,
+        44,
+        58,
+        58,
+        44,
+        44,
+        44,
+        50,
+        20,
+        20,
+        20,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        57,
+        44,
+        58,
+        58,
+        58,
+        44,
+        44,
+        50,
+        20,
+        20,
+        20,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58,
+        58
+      ],
       "stepHeight" : 18,
       "stepWidth" : 20,
       "tileset" : "OVERWORLD",
-      "triggerRegions" : [
-        {
-          "id" : "north_exit",
-          "origin" : {
-            "x" : 0,
-            "y" : 1
-          },
-          "scriptID" : "pallet_town_oak_intro",
-          "size" : {
-            "height" : 1,
-            "width" : 20
-          }
-        }
-      ],
       "warps" : [
         {
           "id" : "pallet_town_warp_0",
@@ -1158,19 +1699,6 @@
       ],
       "blockWidth" : 5,
       "borderBlockID" : 3,
-      "collisionBlockIDs" : [
-        17,
-        22,
-        25,
-        43,
-        60,
-        61,
-        63,
-        74,
-        76,
-        77,
-        3
-      ],
       "displayName" : "Oak's Lab",
       "id" : "OAKS_LAB",
       "objects" : [
@@ -1185,7 +1713,9 @@
             "y" : 3
           },
           "sprite" : "SPRITE_BLUE",
-          "trainerBattleID" : "AUTO",
+          "trainerBattleID" : "opp_rival1_1",
+          "trainerClass" : "OPP_RIVAL1",
+          "trainerNumber" : 1,
           "visibleByDefault" : true
         },
         {
@@ -1319,12 +1849,131 @@
           "visibleByDefault" : true
         }
       ],
+      "stepCollisionTileIDs" : [
+        16,
+        16,
+        16,
+        16,
+        82,
+        82,
+        13,
+        13,
+        13,
+        13,
+        54,
+        85,
+        78,
+        57,
+        17,
+        17,
+        29,
+        29,
+        29,
+        29,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        78,
+        57,
+        57,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        13,
+        13,
+        13,
+        13,
+        17,
+        17,
+        13,
+        13,
+        13,
+        13,
+        29,
+        29,
+        29,
+        29,
+        17,
+        17,
+        29,
+        29,
+        29,
+        29,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        22,
+        22,
+        17,
+        17,
+        17,
+        17
+      ],
       "stepHeight" : 12,
       "stepWidth" : 10,
       "tileset" : "DOJO",
-      "triggerRegions" : [
-
-      ],
       "warps" : [
         {
           "id" : "oaks_lab_warp_0",
@@ -1759,7 +2408,7 @@
           ],
           "point" : {
             "x" : 8,
-            "y" : 3
+            "y" : 5
           }
         },
         {
@@ -1775,6 +2424,15 @@
           "dialogueID" : "pallet_town_oak_hey_wait",
           "path" : [
 
+          ]
+        },
+        {
+          "action" : "moveObject",
+          "objectID" : "pallet_town_oak",
+          "path" : [
+            "up",
+            "up",
+            "up"
           ]
         },
         {
@@ -1796,11 +2454,17 @@
           "stringValue" : "OAKS_LAB"
         },
         {
-          "action" : "facePlayer",
+          "action" : "movePlayer",
           "path" : [
-
-          ],
-          "stringValue" : "up"
+            "up",
+            "up",
+            "up",
+            "up",
+            "up",
+            "up",
+            "up",
+            "up"
+          ]
         },
         {
           "action" : "setFlag",
@@ -1815,6 +2479,13 @@
           "path" : [
 
           ]
+        },
+        {
+          "action" : "facePlayer",
+          "path" : [
+
+          ],
+          "stringValue" : "up"
         },
         {
           "action" : "showDialogue",
@@ -1879,7 +2550,7 @@
       ]
     },
     {
-      "id" : "oaks_lab_rival_challenge",
+      "id" : "oaks_lab_rival_challenge_vs_squirtle",
       "steps" : [
         {
           "action" : "showDialogue",
@@ -1890,7 +2561,45 @@
         },
         {
           "action" : "startBattle",
-          "battleID" : "AUTO",
+          "battleID" : "opp_rival1_1",
+          "path" : [
+
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "oaks_lab_rival_challenge_vs_bulbasaur",
+      "steps" : [
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_ill_take_you_on",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "startBattle",
+          "battleID" : "opp_rival1_2",
+          "path" : [
+
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "oaks_lab_rival_challenge_vs_charmander",
+      "steps" : [
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_ill_take_you_on",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "startBattle",
+          "battleID" : "opp_rival1_3",
           "path" : [
 
           ]
@@ -1944,6 +2653,71 @@
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/reds_house.bst",
+      "collision" : {
+        "doorTileIDs" : [
+
+        ],
+        "ledges" : [
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 54,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 29,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 57
+          }
+        ],
+        "passableTileIDs" : [
+          1,
+          2,
+          3,
+          17,
+          18,
+          19,
+          20,
+          28,
+          26
+        ],
+        "tilePairCollisions" : [
+
+        ],
+        "warpTileIDs" : [
+          26,
+          28
+        ]
+      },
       "id" : "REDS_HOUSE_1",
       "imagePath" : "Assets/field/tilesets/reds_house.png",
       "sourceTileSize" : 8
@@ -1952,6 +2726,71 @@
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/reds_house.bst",
+      "collision" : {
+        "doorTileIDs" : [
+
+        ],
+        "ledges" : [
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 54,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 29,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 57
+          }
+        ],
+        "passableTileIDs" : [
+          1,
+          2,
+          3,
+          17,
+          18,
+          19,
+          20,
+          28,
+          26
+        ],
+        "tilePairCollisions" : [
+
+        ],
+        "warpTileIDs" : [
+          26,
+          28
+        ]
+      },
       "id" : "REDS_HOUSE_2",
       "imagePath" : "Assets/field/tilesets/reds_house.png",
       "sourceTileSize" : 8
@@ -1960,6 +2799,82 @@
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/overworld.bst",
+      "collision" : {
+        "doorTileIDs" : [
+          27,
+          88
+        ],
+        "ledges" : [
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 54,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 29,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 57
+          }
+        ],
+        "passableTileIDs" : [
+          0,
+          16,
+          27,
+          32,
+          33,
+          35,
+          44,
+          45,
+          46,
+          48,
+          49,
+          51,
+          57,
+          60,
+          62,
+          82,
+          84,
+          88,
+          91
+        ],
+        "tilePairCollisions" : [
+
+        ],
+        "warpTileIDs" : [
+          27,
+          88
+        ]
+      },
       "id" : "OVERWORLD",
       "imagePath" : "Assets/field/tilesets/overworld.png",
       "sourceTileSize" : 8
@@ -1968,6 +2883,72 @@
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/gym.bst",
+      "collision" : {
+        "doorTileIDs" : [
+
+        ],
+        "ledges" : [
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 54,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "down",
+            "ledgeTileID" : 55,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "left",
+            "ledgeTileID" : 39,
+            "standingTileID" : 57
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 29,
+            "standingTileID" : 44
+          },
+          {
+            "facing" : "right",
+            "ledgeTileID" : 13,
+            "standingTileID" : 57
+          }
+        ],
+        "passableTileIDs" : [
+          17,
+          22,
+          25,
+          43,
+          60,
+          61,
+          63,
+          74,
+          76,
+          77,
+          3
+        ],
+        "tilePairCollisions" : [
+
+        ],
+        "warpTileIDs" : [
+          74
+        ]
+      },
       "id" : "DOJO",
       "imagePath" : "Assets/field/tilesets/gym.png",
       "sourceTileSize" : 8
@@ -1977,11 +2958,15 @@
     {
       "completionFlagID" : "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
       "displayName" : "BLUE",
-      "enemyLevel" : 5,
-      "enemySpeciesID" : "SQUIRTLE",
       "healsPartyAfterBattle" : true,
-      "id" : "rival_lab_squirtle",
+      "id" : "opp_rival1_1",
       "loseDialogueID" : "oaks_lab_rival_am_i_great_or_what",
+      "party" : [
+        {
+          "level" : 5,
+          "speciesID" : "SQUIRTLE"
+        }
+      ],
       "preventsBlackoutOnLoss" : true,
       "trainerClass" : "OPP_RIVAL1",
       "trainerNumber" : 1,
@@ -1990,11 +2975,15 @@
     {
       "completionFlagID" : "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
       "displayName" : "BLUE",
-      "enemyLevel" : 5,
-      "enemySpeciesID" : "BULBASAUR",
       "healsPartyAfterBattle" : true,
-      "id" : "rival_lab_bulbasaur",
+      "id" : "opp_rival1_2",
       "loseDialogueID" : "oaks_lab_rival_am_i_great_or_what",
+      "party" : [
+        {
+          "level" : 5,
+          "speciesID" : "BULBASAUR"
+        }
+      ],
       "preventsBlackoutOnLoss" : true,
       "trainerClass" : "OPP_RIVAL1",
       "trainerNumber" : 2,
@@ -2003,11 +2992,15 @@
     {
       "completionFlagID" : "EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
       "displayName" : "BLUE",
-      "enemyLevel" : 5,
-      "enemySpeciesID" : "CHARMANDER",
       "healsPartyAfterBattle" : true,
-      "id" : "rival_lab_charmander",
+      "id" : "opp_rival1_3",
       "loseDialogueID" : "oaks_lab_rival_am_i_great_or_what",
+      "party" : [
+        {
+          "level" : 5,
+          "speciesID" : "CHARMANDER"
+        }
+      ],
       "preventsBlackoutOnLoss" : true,
       "trainerClass" : "OPP_RIVAL1",
       "trainerNumber" : 3,

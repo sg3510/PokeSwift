@@ -37,6 +37,7 @@ extension GameRuntime {
             mapName: map.displayName,
             playerPosition: gameplayState.playerPosition,
             facing: gameplayState.facing,
+            activeMapScriptTriggerID: gameplayState.activeMapScriptTriggerID,
             activeScriptID: gameplayState.activeScriptID,
             activeScriptStep: gameplayState.activeScriptStep,
             renderMode: currentFieldRenderMode
@@ -66,6 +67,8 @@ extension GameRuntime {
             trainerName: battle.trainerName,
             playerPokemon: makePartyPokemonTelemetry(from: battle.playerPokemon),
             enemyPokemon: makePartyPokemonTelemetry(from: battle.enemyPokemon),
+            enemyPartyCount: battle.enemyParty.count,
+            enemyActiveIndex: battle.enemyActiveIndex,
             focusedMoveIndex: battle.focusedMoveIndex,
             battleMessage: battle.message
         )
