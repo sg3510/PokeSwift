@@ -42,6 +42,7 @@ extension GameRuntime {
         if handleWarpIfNeeded() {
             return
         }
+        beginFieldMovementCooldown()
         substate = "field"
         evaluateMapScriptsIfNeeded()
     }
@@ -189,9 +190,21 @@ extension GameRuntime {
     }
 
     func beginScriptedPlayerMovement(_ path: [FacingDirection]) {
+        fieldMovementTask?.cancel()
+        fieldMovementTask = nil
         scriptedMovementTask?.cancel()
         scriptedMovementTask = Task { [weak self] in
             await self?.runScriptedPlayerMovement(path)
+        }
+    }
+
+    func beginFieldMovementCooldown() {
+        fieldMovementTask?.cancel()
+        fieldMovementTask = Task { [weak self] in
+            guard let self else { return }
+            await self.sleep(seconds: self.fieldStepDuration)
+            guard Task.isCancelled == false else { return }
+            self.fieldMovementTask = nil
         }
     }
 

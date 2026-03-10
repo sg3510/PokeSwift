@@ -131,6 +131,27 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.field?.facing, .down)
     }
 
+    func testFieldMovementRejectsImmediateSecondStepUntilCadenceCompletes() async {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+
+        runtime.movePlayer(in: .right)
+        runtime.movePlayer(in: .right)
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
+
+        let halfStepNanoseconds = UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: halfStepNanoseconds)
+        runtime.movePlayer(in: .right)
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
+
+        let settleNanoseconds = UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: settleNanoseconds)
+        runtime.movePlayer(in: .right)
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
+    }
+
     func testRepoGeneratedPalletNorthExitStartsOakIntroFromSourceScript() async throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()

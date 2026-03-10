@@ -22,6 +22,7 @@ public final class GameRuntime {
     var windowScale = 4
     var transitionTask: Task<Void, Never>?
     var fieldTransitionTask: Task<Void, Never>?
+    var fieldMovementTask: Task<Void, Never>?
     var scriptedMovementTask: Task<Void, Never>?
     var hasStarted = false
     var gameplayState: GameplayState?
@@ -118,7 +119,7 @@ public final class GameRuntime {
     }
 
     var isFieldInputLocked: Bool {
-        fieldTransitionState != nil || scriptedMovementTask != nil
+        fieldTransitionState != nil || fieldMovementTask != nil || scriptedMovementTask != nil
     }
 
     var currentFieldRenderIssues: [String] {
