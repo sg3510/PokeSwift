@@ -40,19 +40,21 @@ private struct HarnessCLI {
     let repoRoot: URL
     let derivedData: URL
     let traceDirectory: URL
+    let saveRoot: URL
     let port: Int
 
     init() {
         repoRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         derivedData = repoRoot.appendingPathComponent(".build/DerivedData", isDirectory: true)
         traceDirectory = repoRoot.appendingPathComponent(".runtime-traces/pokemac", isDirectory: true)
+        saveRoot = traceDirectory.appendingPathComponent("saves", isDirectory: true)
         port = Int(ProcessInfo.processInfo.environment["POKESWIFT_TELEMETRY_PORT"] ?? "9777") ?? 9777
     }
 
     func run() throws {
         let arguments = Array(CommandLine.arguments.dropFirst())
         guard let command = arguments.first else {
-            throw HarnessError.invalidArguments("usage: PokeHarness <build|launch|latest|input|quit|validate>")
+            throw HarnessError.invalidArguments("usage: PokeHarness <build|launch|latest|input|save|load|quit|validate>")
         }
 
         switch command {
@@ -72,6 +74,10 @@ private struct HarnessCLI {
                 throw HarnessError.invalidArguments("usage: PokeHarness input <up|down|confirm|cancel|start>")
             }
             try post(path: "/input", body: ["button": button])
+        case "save":
+            try post(path: "/save", body: [:])
+        case "load":
+            try post(path: "/load", body: [:])
         case "quit":
             try post(path: "/quit", body: [:])
         case "validate":
@@ -126,6 +132,7 @@ private struct HarnessCLI {
         var environment = ProcessInfo.processInfo.environment
         environment["POKESWIFT_CONTENT_ROOT"] = repoRoot.appendingPathComponent("Content/Red", isDirectory: true).path
         environment["POKESWIFT_TRACE_DIR"] = traceDirectory.path
+        environment["POKESWIFT_SAVE_ROOT"] = saveRoot.path
         environment["POKESWIFT_TELEMETRY_PORT"] = String(port)
         if validationMode {
             environment["POKESWIFT_VALIDATION_MODE"] = "1"
@@ -148,6 +155,7 @@ private struct HarnessCLI {
     private func validate() throws {
         try? post(path: "/quit", body: [:])
         Thread.sleep(forTimeInterval: 0.5)
+        try? FileManager.default.removeItem(at: saveRoot)
         try launchApp(validationMode: true)
         _ = try poll(until: { $0.scene == .titleAttract }, timeout: 6)
 
@@ -158,7 +166,7 @@ private struct HarnessCLI {
         guard let menu = titleMenu.titleMenu, menu.entries.count == 3 else {
             throw HarnessError.validationFailed("title menu did not expose the expected entries")
         }
-        guard menu.entries[1].enabledByDefault == false else {
+        guard menu.entries[1].isEnabled == false else {
             throw HarnessError.validationFailed("continue should be disabled")
         }
 
@@ -313,7 +321,34 @@ private struct HarnessCLI {
             throw HarnessError.validationFailed("expected zero asset-loading failures, got: \(snapshot.assetLoadingFailures.joined(separator: ", "))")
         }
 
+        try post(path: "/save", body: [:])
+        snapshot = try poll(until: { $0.save?.metadata != nil && $0.save?.lastResult?.operation == "save" }, timeout: 4)
+        guard snapshot.save?.metadata?.locationName == "OAK'S LAB" || snapshot.save?.metadata?.locationName == "Oak's Lab" || snapshot.save?.metadata?.locationName == "OAKS_LAB" else {
+            throw HarnessError.validationFailed("save metadata did not report Oak's Lab after saving")
+        }
+
         try post(path: "/quit", body: [:])
+        Thread.sleep(forTimeInterval: 0.5)
+        try launchApp(validationMode: true)
+        _ = try poll(until: { $0.scene == .titleAttract }, timeout: 6)
+        try postInput("start")
+        let continueMenu = try poll(until: { $0.scene == .titleMenu }, timeout: 4)
+        guard let continueEntries = continueMenu.titleMenu?.entries, continueEntries.count == 3 else {
+            throw HarnessError.validationFailed("relaunch title menu did not expose the expected entries")
+        }
+        guard continueEntries[1].isEnabled else {
+            throw HarnessError.validationFailed("continue should be enabled after saving")
+        }
+        try postInput("down")
+        _ = try poll(until: { $0.scene == .titleMenu && $0.titleMenu?.focusedIndex == 1 }, timeout: 4)
+        try postInput("confirm")
+        snapshot = try poll(until: {
+            $0.scene == .field &&
+            $0.field?.mapID == "OAKS_LAB" &&
+            ($0.eventFlags?.activeFlags.contains("EVENT_BATTLED_RIVAL_IN_OAKS_LAB") ?? false)
+        }, timeout: 4)
+        try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
+
         print("milestone validation passed")
     }
 

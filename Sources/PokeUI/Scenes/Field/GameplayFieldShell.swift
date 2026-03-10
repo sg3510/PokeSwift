@@ -7,15 +7,18 @@ public enum GameplayFooterPlacement {
 
 public struct GameplayShell<Stage: View>: View {
     private let sidebarMode: GameplaySidebarMode
+    private let onSidebarAction: ((String) -> Void)?
     @Binding private var fieldDisplayStyle: FieldDisplayStyle
     private let stage: Stage
 
     public init(
         sidebarMode: GameplaySidebarMode,
+        onSidebarAction: ((String) -> Void)? = nil,
         fieldDisplayStyle: Binding<FieldDisplayStyle>,
         @ViewBuilder stage: () -> Stage
     ) {
         self.sidebarMode = sidebarMode
+        self.onSidebarAction = onSidebarAction
         _fieldDisplayStyle = fieldDisplayStyle
         self.stage = stage()
     }
@@ -27,6 +30,7 @@ public struct GameplayShell<Stage: View>: View {
 
             GameplaySidebar(
                 mode: sidebarMode,
+                onSidebarAction: onSidebarAction,
                 fieldDisplayStyle: $fieldDisplayStyle
             )
             .frame(width: GameplayFieldMetrics.sidebarWidth)

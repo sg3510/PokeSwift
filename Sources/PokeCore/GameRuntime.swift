@@ -6,6 +6,8 @@ import PokeDataModel
 @MainActor
 @Observable
 public final class GameRuntime {
+    public static let saveSchemaVersion = 1
+
     public let content: LoadedContent
 
     public internal(set) var scene: RuntimeScene = .launch
@@ -15,6 +17,7 @@ public final class GameRuntime {
 
     let telemetryPublisher: (any TelemetryPublisher)?
     let audioPlayer: (any RuntimeAudioPlaying)?
+    let saveStore: (any SaveStore)?
     let validationMode: Bool
     var substate = "launching"
     var recentInputEvents: [InputEventTelemetry] = []
@@ -32,21 +35,44 @@ public final class GameRuntime {
     var fieldTransitionState: RuntimeFieldTransitionState?
     var battleRNGState: UInt64 = 0x504f4b4553574946
     var battleRandomOverrides: [Int] = []
+    var saveMetadata: GameSaveMetadata?
+    var saveErrorMessage: String?
+    var lastSaveResult: RuntimeSaveResult?
+    var gameplaySessionStartedAt: Date?
+    var playthroughID = UUID().uuidString
 
     public init(
         content: LoadedContent,
         telemetryPublisher: (any TelemetryPublisher)?,
-        audioPlayer: (any RuntimeAudioPlaying)? = nil
+        audioPlayer: (any RuntimeAudioPlaying)? = nil,
+        saveStore: (any SaveStore)? = nil
     ) {
         self.content = content
         self.telemetryPublisher = telemetryPublisher
         self.audioPlayer = audioPlayer
+        self.saveStore = saveStore
         self.assetLoadingFailures = Self.missingAssets(in: content)
         self.validationMode = ProcessInfo.processInfo.environment["POKESWIFT_VALIDATION_MODE"] == "1"
+        refreshSaveState()
     }
 
-    public var menuEntries: [TitleMenuEntry] {
-        content.titleManifest.menuEntries
+    public var menuEntries: [TitleMenuEntryState] {
+        content.titleManifest.menuEntries.map { entry in
+            if entry.id == "continue" {
+                return TitleMenuEntryState(
+                    id: entry.id,
+                    label: entry.label,
+                    isEnabled: saveMetadata != nil,
+                    detail: saveMetadata.map(\.locationName) ?? saveErrorMessage
+                )
+            }
+
+            return TitleMenuEntryState(
+                id: entry.id,
+                label: entry.label,
+                isEnabled: entry.enabledByDefault
+            )
+        }
     }
 
     public var currentMapManifest: MapManifest? {
@@ -153,6 +179,32 @@ public final class GameRuntime {
         scene == .field && isFieldInputLocked == false
     }
 
+    public var currentSaveMetadata: GameSaveMetadata? {
+        saveMetadata
+    }
+
+    public var currentSaveErrorMessage: String? {
+        saveErrorMessage
+    }
+
+    public var currentLastSaveResult: RuntimeSaveResult? {
+        lastSaveResult
+    }
+
+    public var canSaveGame: Bool {
+        gameplayState != nil &&
+            scene == .field &&
+            dialogueState == nil &&
+            fieldTransitionState == nil &&
+            fieldMovementTask == nil &&
+            scriptedMovementTask == nil &&
+            gameplayState?.battle == nil
+    }
+
+    public var canLoadGame: Bool {
+        canSaveGame && saveMetadata != nil
+    }
+
     public func start() {
         guard hasStarted == false else { return }
         hasStarted = true
@@ -204,5 +256,21 @@ public final class GameRuntime {
     public func updateWindowScale(_ scale: Int) {
         windowScale = max(1, scale)
         publishSnapshot()
+    }
+
+    func refreshSaveState() {
+        guard let saveStore else {
+            saveMetadata = nil
+            saveErrorMessage = nil
+            return
+        }
+
+        do {
+            saveMetadata = try saveStore.loadMetadata()
+            saveErrorMessage = nil
+        } catch {
+            saveMetadata = nil
+            saveErrorMessage = error.localizedDescription
+        }
     }
 }

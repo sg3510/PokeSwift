@@ -2,10 +2,10 @@ import SwiftUI
 import PokeDataModel
 
 public struct TitleMenuPanel: View {
-    private let entries: [TitleMenuEntry]
+    private let entries: [TitleMenuEntryState]
     private let focusedIndex: Int
 
-    public init(entries: [TitleMenuEntry], focusedIndex: Int) {
+    public init(entries: [TitleMenuEntryState], focusedIndex: Int) {
         self.entries = entries
         self.focusedIndex = focusedIndex
     }
@@ -29,7 +29,7 @@ public struct TitleMenuPanel: View {
 }
 
 private struct TitleMenuRow: View {
-    let entry: TitleMenuEntry
+    let entry: TitleMenuEntryState
     let isFocused: Bool
 
     private let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -39,10 +39,18 @@ private struct TitleMenuRow: View {
             Text(isFocused ? "▶" : " ")
                 .frame(width: 16, alignment: .leading)
                 .foregroundStyle(.black.opacity(isFocused ? 0.92 : 0.64))
-            Text(entry.label)
-                .foregroundStyle(entry.enabledByDefault ? .black.opacity(0.92) : .black.opacity(0.46))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.label)
+                    .foregroundStyle(entry.isEnabled ? .black.opacity(0.92) : .black.opacity(0.46))
+                if let detail = entry.detail, detail.isEmpty == false {
+                    Text(detail)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.black.opacity(0.48))
+                        .lineLimit(1)
+                }
+            }
             Spacer()
-            if !entry.enabledByDefault {
+            if !entry.isEnabled {
                 Text("Disabled")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.black.opacity(0.62))

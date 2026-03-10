@@ -18,4 +18,28 @@ enum AppPaths {
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
             .appendingPathComponent(".runtime-traces/pokemac", isDirectory: true)
     }()
+
+    static let savesDirectory: URL = {
+        if let override = ProcessInfo.processInfo.environment["POKESWIFT_SAVE_ROOT"] {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+
+        if let applicationSupport = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            return applicationSupport
+                .appendingPathComponent("PokeSwift", isDirectory: true)
+                .appendingPathComponent("Saves", isDirectory: true)
+        }
+
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+            .appendingPathComponent(".runtime-traces/pokemac/saves", isDirectory: true)
+    }()
+
+    static let primarySaveURL: URL = savesDirectory
+        .appendingPathComponent("red-main", isDirectory: false)
+        .appendingPathExtension("json")
 }

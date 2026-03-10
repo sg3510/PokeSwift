@@ -6,6 +6,7 @@ import PokeUI
 struct GameplaySceneProps {
     let viewport: GameplayViewportProps
     let sidebarMode: GameplaySidebarMode
+    let onSidebarAction: ((String) -> Void)?
     let initialFieldDisplayStyle: FieldDisplayStyle
 }
 
@@ -44,6 +45,7 @@ struct PlaceholderSceneProps {
 struct GameplayScene: View {
     let props: GameplaySceneProps
     @State private var fieldDisplayStyle: FieldDisplayStyle
+    @State private var isLoadConfirmationPresented = false
 
     init(props: GameplaySceneProps) {
         self.props = props
@@ -54,10 +56,23 @@ struct GameplayScene: View {
         GameBoyScreen(style: .fieldShell) {
             GameplayShell(
                 sidebarMode: props.sidebarMode,
+                onSidebarAction: handleSidebarAction(_:),
                 fieldDisplayStyle: $fieldDisplayStyle
             ) {
                 stage
             }
+        }
+        .confirmationDialog(
+            "Load saved game?",
+            isPresented: $isLoadConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Load Save", role: .destructive) {
+                props.onSidebarAction?("load")
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This replaces the current in-memory progress with the last saved game.")
         }
     }
 
@@ -127,6 +142,14 @@ struct GameplayScene: View {
             .foregroundStyle(.black.opacity(0.78))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func handleSidebarAction(_ actionID: String) {
+        if actionID == "load" {
+            isLoadConfirmationPresented = true
+            return
+        }
+        props.onSidebarAction?(actionID)
     }
 }
 

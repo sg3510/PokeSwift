@@ -20,6 +20,7 @@ struct RuntimeSceneRouter: View {
                 props: .init(
                     rootURL: runtime.content.rootURL,
                     entries: runtime.menuEntries,
+                    saveMetadata: runtime.currentSaveMetadata,
                     focusedIndex: runtime.focusedIndex
                 )
             )

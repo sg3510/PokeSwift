@@ -12,13 +12,17 @@ extension GameRuntime {
             substate = "title_menu"
         case .confirm, .start:
             let selected = menuEntries[focusedIndex]
-            guard selected.enabled else {
+            guard selected.isEnabled else {
                 substate = "continue_disabled"
                 return
             }
             switch selected.id {
             case "newGame":
                 beginNewGame()
+            case "continue":
+                if continueFromTitleMenu() == false {
+                    substate = "continue_disabled"
+                }
             default:
                 placeholderTitle = selected.label
                 substate = selected.id
@@ -39,11 +43,13 @@ extension GameRuntime {
         scriptedMovementTask?.cancel()
         fieldTransitionState = nil
         gameplayState = makeInitialGameplayState()
+        playthroughID = UUID().uuidString
         dialogueState = nil
         placeholderTitle = nil
         starterChoiceFocusedIndex = 0
         scene = .field
         substate = "field"
+        restartGameplayClock()
         requestDefaultMapMusic()
     }
 

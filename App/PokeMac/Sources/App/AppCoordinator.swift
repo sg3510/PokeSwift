@@ -30,7 +30,13 @@ final class AppCoordinator {
                 let content = try FileSystemContentLoader(rootURL: contentRoot).load()
                 let telemetry = try TelemetryCoordinator(traceDirectoryURL: AppPaths.traceDirectory)
                 let audioService = PokeAudioService(manifest: content.audioManifest)
-                let runtime = GameRuntime(content: content, telemetryPublisher: telemetry, audioPlayer: audioService)
+                let saveStore = FileSystemSaveStore(saveURL: AppPaths.primarySaveURL)
+                let runtime = GameRuntime(
+                    content: content,
+                    telemetryPublisher: telemetry,
+                    audioPlayer: audioService,
+                    saveStore: saveStore
+                )
                 self.runtime = runtime
                 self.telemetryCoordinator = telemetry
                 self.audioService = audioService
@@ -42,6 +48,16 @@ final class AppCoordinator {
                             guard let runtime = self?.runtime else { return false }
                             runtime.handle(button: button)
                             return true
+                        }
+                    },
+                    saveHandler: { [weak self] in
+                        await MainActor.run {
+                            self?.runtime?.saveCurrentGame() ?? false
+                        }
+                    },
+                    loadHandler: { [weak self] in
+                        await MainActor.run {
+                            self?.runtime?.loadSavedGameFromSidebar() ?? false
                         }
                     },
                     quitHandler: {

@@ -12,7 +12,7 @@ final class PokeTelemetryTests: XCTestCase {
             contentVersion: "test",
             scene: .titleMenu,
             substate: "selection",
-            titleMenu: .init(entries: [.init(id: "newGame", label: "New Game", enabledByDefault: true)], focusedIndex: 0),
+            titleMenu: .init(entries: [.init(id: "newGame", label: "New Game", isEnabled: true)], focusedIndex: 0),
             field: nil,
             dialogue: nil,
             starterChoice: nil,
@@ -20,6 +20,7 @@ final class PokeTelemetryTests: XCTestCase {
             battle: nil,
             eventFlags: nil,
             audio: nil,
+            save: nil,
             recentInputEvents: [],
             assetLoadingFailures: [],
             window: .init(scale: 4, renderWidth: 160, renderHeight: 144)

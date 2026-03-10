@@ -6,6 +6,8 @@ public final class TelemetryControlServer: @unchecked Sendable {
     private let listener: NWListener
     private let snapshotProvider: @Sendable () async -> RuntimeTelemetrySnapshot?
     private let inputHandler: @Sendable (RuntimeButton) async -> Bool
+    private let saveHandler: @Sendable () async -> Bool
+    private let loadHandler: @Sendable () async -> Bool
     private let quitHandler: @Sendable () async -> Void
     private let queue = DispatchQueue(label: "com.dimillian.PokeSwift.telemetry")
     private let encoder = JSONEncoder()
@@ -14,6 +16,8 @@ public final class TelemetryControlServer: @unchecked Sendable {
         port: UInt16,
         snapshotProvider: @escaping @Sendable () async -> RuntimeTelemetrySnapshot?,
         inputHandler: @escaping @Sendable (RuntimeButton) async -> Bool,
+        saveHandler: @escaping @Sendable () async -> Bool,
+        loadHandler: @escaping @Sendable () async -> Bool,
         quitHandler: @escaping @Sendable () async -> Void
     ) throws {
         guard let endpointPort = NWEndpoint.Port(rawValue: port) else {
@@ -23,6 +27,8 @@ public final class TelemetryControlServer: @unchecked Sendable {
         self.listener = try NWListener(using: .tcp, on: endpointPort)
         self.snapshotProvider = snapshotProvider
         self.inputHandler = inputHandler
+        self.saveHandler = saveHandler
+        self.loadHandler = loadHandler
         self.quitHandler = quitHandler
         encoder.outputFormatting = [.sortedKeys]
     }
@@ -93,6 +99,12 @@ public final class TelemetryControlServer: @unchecked Sendable {
             }
             let accepted = await inputHandler(button)
             return jsonResponse(object: ["accepted": accepted, "button": button.rawValue])
+        case ("POST", "/save"):
+            let accepted = await saveHandler()
+            return jsonResponse(object: ["accepted": accepted])
+        case ("POST", "/load"):
+            let accepted = await loadHandler()
+            return jsonResponse(object: ["accepted": accepted])
         case ("POST", "/quit"):
             return jsonResponse(
                 object: ["accepted": true],

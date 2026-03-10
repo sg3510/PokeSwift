@@ -36,6 +36,8 @@ public actor TelemetryCoordinator: TelemetryPublisher {
     public func makeServer(
         port: UInt16,
         inputHandler: @escaping @Sendable (RuntimeButton) async -> Bool,
+        saveHandler: @escaping @Sendable () async -> Bool,
+        loadHandler: @escaping @Sendable () async -> Bool,
         quitHandler: @escaping @Sendable () async -> Void
     ) throws -> TelemetryControlServer {
         try TelemetryControlServer(
@@ -44,6 +46,8 @@ public actor TelemetryCoordinator: TelemetryPublisher {
                 await coordinator.latestSnapshot()
             },
             inputHandler: inputHandler,
+            saveHandler: saveHandler,
+            loadHandler: loadHandler,
             quitHandler: quitHandler
         )
     }

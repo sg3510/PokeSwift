@@ -34,10 +34,10 @@ public struct InputEventTelemetry: Codable, Equatable, Sendable {
 }
 
 public struct TitleMenuTelemetry: Codable, Equatable, Sendable {
-    public let entries: [TitleMenuEntry]
+    public let entries: [TitleMenuEntryState]
     public let focusedIndex: Int
 
-    public init(entries: [TitleMenuEntry], focusedIndex: Int) {
+    public init(entries: [TitleMenuEntryState], focusedIndex: Int) {
         self.entries = entries
         self.focusedIndex = focusedIndex
     }
@@ -262,6 +262,28 @@ public struct AudioTelemetry: Codable, Equatable, Sendable {
     }
 }
 
+public struct SaveTelemetry: Codable, Equatable, Sendable {
+    public let metadata: GameSaveMetadata?
+    public let canSave: Bool
+    public let canLoad: Bool
+    public let lastResult: RuntimeSaveResult?
+    public let errorMessage: String?
+
+    public init(
+        metadata: GameSaveMetadata?,
+        canSave: Bool,
+        canLoad: Bool,
+        lastResult: RuntimeSaveResult?,
+        errorMessage: String?
+    ) {
+        self.metadata = metadata
+        self.canSave = canSave
+        self.canLoad = canLoad
+        self.lastResult = lastResult
+        self.errorMessage = errorMessage
+    }
+}
+
 public struct RuntimeTelemetrySnapshot: Codable, Equatable, Sendable {
     public let appVersion: String
     public let contentVersion: String
@@ -275,6 +297,7 @@ public struct RuntimeTelemetrySnapshot: Codable, Equatable, Sendable {
     public let battle: BattleTelemetry?
     public let eventFlags: EventFlagTelemetry?
     public let audio: AudioTelemetry?
+    public let save: SaveTelemetry?
     public let recentInputEvents: [InputEventTelemetry]
     public let assetLoadingFailures: [String]
     public let window: WindowTelemetry
@@ -292,6 +315,7 @@ public struct RuntimeTelemetrySnapshot: Codable, Equatable, Sendable {
         battle: BattleTelemetry?,
         eventFlags: EventFlagTelemetry?,
         audio: AudioTelemetry?,
+        save: SaveTelemetry?,
         recentInputEvents: [InputEventTelemetry],
         assetLoadingFailures: [String],
         window: WindowTelemetry
@@ -308,6 +332,7 @@ public struct RuntimeTelemetrySnapshot: Codable, Equatable, Sendable {
         self.battle = battle
         self.eventFlags = eventFlags
         self.audio = audio
+        self.save = save
         self.recentInputEvents = recentInputEvents
         self.assetLoadingFailures = assetLoadingFailures
         self.window = window

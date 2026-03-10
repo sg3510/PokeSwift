@@ -157,4 +157,5 @@ struct GameplayState {
     var activeScriptID: String?
     var activeScriptStep: Int?
     var battle: RuntimeBattleState?
+    var playTimeSeconds: Int
 }

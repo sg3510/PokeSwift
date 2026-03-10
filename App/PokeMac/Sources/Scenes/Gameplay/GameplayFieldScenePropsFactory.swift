@@ -7,6 +7,7 @@ enum GameplayScenePropsFactory {
     static func make(runtime: GameRuntime) -> GameplaySceneProps? {
         let snapshot = runtime.currentSnapshot()
         let manifestIndex = GameplaySidebarManifestIndex(runtime: runtime)
+        let saveSidebar = makeSaveSidebar(runtime: runtime)
         let sidebarParty = GameplaySidebarPropsBuilder.makeParty(
             from: snapshot.party,
             speciesDetailsByID: manifestIndex.speciesDetailsByID,
@@ -36,10 +37,20 @@ enum GameplayScenePropsFactory {
                         profile: makeTrainerProfile(runtime: runtime),
                         party: sidebarParty,
                         inventory: GameplaySidebarPropsBuilder.makeInventory(),
-                        save: GameplaySidebarPropsBuilder.makeSaveSection(),
+                        save: saveSidebar,
                         options: GameplaySidebarPropsBuilder.makeOptionsSection()
                     )
                 ),
+                onSidebarAction: { actionID in
+                    switch actionID {
+                    case "save":
+                        _ = runtime.saveCurrentGame()
+                    case "load":
+                        _ = runtime.loadSavedGameFromSidebar()
+                    default:
+                        break
+                    }
+                },
                 initialFieldDisplayStyle: .defaultGameplayStyle
             )
         case .battle:
@@ -76,6 +87,7 @@ enum GameplayScenePropsFactory {
                         party: sidebarParty
                     )
                 ),
+                onSidebarAction: nil,
                 initialFieldDisplayStyle: .defaultGameplayStyle
             )
         }
@@ -115,6 +127,34 @@ enum GameplayScenePropsFactory {
             label: runtime.playerName,
             spriteURL: runtime.content.rootURL.appendingPathComponent(sprite.imagePath),
             spriteFrame: spriteFrame
+        )
+    }
+
+    private static func makeSaveSidebar(runtime: GameRuntime) -> SaveSidebarProps {
+        let metadata = runtime.currentSaveMetadata
+        let summary = metadata == nil ? "No Save" : "1 File"
+        let saveDetail: String
+        if let result = runtime.currentLastSaveResult, result.operation == "save" {
+            saveDetail = result.succeeded ? "Saved" : "Failed"
+        } else {
+            saveDetail = runtime.canSaveGame ? "Ready" : "Busy"
+        }
+
+        let loadDetail: String
+        if let metadata {
+            loadDetail = metadata.locationName
+        } else if let errorMessage = runtime.currentSaveErrorMessage {
+            loadDetail = errorMessage
+        } else {
+            loadDetail = "No Save"
+        }
+
+        return GameplaySidebarPropsBuilder.makeSaveSection(
+            summary: summary,
+            actions: [
+                .init(id: "save", title: "Save Game", detail: saveDetail, isEnabled: runtime.canSaveGame),
+                .init(id: "load", title: "Load Save", detail: loadDetail, isEnabled: runtime.canLoadGame),
+            ]
         )
     }
 }

@@ -4,7 +4,8 @@ import PokeUI
 
 struct TitleMenuSceneProps {
     let rootURL: URL
-    let entries: [TitleMenuEntry]
+    let entries: [TitleMenuEntryState]
+    let saveMetadata: GameSaveMetadata?
     let focusedIndex: Int
 }
 
@@ -81,13 +82,63 @@ struct TitleMenuScene: View {
 
     var body: some View {
         GameBoyScreen {
-            VStack(spacing: 26) {
+            VStack(spacing: 24) {
                 TitleAttractContent(rootURL: props.rootURL)
-                    .frame(height: 420)
-                TitleMenuPanel(entries: props.entries, focusedIndex: props.focusedIndex)
-                    .frame(width: 460)
+                    .frame(height: 360)
+                HStack(alignment: .top, spacing: 18) {
+                    TitleMenuPanel(entries: props.entries, focusedIndex: props.focusedIndex)
+                        .frame(width: 460)
+
+                    if let saveMetadata = props.saveMetadata {
+                        TitleSaveSummaryCard(metadata: saveMetadata)
+                            .frame(width: 250)
+                    }
+                }
             }
             .padding(30)
         }
+    }
+}
+
+private struct TitleSaveSummaryCard: View {
+    let metadata: GameSaveMetadata
+
+    var body: some View {
+        PlainWhitePanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Continue Save")
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.black.opacity(0.8))
+
+                titleRow(label: "Player", value: metadata.playerName)
+                titleRow(label: "Map", value: metadata.locationName)
+                titleRow(label: "Badges", value: "\(metadata.badgeCount)")
+                titleRow(label: "Time", value: formatPlayTime(metadata.playTimeSeconds))
+
+                Text("Updated \(metadata.savedAt)")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.black.opacity(0.52))
+                    .padding(.top, 4)
+            }
+            .padding(18)
+        }
+    }
+
+    private func titleRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label.uppercased())
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(.black.opacity(0.52))
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(.black.opacity(0.84))
+        }
+    }
+
+    private func formatPlayTime(_ seconds: Int) -> String {
+        let hours = max(0, seconds) / 3600
+        let minutes = (max(0, seconds) % 3600) / 60
+        return String(format: "%03d:%02d", hours, minutes)
     }
 }

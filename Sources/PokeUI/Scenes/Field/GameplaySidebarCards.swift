@@ -5,12 +5,18 @@ import PokeDataModel
 
 struct GameplaySidebar: View {
     let mode: GameplaySidebarMode
+    let onSidebarAction: ((String) -> Void)?
     @Binding var fieldDisplayStyle: FieldDisplayStyle
 
     @State private var expansionState: GameplaySidebarExpansionState
 
-    init(mode: GameplaySidebarMode, fieldDisplayStyle: Binding<FieldDisplayStyle>) {
+    init(
+        mode: GameplaySidebarMode,
+        onSidebarAction: ((String) -> Void)? = nil,
+        fieldDisplayStyle: Binding<FieldDisplayStyle>
+    ) {
         self.mode = mode
+        self.onSidebarAction = onSidebarAction
         _fieldDisplayStyle = fieldDisplayStyle
         _expansionState = State(
             initialValue: GameplaySidebarExpansionState(
@@ -76,12 +82,15 @@ struct GameplaySidebar: View {
 
             AccordionSidebarCard(
                 title: props.save.title,
-                summary: "Locked",
+                summary: props.save.summary,
                 isExpanded: expansionState.expandedSection == .save
             ) {
                 expansionState.activate(.save)
             } content: {
-                SaveSidebarContent(props: props.save)
+                SaveSidebarContent(
+                    props: props.save,
+                    onAction: onSidebarAction
+                )
             }
 
             AccordionSidebarCard(
@@ -505,11 +514,12 @@ private struct InventorySidebarContent: View {
 
 private struct SaveSidebarContent: View {
     let props: SaveSidebarProps
+    let onAction: ((String) -> Void)?
 
     var body: some View {
         VStack(spacing: 8) {
             ForEach(props.actions) { action in
-                SidebarActionRow(props: action, rendersAsButton: true)
+                SidebarActionRow(props: action, rendersAsButton: true, onAction: onAction)
             }
         }
     }
@@ -524,7 +534,7 @@ private struct OptionsSidebarContent: View {
             FieldDisplayStyleOptionsRow(selectedStyle: $fieldDisplayStyle)
 
             ForEach(props.rows) { row in
-                SidebarActionRow(props: row, rendersAsButton: false)
+                SidebarActionRow(props: row, rendersAsButton: false, onAction: nil)
             }
         }
     }
@@ -590,15 +600,18 @@ private struct FieldDisplayStyleOptionsRow: View {
 private struct SidebarActionRow: View {
     let props: SidebarActionRowProps
     let rendersAsButton: Bool
+    let onAction: ((String) -> Void)?
 
     var body: some View {
         Group {
             if rendersAsButton {
-                Button(action: {}) {
+                Button {
+                    onAction?(props.id)
+                } label: {
                     rowBody
                 }
                 .buttonStyle(.plain)
-                .disabled(true)
+                .disabled(props.isEnabled == false)
             } else {
                 rowBody
             }

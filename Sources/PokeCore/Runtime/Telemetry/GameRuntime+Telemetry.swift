@@ -16,6 +16,7 @@ extension GameRuntime {
             battle: makeBattleTelemetry(),
             eventFlags: makeFlagTelemetry(),
             audio: makeAudioTelemetry(),
+            save: makeSaveTelemetry(),
             recentInputEvents: recentInputEvents,
             assetLoadingFailures: Array(Set(assetLoadingFailures + currentFieldRenderIssues)).sorted(),
             window: .init(scale: windowScale, renderWidth: 160, renderHeight: 144)
@@ -102,6 +103,16 @@ extension GameRuntime {
             entryID: currentAudioState.entryID,
             reason: currentAudioState.reason,
             playbackRevision: currentAudioState.playbackRevision
+        )
+    }
+
+    func makeSaveTelemetry() -> SaveTelemetry? {
+        SaveTelemetry(
+            metadata: saveMetadata,
+            canSave: canSaveGame,
+            canLoad: canLoadGame || scene == .titleMenu && saveMetadata != nil,
+            lastResult: lastSaveResult,
+            errorMessage: saveErrorMessage
         )
     }
 

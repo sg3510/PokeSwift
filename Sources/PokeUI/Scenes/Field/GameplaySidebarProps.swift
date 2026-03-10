@@ -214,10 +214,12 @@ public struct SidebarActionRowProps: Identifiable, Equatable, Sendable {
 
 public struct SaveSidebarProps: Equatable, Sendable {
     public let title: String
+    public let summary: String
     public let actions: [SidebarActionRowProps]
 
-    public init(title: String, actions: [SidebarActionRowProps]) {
+    public init(title: String, summary: String, actions: [SidebarActionRowProps]) {
         self.title = title
+        self.summary = summary
         self.actions = actions
     }
 }
@@ -414,10 +416,11 @@ public enum GameplaySidebarPropsBuilder {
         )
     }
 
-    public static func makeSaveSection() -> SaveSidebarProps {
+    public static func makeSaveSection(summary: String = "Locked", actions: [SidebarActionRowProps]? = nil) -> SaveSidebarProps {
         SaveSidebarProps(
             title: "Save",
-            actions: [
+            summary: summary,
+            actions: actions ?? [
                 .init(id: "save", title: "Save Game", detail: "Unavailable", isEnabled: false),
                 .init(id: "load", title: "Load Save", detail: "Unavailable", isEnabled: false),
             ]

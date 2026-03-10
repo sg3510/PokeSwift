@@ -45,6 +45,56 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.field?.renderMode, "placeholder")
     }
 
+    func testSaveAndContinueRestoreGameplayState() async throws {
+        let saveStore = InMemorySaveStore()
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
+        runtime.start()
+        try? await Task.sleep(for: .milliseconds(1700))
+        runtime.handle(button: .start)
+        runtime.handle(button: .confirm)
+
+        runtime.gameplayState?.mapID = "REDS_HOUSE_2F"
+        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 3)
+        runtime.gameplayState?.facing = .left
+        runtime.gameplayState?.money = 4242
+        runtime.gameplayState?.earnedBadgeIDs = ["BOULDER"]
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+        runtime.gameplayState?.objectStates["test_object"] = RuntimeObjectState(position: .init(x: 1, y: 1), facing: .down, visible: false)
+
+        XCTAssertTrue(runtime.saveCurrentGame())
+        XCTAssertNotNil(saveStore.envelope)
+
+        let resumed = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
+        resumed.start()
+        try? await Task.sleep(for: .milliseconds(1700))
+        resumed.handle(button: .start)
+        XCTAssertTrue(resumed.menuEntries[1].isEnabled)
+        resumed.handle(button: .down)
+        resumed.handle(button: .confirm)
+
+        let snapshot = resumed.currentSnapshot()
+        XCTAssertEqual(snapshot.scene, .field)
+        XCTAssertEqual(snapshot.field?.mapID, "REDS_HOUSE_2F")
+        XCTAssertEqual(snapshot.field?.playerPosition, TilePoint(x: 2, y: 3))
+        XCTAssertEqual(snapshot.field?.facing, .left)
+        XCTAssertEqual(snapshot.party?.pokemon.first?.speciesID, "SQUIRTLE")
+        XCTAssertEqual(snapshot.eventFlags?.activeFlags, [])
+        XCTAssertEqual(resumed.playerMoney, 4242)
+        XCTAssertEqual(resumed.earnedBadgeIDs, Set(["BOULDER"]))
+        XCTAssertFalse(resumed.currentFieldObjects.contains(where: { $0.id == "test_object" }))
+    }
+
+    func testUnreadableSaveDisablesContinueAndSurfacesError() {
+        let saveStore = InMemorySaveStore()
+        saveStore.metadataError = InMemorySaveStoreError.corrupt
+
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
+
+        XCTAssertFalse(runtime.menuEntries[1].isEnabled)
+        XCTAssertNotNil(runtime.currentSaveErrorMessage)
+    }
+
     func testRepoGeneratedContentPublishesRealAssetFieldTelemetry() async throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()
@@ -765,5 +815,41 @@ private final class RecordingAudioPlayer: RuntimeAudioPlaying {
         guard pendingCompletions.isEmpty == false else { return }
         let completion = pendingCompletions.removeFirst()
         completion()
+    }
+}
+
+private enum InMemorySaveStoreError: Error {
+    case corrupt
+}
+
+private final class InMemorySaveStore: @unchecked Sendable, SaveStore {
+    var envelope: GameSaveEnvelope?
+    var metadataError: Error?
+
+    func hasSaveFile() -> Bool {
+        envelope != nil || metadataError != nil
+    }
+
+    func loadMetadata() throws -> GameSaveMetadata? {
+        if let metadataError {
+            throw metadataError
+        }
+        return envelope?.metadata
+    }
+
+    func loadSave() throws -> GameSaveEnvelope? {
+        if let metadataError {
+            throw metadataError
+        }
+        return envelope
+    }
+
+    func save(_ envelope: GameSaveEnvelope) throws {
+        self.envelope = envelope
+        metadataError = nil
+    }
+
+    func deleteSave() throws {
+        envelope = nil
     }
 }

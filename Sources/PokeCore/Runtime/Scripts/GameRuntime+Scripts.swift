@@ -194,7 +194,8 @@ extension GameRuntime {
             activeMapScriptTriggerID: nil,
             activeScriptID: nil,
             activeScriptStep: nil,
-            battle: nil
+            battle: nil,
+            playTimeSeconds: 0
         )
     }
 

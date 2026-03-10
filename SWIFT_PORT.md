@@ -143,7 +143,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Runtime content loading | `in progress` | Decode all extracted manifests and fail fast on missing/invalid content | `Content/Red/**` | `PokeContent`, `PokeDataModel` | content load failures, manifest versions, asset lookup failures | Loader now covers gameplay manifests for M3; broaden validation as more content lands |
 | Text / charmap / font pipeline | `in progress` | Native text rendering with original charmap semantics and full dialogue support | `constants/charmap.asm`, text sources, font assets | `PokeExtractCLI`, `PokeContent`, `PokeUI` | charmap coverage checks, missing glyph traces, rendered text snapshots | Title text and bounded M3 dialogue are wired; naming/text edge cases remain |
 | Intro / splash / title flow | `done` | Native reproduction of title flow with required transitions and menu logic | `engine/movie/intro.asm`, `engine/movie/title.asm`, `engine/movie/title2.asm`, `gfx/title/**`, `gfx/splash/**` | `PokeExtractCLI`, `PokeCore`, `PokeUI`, `PokeMac` | scene state snapshots, menu focus traces, asset load failures | Extend from accepted title flow into gameplay scenes in M3 |
-| Save / load / persistence | `not started` | Usable save system for full-game progression and restart | save format references, WRAM/SRAM behaviors, menu flows | `PokeCore`, `PokeContent`, `PokeMac`, `PokeTelemetry` | save slot inventory, load failures, save/load timing traces | Decide save compatibility strategy before implementation |
+| Save / load / persistence | `in progress` | Usable native-first save system for progression restart, with future adapters for ROM-compatible formats | save format references, WRAM/SRAM behaviors, menu flows | `PokeCore`, `PokeDataModel`, `PokeMac`, `PokeTelemetry` | save slot inventory, metadata, load failures, save/load timing traces | v1 ships as a versioned single-slot native save in Application Support; defer raw `.sav` compatibility until broader runtime parity exists |
 | Overworld map loading | `in progress` | All maps load with correct tilesets, warps, objects, metadata | `maps/**`, `data/maps/**`, tileset data | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeUI` | current map id/name, tileset id, warp traces, missing map asset reports | M3 covers four maps only, but bounded warps now resolve from source destination-warp tiles instead of runtime offset tables; expand map coverage and edge rules next |
 | Overworld rendering | `in progress` | Native tile and sprite rendering with deterministic visual composition | map assets, sprite assets, tilesets | `PokeUI`, `PokeCore`, `PokeContent` | render surface dimensions, visible map region, sprite layer traces, render mode | Real extracted tile and sprite rendering is accepted for the M3 slice, and the player now uses extracted walking frames plus field-local indoor/outdoor black fades; camera polish and full asset parity remain |
 | Player movement and collisions | `in progress` | Correct grid movement, collision, ledges, doors, warps, cut/surf/bike gating | movement/collision logic in disassembly | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeTelemetry` | player position, heading, blocked movement reasons, warp transitions | M3 movement now uses extracted tileset collision metadata, source-resolved warp destinations, black fade transitions for field warps, door-only step-out behavior, and explicit transition telemetry for the four-map slice; broader movement rules and more map coverage remain |
@@ -188,7 +188,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 - [x] overworld simulation
 - [x] event flag system
 - [x] script runner
-- [ ] save/load state management
+- [~] save/load state management
 - [x] party and trainer state
 - [x] battle simulation
 - [ ] menu stack and naming input
@@ -223,7 +223,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 | `M2` Native Boot + Title | `done` | launch, splash, title attract, title menu, telemetry, harness validation loop | native app builds and launches; title flow works; telemetry and harness acceptance checks pass | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh` and passing workspace tests |
 | `M3` First Playable Slice | `done` | intro to player room, Pallet Town, Oak trigger, lab, starter choice, first rival battle | one serious vertical slice is playable end to end | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh`, deterministic extraction diff, and passing workspace tests |
 | `M4A` Real Field Rendering for M3 | `done` | render the current M3 maps and actors from extracted GB assets instead of placeholder geometry | real extracted tilesets, blocksets, sprite sheets, and zero field asset failures in validation | Accepted on `2026-03-09` via `./scripts/validate_milestone.sh`, passing workspace tests, and `renderMode == realAssets` telemetry in field scenes; presentation baseline revalidated on `2026-03-10` after moving the field treatment to a shader-based DMG LCD pass with restrained reflective glass |
-| `M4` Early-Game Progression | `not started` | route and town progression through early-game loop | stable field loop, trainers, encounters, marts, healing, save/load | Scope to be refined after M3 |
+| `M4` Early-Game Progression | `in progress` | route and town progression through early-game loop | stable field loop, trainers, encounters, marts, healing, save/load | Save/load now has a native single-slot foundation; broader early-game systems still need to land on top |
 | `M5` Full Content Parity | `not started` | complete Red content coverage from start to credits | end-to-end playable game | Requires all subsystem rows to reach done or approved residual-gap state |
 
 ## Data Extraction Coverage Matrix
@@ -249,13 +249,13 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Gameplay Area | Parity Goal | Status | Blocking Dependencies | Telemetry Needed | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Boot and scene progression | Native app reaches title menu reliably | `done` | content loader, title assets, runtime state machine | current scene, scene timestamps, failures | Accepted in harness and validation script |
-| Title menu input | Directional navigation and confirm/cancel/start | `done` | runtime input mapping, app key routing | recent input events, focused entry, disabled states | `Continue` is disabled and validated in M2 |
+| Title menu input | Directional navigation and confirm/cancel/start | `done` | runtime input mapping, app key routing | recent input events, focused entry, disabled states | `Continue` is now runtime-resolved from save availability; the no-save disabled path was validated in M2 and is preserved |
 | Placeholder routing | Explicit non-silent routing for unavailable paths | `done` | scene state machine, placeholder view | active placeholder id/reason | `New Game` and `Options` route to placeholders in M2 |
 | Overworld movement | Full field control and collisions | `in progress` | maps, object data, collision rules, renderer | map id, position, heading, blocked reasons | Bounded four-map slice is live in M3 and now uses extracted collision metadata, exact destination-warp spawning, and door-only step-out semantics instead of manual blocked-tile and warp-offset logic |
 | NPC interaction | Correct interaction and script triggering | `in progress` | objects, scripts, text engine | target object id, script id, dialogue state | Oak, Mom, starter balls, and rival flow are wired for M3, with Pallet/Oak/Lab progression now driven by extracted script contracts rather than fallback runtime branches |
 | Story progression | Event flag and scripted sequence parity | `in progress` | event flags, script runner, map triggers | active flags, story milestones, last trigger | First playable story slice is accepted in M3 and its Pallet/Oak/Lab trigger flow is now source-driven within the fixed four-map boundary |
 | Battles | Correct outcomes and flow | `in progress` | species/move/trainer data, battle engine, UI | battle snapshots, turn logs, HP/status, rewards | The first rival battle now has materially better correctness inside the accepted M3 slice, including source-driven typings/sprites, queued text sequencing, and bounded Gen 1 damage rules; overall combat still remains slice-bounded rather than full Red parity |
-| Save/load | Persistent progression | `not started` | save schema, runtime serialization, UI | slot metadata, save result, load result | M3+ |
+| Save/load | Persistent progression | `in progress` | save schema, runtime serialization, UI | slot metadata, save result, load result | Native-first single-slot save/load is live for the current slice; raw `.sav` compatibility and broader progression data remain future work |
 | End-to-end full game | Start to credits fully playable | `not started` | every major subsystem | milestone dashboard plus parity checkpoints | Final target |
 
 ## Platform / Native UX Matrix
@@ -268,7 +268,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Keyboard mapping | directional, confirm, cancel, start | `in progress` | `PokeMac`, `PokeCore` | harness input drive tests |
 | Debug overlay / panel | scene, manifest version, input events | `in progress` | `PokeUI`, `PokeTelemetry` | UI smoke checks and telemetry parity |
 | Settings / Options shell | native host for future options | `not started` | `PokeMac`, `PokeUI` | route placeholder exists in M2 |
-| Save slots UI | native save management | `not started` | `PokeMac`, `PokeUI`, `PokeCore` | future save/load acceptance |
+| Save slots UI | native save management | `in progress` | `PokeMac`, `PokeUI`, `PokeCore` | save/load acceptance and restore validation |
 | Accessibility basics | readable text, focus order, scaling policy | `not started` | `PokeUI`, `PokeMac` | future accessibility checklist |
 
 ## Telemetry and Agentic Validation Matrix
@@ -383,7 +383,7 @@ The project must support the following repeatable loop:
 - integer-scaled pixel content
 - native keyboard input routing
 - title menu with `New Game`, `Continue`, `Options`
-- disabled `Continue`
+- `Continue` enabled only when a valid native save exists
 - explicit placeholder destinations for unavailable actions
 - lightweight debug surface
 - telemetry stable enough for harness control
