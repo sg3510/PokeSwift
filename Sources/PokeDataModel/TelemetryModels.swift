@@ -64,6 +64,7 @@ public struct FieldTelemetry: Codable, Equatable, Sendable {
     public let activeScriptID: String?
     public let activeScriptStep: Int?
     public let renderMode: String
+    public let transition: FieldTransitionTelemetry?
 
     public init(
         mapID: String,
@@ -73,7 +74,8 @@ public struct FieldTelemetry: Codable, Equatable, Sendable {
         activeMapScriptTriggerID: String?,
         activeScriptID: String?,
         activeScriptStep: Int?,
-        renderMode: String
+        renderMode: String,
+        transition: FieldTransitionTelemetry? = nil
     ) {
         self.mapID = mapID
         self.mapName = mapName
@@ -83,6 +85,17 @@ public struct FieldTelemetry: Codable, Equatable, Sendable {
         self.activeScriptID = activeScriptID
         self.activeScriptStep = activeScriptStep
         self.renderMode = renderMode
+        self.transition = transition
+    }
+}
+
+public struct FieldTransitionTelemetry: Codable, Equatable, Sendable {
+    public let kind: String
+    public let phase: String
+
+    public init(kind: String, phase: String) {
+        self.kind = kind
+        self.phase = phase
     }
 }
 

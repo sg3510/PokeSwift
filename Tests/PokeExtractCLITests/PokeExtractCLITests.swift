@@ -52,6 +52,12 @@ final class PokeExtractCLITests: XCTestCase {
         XCTAssertEqual(palletTown.borderBlockID, 0x0B)
         XCTAssertEqual(palletTown.stepCollisionTileIDs.count, palletTown.stepWidth * palletTown.stepHeight)
         XCTAssertEqual(palletTown.warps.count, 3)
+        XCTAssertEqual(palletTown.warps[0].targetMapID, "REDS_HOUSE_1F")
+        XCTAssertEqual(palletTown.warps[0].targetPosition, .init(x: 2, y: 7))
+        XCTAssertEqual(palletTown.warps[0].targetFacing, .up)
+        XCTAssertEqual(palletTown.warps[2].targetMapID, "OAKS_LAB")
+        XCTAssertEqual(palletTown.warps[2].targetPosition, .init(x: 5, y: 11))
+        XCTAssertEqual(palletTown.warps[2].targetFacing, .up)
         XCTAssertEqual(palletTown.backgroundEvents.map(\.dialogueID), [
             "pallet_town_oaks_lab_sign",
             "pallet_town_sign",
@@ -76,6 +82,7 @@ final class PokeExtractCLITests: XCTestCase {
 
         let oaksLab = try XCTUnwrap(manifest.maps.first { $0.id == "OAKS_LAB" })
         XCTAssertEqual(oaksLab.borderBlockID, 0x03)
+        XCTAssertEqual(oaksLab.warps.map(\.targetPosition), [.init(x: 12, y: 11), .init(x: 12, y: 11)])
         XCTAssertEqual(oaksLab.objects.count, 11)
         XCTAssertEqual(
             oaksLab.objects.filter { $0.id.hasPrefix("oaks_lab_poke_ball_") }.map(\.id),
@@ -133,6 +140,15 @@ final class PokeExtractCLITests: XCTestCase {
         ])
         XCTAssertEqual(manifest.trainerBattles.first?.party, [.init(speciesID: "SQUIRTLE", level: 5)])
         XCTAssertEqual(manifest.tilesets.first?.collision.passableTileIDs, [0x01, 0x02, 0x03, 0x11, 0x12, 0x13, 0x14, 0x1c, 0x1a])
+        XCTAssertEqual(manifest.maps.first { $0.id == "REDS_HOUSE_2F" }?.warps.first?.targetPosition, .init(x: 7, y: 1))
+        XCTAssertEqual(manifest.maps.first { $0.id == "REDS_HOUSE_1F" }?.warps.first?.targetPosition, .init(x: 5, y: 5))
+
+        let redSprite = try XCTUnwrap(manifest.overworldSprites.first { $0.id == "SPRITE_RED" })
+        XCTAssertEqual(redSprite.walkingFrames?.down, .init(x: 0, y: 48, width: 16, height: 16))
+        XCTAssertEqual(redSprite.walkingFrames?.up, .init(x: 0, y: 64, width: 16, height: 16))
+        XCTAssertEqual(redSprite.walkingFrames?.left, .init(x: 0, y: 80, width: 16, height: 16))
+        XCTAssertEqual(redSprite.walkingFrames?.right, .init(x: 0, y: 80, width: 16, height: 16, flippedHorizontally: true))
+        XCTAssertNil(manifest.overworldSprites.first { $0.id == "SPRITE_MOM" }?.walkingFrames)
 
         let oakDialogue = try XCTUnwrap(manifest.dialogues.first { $0.id == "pallet_town_oak_its_unsafe" })
         XCTAssertEqual(oakDialogue.pages.first?.lines.first, "OAK: It's unsafe!")
@@ -170,6 +186,7 @@ final class PokeExtractCLITests: XCTestCase {
         XCTAssertEqual(decoded.tilesets.first?.imagePath, "Assets/field/tilesets/reds_house.png")
         XCTAssertEqual(decoded.tilesets.first?.blocksetPath, "Assets/field/blocksets/reds_house.bst")
         XCTAssertEqual(decoded.overworldSprites.first?.facingFrames.down, .init(x: 0, y: 0, width: 16, height: 16))
+        XCTAssertEqual(decoded.overworldSprites.first?.walkingFrames?.down, .init(x: 0, y: 48, width: 16, height: 16))
         XCTAssertEqual(
             decoded.species.first { $0.id == "CHARMANDER" }?.battleSprite?.frontImagePath,
             "Assets/battle/pokemon/front/charmander.png"

@@ -122,6 +122,22 @@ struct RuntimeAudioState: Equatable {
     var playbackRevision: Int
 }
 
+enum RuntimeFieldTransitionKind: String {
+    case door
+    case warp
+}
+
+enum RuntimeFieldTransitionPhase: String {
+    case fadingOut
+    case fadingIn
+    case steppingOut
+}
+
+struct RuntimeFieldTransitionState: Equatable {
+    var kind: RuntimeFieldTransitionKind
+    var phase: RuntimeFieldTransitionPhase
+}
+
 struct GameplayState {
     var mapID: String
     var playerPosition: TilePoint

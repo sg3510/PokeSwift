@@ -915,8 +915,8 @@
           "targetFacing" : "down",
           "targetMapID" : "REDS_HOUSE_1F",
           "targetPosition" : {
-            "x" : 6,
-            "y" : 2
+            "x" : 7,
+            "y" : 1
           }
         }
       ]
@@ -1051,7 +1051,7 @@
           "targetMapID" : "PALLET_TOWN",
           "targetPosition" : {
             "x" : 5,
-            "y" : 6
+            "y" : 5
           }
         },
         {
@@ -1064,7 +1064,7 @@
           "targetMapID" : "PALLET_TOWN",
           "targetPosition" : {
             "x" : 5,
-            "y" : 6
+            "y" : 5
           }
         },
         {
@@ -1076,8 +1076,8 @@
           "targetFacing" : "down",
           "targetMapID" : "REDS_HOUSE_2F",
           "targetPosition" : {
-            "x" : 6,
-            "y" : 2
+            "x" : 7,
+            "y" : 1
           }
         }
       ]
@@ -1628,11 +1628,11 @@
             "x" : 5,
             "y" : 5
           },
-          "targetFacing" : "down",
+          "targetFacing" : "up",
           "targetMapID" : "REDS_HOUSE_1F",
           "targetPosition" : {
             "x" : 2,
-            "y" : 6
+            "y" : 7
           }
         },
         {
@@ -1641,7 +1641,7 @@
             "x" : 13,
             "y" : 5
           },
-          "targetFacing" : "down",
+          "targetFacing" : "up",
           "targetMapID" : "BLUES_HOUSE",
           "targetPosition" : {
             "x" : 0,
@@ -1657,8 +1657,8 @@
           "targetFacing" : "up",
           "targetMapID" : "OAKS_LAB",
           "targetPosition" : {
-            "x" : 4,
-            "y" : 10
+            "x" : 5,
+            "y" : 11
           }
         }
       ]
@@ -1989,7 +1989,7 @@
           "targetMapID" : "PALLET_TOWN",
           "targetPosition" : {
             "x" : 12,
-            "y" : 12
+            "y" : 11
           }
         },
         {
@@ -2002,7 +2002,7 @@
           "targetMapID" : "PALLET_TOWN",
           "targetPosition" : {
             "x" : 12,
-            "y" : 12
+            "y" : 11
           }
         }
       ]
@@ -2081,7 +2081,37 @@
       "frameHeight" : 16,
       "frameWidth" : 16,
       "id" : "SPRITE_RED",
-      "imagePath" : "Assets/field/sprites/red.png"
+      "imagePath" : "Assets/field/sprites/red.png",
+      "walkingFrames" : {
+        "down" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 48
+        },
+        "left" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "right" : {
+          "flippedHorizontally" : true,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "up" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 64
+        }
+      }
     },
     {
       "facingFrames" : {
@@ -2117,7 +2147,37 @@
       "frameHeight" : 16,
       "frameWidth" : 16,
       "id" : "SPRITE_OAK",
-      "imagePath" : "Assets/field/sprites/oak.png"
+      "imagePath" : "Assets/field/sprites/oak.png",
+      "walkingFrames" : {
+        "down" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 48
+        },
+        "left" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "right" : {
+          "flippedHorizontally" : true,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "up" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 64
+        }
+      }
     },
     {
       "facingFrames" : {
@@ -2153,7 +2213,37 @@
       "frameHeight" : 16,
       "frameWidth" : 16,
       "id" : "SPRITE_BLUE",
-      "imagePath" : "Assets/field/sprites/blue.png"
+      "imagePath" : "Assets/field/sprites/blue.png",
+      "walkingFrames" : {
+        "down" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 48
+        },
+        "left" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "right" : {
+          "flippedHorizontally" : true,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "up" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 64
+        }
+      }
     },
     {
       "facingFrames" : {
@@ -2225,7 +2315,37 @@
       "frameHeight" : 16,
       "frameWidth" : 16,
       "id" : "SPRITE_GIRL",
-      "imagePath" : "Assets/field/sprites/girl.png"
+      "imagePath" : "Assets/field/sprites/girl.png",
+      "walkingFrames" : {
+        "down" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 48
+        },
+        "left" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "right" : {
+          "flippedHorizontally" : true,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "up" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 64
+        }
+      }
     },
     {
       "facingFrames" : {
@@ -2261,7 +2381,37 @@
       "frameHeight" : 16,
       "frameWidth" : 16,
       "id" : "SPRITE_FISHER",
-      "imagePath" : "Assets/field/sprites/fisher.png"
+      "imagePath" : "Assets/field/sprites/fisher.png",
+      "walkingFrames" : {
+        "down" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 48
+        },
+        "left" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "right" : {
+          "flippedHorizontally" : true,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "up" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 64
+        }
+      }
     },
     {
       "facingFrames" : {
@@ -2297,7 +2447,37 @@
       "frameHeight" : 16,
       "frameWidth" : 16,
       "id" : "SPRITE_SCIENTIST",
-      "imagePath" : "Assets/field/sprites/scientist.png"
+      "imagePath" : "Assets/field/sprites/scientist.png",
+      "walkingFrames" : {
+        "down" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 48
+        },
+        "left" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "right" : {
+          "flippedHorizontally" : true,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 80
+        },
+        "up" : {
+          "flippedHorizontally" : false,
+          "height" : 16,
+          "width" : 16,
+          "x" : 0,
+          "y" : 64
+        }
+      }
     },
     {
       "facingFrames" : {

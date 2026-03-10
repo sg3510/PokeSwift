@@ -41,7 +41,10 @@ extension GameRuntime {
             activeMapScriptTriggerID: gameplayState.activeMapScriptTriggerID,
             activeScriptID: gameplayState.activeScriptID,
             activeScriptStep: gameplayState.activeScriptStep,
-            renderMode: currentFieldRenderMode
+            renderMode: currentFieldRenderMode,
+            transition: fieldTransitionState.map {
+                .init(kind: $0.kind.rawValue, phase: $0.phase.rawValue)
+            }
         )
     }
 

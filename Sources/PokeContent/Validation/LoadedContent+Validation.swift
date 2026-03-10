@@ -76,7 +76,12 @@ public extension LoadedContent {
                 sprite.facingFrames.up,
                 sprite.facingFrames.left,
                 sprite.facingFrames.right,
-            ]
+            ] + [
+                sprite.walkingFrames?.down,
+                sprite.walkingFrames?.up,
+                sprite.walkingFrames?.left,
+                sprite.walkingFrames?.right,
+            ].compactMap { $0 }
             for frame in frames {
                 let maxX = frame.x + frame.width
                 let maxY = frame.y + frame.height

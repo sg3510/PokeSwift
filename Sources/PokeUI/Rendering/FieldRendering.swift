@@ -60,23 +60,29 @@ public struct FieldSpriteDefinition: Equatable, Sendable {
     public let frameWidth: Int
     public let frameHeight: Int
     public let facingFrames: [FacingDirection: FieldSpriteFrame]
+    public let walkingFrames: [FacingDirection: FieldSpriteFrame]?
 
     public init(
         id: String,
         imageURL: URL,
         frameWidth: Int = 16,
         frameHeight: Int = 16,
-        facingFrames: [FacingDirection: FieldSpriteFrame]
+        facingFrames: [FacingDirection: FieldSpriteFrame],
+        walkingFrames: [FacingDirection: FieldSpriteFrame]? = nil
     ) {
         self.id = id
         self.imageURL = imageURL
         self.frameWidth = frameWidth
         self.frameHeight = frameHeight
         self.facingFrames = facingFrames
+        self.walkingFrames = walkingFrames
     }
 
-    public func frame(for facing: FacingDirection) -> FieldSpriteFrame? {
-        facingFrames[facing]
+    public func frame(for facing: FacingDirection, isWalking: Bool = false) -> FieldSpriteFrame? {
+        if isWalking, let walkingFrame = walkingFrames?[facing] {
+            return walkingFrame
+        }
+        return facingFrames[facing]
     }
 }
 
@@ -208,6 +214,7 @@ struct FieldRenderedActor: Identifiable, @unchecked Sendable {
     let id: String
     let role: FieldRenderedActorRole
     let image: CGImage
+    let walkingImage: CGImage?
     let worldPosition: FieldPixelPoint
     let size: FieldPixelSize
     let flippedHorizontally: Bool
@@ -258,6 +265,7 @@ struct FieldRenderSignature: Hashable, Sendable {
             let frameWidth: Int
             let frameHeight: Int
             let frames: [FrameSignature]
+            let walkingFrames: [FrameSignature]
 
             init(definition: FieldSpriteDefinition) {
                 id = definition.id
@@ -265,7 +273,14 @@ struct FieldRenderSignature: Hashable, Sendable {
                 frameWidth = definition.frameWidth
                 frameHeight = definition.frameHeight
                 frames = FacingDirection.allCases.compactMap { direction in
-                    guard let frame = definition.frame(for: direction) else { return nil }
+                    guard let frame = definition.frame(for: direction, isWalking: false) else { return nil }
+                    return FrameSignature(direction: direction, frame: frame)
+                }
+                walkingFrames = FacingDirection.allCases.compactMap { direction in
+                    guard let frame = definition.frame(for: direction, isWalking: true),
+                          frame != definition.frame(for: direction, isWalking: false) else {
+                        return nil
+                    }
                     return FrameSignature(direction: direction, frame: frame)
                 }
             }
@@ -495,9 +510,10 @@ private final class FieldRendererCaches: @unchecked Sendable {
 
     func preparedSpriteImage(
         definition: FieldSpriteDefinition,
-        facing: FacingDirection
+        facing: FacingDirection,
+        isWalking: Bool = false
     ) throws -> CGImage? {
-        guard let frame = definition.frame(for: facing) else {
+        guard let frame = definition.frame(for: facing, isWalking: isWalking) else {
             return nil
         }
 
@@ -746,7 +762,8 @@ struct FieldSceneRenderer {
             facing: playerFacing,
             position: playerPosition,
             assets: assets,
-            metrics: metrics
+            metrics: metrics,
+            includesWalkingFrame: true
         ) {
             actors.append(playerActor)
         }
@@ -761,21 +778,31 @@ struct FieldSceneRenderer {
         facing: FacingDirection,
         position: TilePoint,
         assets: FieldRenderAssets,
-        metrics: FieldSceneMetrics
+        metrics: FieldSceneMetrics,
+        includesWalkingFrame: Bool = false
     ) throws -> FieldRenderedActor? {
         guard let definition = assets.spriteDefinition(for: spriteID),
-              let frame = definition.frame(for: facing),
+              let frame = definition.frame(for: facing, isWalking: false),
               let spriteImage = try FieldRendererCaches.shared.preparedSpriteImage(
                   definition: definition,
-                  facing: facing
+                  facing: facing,
+                  isWalking: false
               ) else {
             return nil
         }
+        let walkingImage = includesWalkingFrame
+            ? try FieldRendererCaches.shared.preparedSpriteImage(
+                definition: definition,
+                facing: facing,
+                isWalking: true
+            )
+            : nil
 
         return FieldRenderedActor(
             id: id,
             role: role,
             image: spriteImage,
+            walkingImage: walkingImage,
             worldPosition: playerWorldPosition(for: position, metrics: metrics),
             size: .init(width: frame.width, height: frame.height),
             flippedHorizontally: frame.flippedHorizontally
@@ -928,8 +955,12 @@ struct FieldSceneRenderer {
         into context: CGContext
     ) throws {
         guard let definition = assets.spriteDefinition(for: spriteID),
-              let frame = definition.frame(for: facing),
-              let spriteImage = try FieldRendererCaches.shared.preparedSpriteImage(definition: definition, facing: facing) else {
+              let frame = definition.frame(for: facing, isWalking: false),
+              let spriteImage = try FieldRendererCaches.shared.preparedSpriteImage(
+                definition: definition,
+                facing: facing,
+                isWalking: false
+              ) else {
             return
         }
 

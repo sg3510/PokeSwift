@@ -127,10 +127,9 @@ extension GameRuntime {
                     gameplayState.objectStates[objectID] = object
                 }
             case "movePlayer":
-                for direction in step.path {
-                    gameplayState.playerPosition = translated(gameplayState.playerPosition, by: direction)
-                    gameplayState.facing = direction
-                }
+                self.gameplayState = gameplayState
+                beginScriptedPlayerMovement(step.path)
+                return true
             case "faceObject":
                 if let objectID = step.objectID, let raw = step.stringValue {
                     gameplayState.objectStates[objectID]?.facing = facingDirection(for: raw)

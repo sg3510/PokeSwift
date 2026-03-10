@@ -21,11 +21,14 @@ public final class GameRuntime {
     var assetLoadingFailures: [String]
     var windowScale = 4
     var transitionTask: Task<Void, Never>?
+    var fieldTransitionTask: Task<Void, Never>?
+    var scriptedMovementTask: Task<Void, Never>?
     var hasStarted = false
     var gameplayState: GameplayState?
     var dialogueState: DialogueState?
     var deferredActions: [DeferredAction] = []
     var currentAudioState: RuntimeAudioState?
+    var fieldTransitionState: RuntimeFieldTransitionState?
     var battleRNGState: UInt64 = 0x504f4b4553574946
     var battleRandomOverrides: [Int] = []
 
@@ -114,6 +117,10 @@ public final class GameRuntime {
         return content.dialogue(id: dialogueState.dialogueID)
     }
 
+    var isFieldInputLocked: Bool {
+        fieldTransitionState != nil || scriptedMovementTask != nil
+    }
+
     var currentFieldRenderIssues: [String] {
         guard let map = currentMapManifest else { return [] }
         return content.fieldRenderIssues(map: map, spriteIDs: currentFieldSpriteIDs)
@@ -135,6 +142,10 @@ public final class GameRuntime {
     public var currentBattleMoves: [MoveManifest] {
         guard let battle = gameplayState?.battle else { return [] }
         return battle.playerPokemon.moves.compactMap { content.move(id: $0.id) }
+    }
+
+    public var fieldAnimationStepDuration: TimeInterval {
+        validationMode ? 0.03 : (16.0 / 60.0)
     }
 
     public func start() {

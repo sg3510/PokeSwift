@@ -27,7 +27,15 @@ func makeFieldRenderAssets(runtime: GameRuntime) -> FieldRenderAssets? {
                 .up: fieldSpriteFrame(from: manifest.facingFrames.up),
                 .left: fieldSpriteFrame(from: manifest.facingFrames.left),
                 .right: fieldSpriteFrame(from: manifest.facingFrames.right),
-            ]
+            ],
+            walkingFrames: manifest.walkingFrames.map {
+                [
+                    .down: fieldSpriteFrame(from: $0.down),
+                    .up: fieldSpriteFrame(from: $0.up),
+                    .left: fieldSpriteFrame(from: $0.left),
+                    .right: fieldSpriteFrame(from: $0.right),
+                ]
+            }
         )
         return (spriteID, definition)
     }

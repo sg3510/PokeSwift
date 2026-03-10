@@ -190,12 +190,12 @@ private struct HarnessCLI {
 
         snapshot = try walk(to: TilePoint(x: 6, y: 1), on: "REDS_HOUSE_2F", startingFrom: snapshot)
         try postInput("right")
-        snapshot = try poll(until: { $0.scene == .field && $0.field?.mapID == "REDS_HOUSE_1F" }, timeout: 4)
+        snapshot = try waitForSettledField(on: "REDS_HOUSE_1F", timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "REDS_HOUSE_1F")
         try assertAudio(snapshot, trackID: "MUSIC_PALLET_TOWN", reason: "mapDefault")
         snapshot = try walk(to: TilePoint(x: 3, y: 6), on: "REDS_HOUSE_1F", startingFrom: snapshot, yFirst: true)
         try postInput("down")
-        snapshot = try poll(until: { $0.scene == .field && $0.field?.mapID == "PALLET_TOWN" }, timeout: 4)
+        snapshot = try waitForSettledField(on: "PALLET_TOWN", timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "PALLET_TOWN")
         try assertAudio(snapshot, trackID: "MUSIC_PALLET_TOWN", reason: "mapDefault")
         snapshot = try walk(to: TilePoint(x: 10, y: 2), on: "PALLET_TOWN", startingFrom: snapshot)
@@ -204,7 +204,15 @@ private struct HarnessCLI {
         snapshot = try poll(until: { $0.scene == .dialogue && ($0.dialogue?.dialogueID.contains("oak") ?? false) }, timeout: 4)
         try assertAudio(snapshot, trackID: "MUSIC_MEET_PROF_OAK", reason: "scriptOverride")
         snapshot = try drainDialogues(startingFrom: snapshot, maxInteractions: 16)
-        snapshot = try poll(until: { $0.field?.mapID == "OAKS_LAB" && ($0.eventFlags?.activeFlags.contains("EVENT_OAK_ASKED_TO_CHOOSE_MON") ?? false) }, timeout: 6)
+        snapshot = try advanceNarrative(
+            startingFrom: snapshot,
+            maxInteractions: 12,
+            until: {
+                $0.scene == .field &&
+                $0.field?.mapID == "OAKS_LAB" &&
+                ($0.eventFlags?.activeFlags.contains("EVENT_OAK_ASKED_TO_CHOOSE_MON") ?? false)
+            }
+        )
         try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
         try assertAudio(snapshot, trackID: "MUSIC_OAKS_LAB", reason: "mapDefault")
 
@@ -378,6 +386,14 @@ private struct HarnessCLI {
         throw HarnessError.validationFailed("timed out waiting for expected telemetry state; no snapshot available")
     }
 
+    private func waitForSettledField(on mapID: String, timeout: TimeInterval) throws -> RuntimeTelemetrySnapshot {
+        try poll(until: {
+            $0.scene == .field &&
+            $0.field?.mapID == mapID &&
+            $0.field?.transition == nil
+        }, timeout: timeout)
+    }
+
     private func postInput(_ button: String) throws {
         let data = try request(path: "/input", method: "POST", body: ["button": button])
         if let response = try? JSONDecoder().decode(BooleanResponse.self, from: data), response.accepted {
@@ -521,6 +537,72 @@ private struct HarnessCLI {
             interactions += 1
         }
         return snapshot
+    }
+
+    private func advanceNarrative(
+        startingFrom initialSnapshot: RuntimeTelemetrySnapshot,
+        maxInteractions: Int,
+        until predicate: (RuntimeTelemetrySnapshot) -> Bool
+    ) throws -> RuntimeTelemetrySnapshot {
+        var snapshot = initialSnapshot
+        var interactions = 0
+
+        while true {
+            if predicate(snapshot) {
+                return snapshot
+            }
+
+            switch snapshot.scene {
+            case .dialogue:
+                guard interactions < maxInteractions else {
+                    throw HarnessError.validationFailed("narrative did not reach expected state within \(maxInteractions) confirms")
+                }
+                let currentDialogueID = snapshot.dialogue?.dialogueID
+                let currentPageIndex = snapshot.dialogue?.pageIndex
+                try postInput("confirm")
+                snapshot = try poll(until: {
+                    predicate($0) ||
+                    $0.scene != .dialogue ||
+                    $0.dialogue?.pageIndex != currentPageIndex ||
+                    $0.dialogue?.dialogueID != currentDialogueID
+                }, timeout: 3)
+                interactions += 1
+
+            case .scriptedSequence:
+                let previousStep = snapshot.field?.activeScriptStep
+                let previousPosition = snapshot.field?.playerPosition
+                let previousDialogueID = snapshot.dialogue?.dialogueID
+                let previousSubstate = snapshot.substate
+                snapshot = try poll(until: {
+                    predicate($0) ||
+                    $0.scene != .scriptedSequence ||
+                    $0.field?.activeScriptStep != previousStep ||
+                    $0.field?.playerPosition != previousPosition ||
+                    $0.dialogue?.dialogueID != previousDialogueID ||
+                    $0.substate != previousSubstate
+                }, timeout: 3)
+
+            case .field:
+                let activeScriptID = snapshot.field?.activeScriptID
+                let activeTriggerID = snapshot.field?.activeMapScriptTriggerID
+                let previousStep = snapshot.field?.activeScriptStep
+                let previousPosition = snapshot.field?.playerPosition
+                guard activeScriptID != nil || activeTriggerID != nil else {
+                    throw HarnessError.validationFailed("narrative stalled before reaching expected state; scene=\(snapshot.scene.rawValue) substate=\(snapshot.substate)")
+                }
+                snapshot = try poll(until: {
+                    predicate($0) ||
+                    $0.scene != .field ||
+                    $0.field?.activeScriptID != activeScriptID ||
+                    $0.field?.activeMapScriptTriggerID != activeTriggerID ||
+                    $0.field?.activeScriptStep != previousStep ||
+                    $0.field?.playerPosition != previousPosition
+                }, timeout: 3)
+
+            default:
+                throw HarnessError.validationFailed("narrative stalled before reaching expected state; scene=\(snapshot.scene.rawValue) substate=\(snapshot.substate)")
+            }
+        }
     }
 }
 

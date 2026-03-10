@@ -8,8 +8,8 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
     let eventFlags = try parseEventFlags(repoRoot: source.repoRoot)
     let tilesets = try buildTilesets(repoRoot: source.repoRoot)
 
-    let maps = try [
-        makeMapManifest(
+    let mapDrafts = try [
+        makeMapManifestDraft(
             repoRoot: source.repoRoot,
             mapID: "REDS_HOUSE_2F",
             displayName: "Red's House 2F",
@@ -20,7 +20,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             tileset: mapHeaders["REDS_HOUSE_2F"] ?? "REDS_HOUSE_2",
             tilesets: tilesets
         ),
-        makeMapManifest(
+        makeMapManifestDraft(
             repoRoot: source.repoRoot,
             mapID: "REDS_HOUSE_1F",
             displayName: "Red's House 1F",
@@ -31,7 +31,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             tileset: mapHeaders["REDS_HOUSE_1F"] ?? "REDS_HOUSE_1",
             tilesets: tilesets
         ),
-        makeMapManifest(
+        makeMapManifestDraft(
             repoRoot: source.repoRoot,
             mapID: "PALLET_TOWN",
             displayName: "Pallet Town",
@@ -42,7 +42,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             tileset: mapHeaders["PALLET_TOWN"] ?? "OVERWORLD",
             tilesets: tilesets
         ),
-        makeMapManifest(
+        makeMapManifestDraft(
             repoRoot: source.repoRoot,
             mapID: "OAKS_LAB",
             displayName: "Oak's Lab",
@@ -54,6 +54,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
             tilesets: tilesets
         ),
     ]
+    let maps = try resolveMapWarps(mapDrafts, tilesets: tilesets)
 
     return GameplayManifest(
         maps: maps,
@@ -84,6 +85,29 @@ private struct ParsedTilesetCollisionData {
     let doorTilesByLabel: [String: [Int]]
     let tilePairCollisionsByTileset: [String: [TilePairCollisionManifest]]
     let ledges: [LedgeCollisionManifest]
+}
+
+private struct RawWarpEntry {
+    let origin: TilePoint
+    let rawTargetMapID: String
+    let targetWarp: Int
+}
+
+private struct MapManifestDraft {
+    let id: String
+    let displayName: String
+    let defaultMusicID: String
+    let borderBlockID: Int
+    let blockWidth: Int
+    let blockHeight: Int
+    let stepWidth: Int
+    let stepHeight: Int
+    let tileset: String
+    let blockIDs: [Int]
+    let stepCollisionTileIDs: [Int]
+    let rawWarps: [RawWarpEntry]
+    let backgroundEvents: [BackgroundEventManifest]
+    let objects: [MapObjectManifest]
 }
 
 private func parseMapSizes(repoRoot: URL) throws -> [String: TileSize] {
@@ -218,7 +242,7 @@ private func parseTilesetCollisionData(repoRoot: URL) throws -> ParsedTilesetCol
     )
 }
 
-private func makeMapManifest(
+private func makeMapManifestDraft(
     repoRoot: URL,
     mapID: String,
     displayName: String,
@@ -228,7 +252,7 @@ private func makeMapManifest(
     defaultMusicID: String,
     tileset: String,
     tilesets: [TilesetManifest]
-) throws -> MapManifest {
+ ) throws -> MapManifestDraft {
     let objectURL = repoRoot.appendingPathComponent(objectFile)
     let contents = try String(contentsOf: objectURL)
     let blockData = try Data(contentsOf: repoRoot.appendingPathComponent(blockFile))
@@ -245,7 +269,7 @@ private func makeMapManifest(
         blockIDs: blockData.map(Int.init)
     )
 
-    return MapManifest(
+    return MapManifestDraft(
         id: mapID,
         displayName: displayName,
         defaultMusicID: defaultMusicID,
@@ -257,10 +281,125 @@ private func makeMapManifest(
         tileset: tileset,
         blockIDs: blockData.map(Int.init),
         stepCollisionTileIDs: resolvedStepCollisionTileIDs,
-        warps: parseWarps(mapID: mapID, contents: contents),
+        rawWarps: parseRawWarps(contents: contents),
         backgroundEvents: parseBackgroundEvents(mapID: mapID, contents: contents),
         objects: parseObjects(mapID: mapID, contents: contents)
     )
+}
+
+private func resolveMapWarps(
+    _ drafts: [MapManifestDraft],
+    tilesets: [TilesetManifest]
+) throws -> [MapManifest] {
+    let draftsByID = Dictionary(uniqueKeysWithValues: drafts.map { ($0.id, $0) })
+    let tilesetsByID = Dictionary(uniqueKeysWithValues: tilesets.map { ($0.id, $0) })
+
+    return try drafts.map { draft in
+        let warps = try draft.rawWarps.enumerated().map { index, rawWarp in
+            let targetMapID = resolveTargetMapID(from: draft.id, rawTargetMapID: rawWarp.rawTargetMapID)
+            let targetPosition = try resolveTargetWarpPosition(
+                currentMapID: draft.id,
+                targetMapID: targetMapID,
+                targetWarp: rawWarp.targetWarp,
+                draftsByID: draftsByID
+            )
+            let targetFacing = resolveTargetFacing(
+                sourceMapID: draft.id,
+                targetPosition: targetPosition,
+                targetMapID: targetMapID,
+                draftsByID: draftsByID,
+                tilesetsByID: tilesetsByID
+            )
+
+            return WarpManifest(
+                id: "\(draft.id.lowercased())_warp_\(index)",
+                origin: rawWarp.origin,
+                targetMapID: targetMapID,
+                targetPosition: targetPosition,
+                targetFacing: targetFacing
+            )
+        }
+
+        return MapManifest(
+            id: draft.id,
+            displayName: draft.displayName,
+            defaultMusicID: draft.defaultMusicID,
+            borderBlockID: draft.borderBlockID,
+            blockWidth: draft.blockWidth,
+            blockHeight: draft.blockHeight,
+            stepWidth: draft.stepWidth,
+            stepHeight: draft.stepHeight,
+            tileset: draft.tileset,
+            blockIDs: draft.blockIDs,
+            stepCollisionTileIDs: draft.stepCollisionTileIDs,
+            warps: warps,
+            backgroundEvents: draft.backgroundEvents,
+            objects: draft.objects
+        )
+    }
+}
+
+private func resolveTargetMapID(from currentMapID: String, rawTargetMapID: String) -> String {
+    guard rawTargetMapID == "LAST_MAP" else {
+        return rawTargetMapID
+    }
+
+    switch currentMapID {
+    case "REDS_HOUSE_1F":
+        return "PALLET_TOWN"
+    case "OAKS_LAB":
+        return "PALLET_TOWN"
+    default:
+        return rawTargetMapID
+    }
+}
+
+private func resolveTargetWarpPosition(
+    currentMapID: String,
+    targetMapID: String,
+    targetWarp: Int,
+    draftsByID: [String: MapManifestDraft]
+) throws -> TilePoint {
+    guard let targetMap = draftsByID[targetMapID] else {
+        return .init(x: 0, y: 0)
+    }
+    let targetIndex = targetWarp - 1
+    guard targetMap.rawWarps.indices.contains(targetIndex) else {
+        throw ExtractorError.invalidArguments("missing destination warp \(targetWarp) in \(targetMapID) for \(currentMapID)")
+    }
+    return targetMap.rawWarps[targetIndex].origin
+}
+
+private func resolveTargetFacing(
+    sourceMapID: String,
+    targetPosition: TilePoint,
+    targetMapID: String,
+    draftsByID: [String: MapManifestDraft],
+    tilesetsByID: [String: TilesetManifest]
+) -> FacingDirection {
+    guard let targetMap = draftsByID[targetMapID],
+          let targetTileset = tilesetsByID[targetMap.tileset],
+          let targetTileID = collisionTileID(at: targetPosition, in: targetMap),
+          targetTileset.collision.doorTileIDs.contains(targetTileID) else {
+        return isOutsideMapID(sourceMapID) ? .up : .down
+    }
+
+    return .down
+}
+
+private func isOutsideMapID(_ mapID: String) -> Bool {
+    mapID == "PALLET_TOWN"
+}
+
+private func collisionTileID(at point: TilePoint, in map: MapManifestDraft) -> Int? {
+    guard point.x >= 0, point.y >= 0, point.x < map.stepWidth, point.y < map.stepHeight else {
+        return nil
+    }
+    let index = (point.y * map.stepWidth) + point.x
+    guard map.stepCollisionTileIDs.indices.contains(index) else {
+        return nil
+    }
+    return map.stepCollisionTileIDs[index]
 }
 
 private func parseBorderBlockID(contents: String) throws -> Int {
@@ -460,13 +599,13 @@ private func blocksetSourcePath(for tileset: String) -> String {
 
 private func buildOverworldSprites() -> [OverworldSpriteManifest] {
     [
-        buildCharacterSprite(id: "SPRITE_RED", imagePath: "Assets/field/sprites/red.png", includesRightFrame: true),
-        buildCharacterSprite(id: "SPRITE_OAK", imagePath: "Assets/field/sprites/oak.png", includesRightFrame: true),
-        buildCharacterSprite(id: "SPRITE_BLUE", imagePath: "Assets/field/sprites/blue.png", includesRightFrame: true),
-        buildCharacterSprite(id: "SPRITE_MOM", imagePath: "Assets/field/sprites/mom.png", includesRightFrame: false),
-        buildCharacterSprite(id: "SPRITE_GIRL", imagePath: "Assets/field/sprites/girl.png", includesRightFrame: true),
-        buildCharacterSprite(id: "SPRITE_FISHER", imagePath: "Assets/field/sprites/fisher.png", includesRightFrame: true),
-        buildCharacterSprite(id: "SPRITE_SCIENTIST", imagePath: "Assets/field/sprites/scientist.png", includesRightFrame: true),
+        buildCharacterSprite(id: "SPRITE_RED", imagePath: "Assets/field/sprites/red.png", hasWalkingFrames: true),
+        buildCharacterSprite(id: "SPRITE_OAK", imagePath: "Assets/field/sprites/oak.png", hasWalkingFrames: true),
+        buildCharacterSprite(id: "SPRITE_BLUE", imagePath: "Assets/field/sprites/blue.png", hasWalkingFrames: true),
+        buildCharacterSprite(id: "SPRITE_MOM", imagePath: "Assets/field/sprites/mom.png", hasWalkingFrames: false),
+        buildCharacterSprite(id: "SPRITE_GIRL", imagePath: "Assets/field/sprites/girl.png", hasWalkingFrames: true),
+        buildCharacterSprite(id: "SPRITE_FISHER", imagePath: "Assets/field/sprites/fisher.png", hasWalkingFrames: true),
+        buildCharacterSprite(id: "SPRITE_SCIENTIST", imagePath: "Assets/field/sprites/scientist.png", hasWalkingFrames: true),
         .init(
             id: "SPRITE_POKE_BALL",
             imagePath: "Assets/field/sprites/poke_ball.png",
@@ -494,8 +633,7 @@ private func buildOverworldSprites() -> [OverworldSpriteManifest] {
     ]
 }
 
-private func buildCharacterSprite(id: String, imagePath: String, includesRightFrame: Bool) -> OverworldSpriteManifest {
-    _ = includesRightFrame
+private func buildCharacterSprite(id: String, imagePath: String, hasWalkingFrames: Bool) -> OverworldSpriteManifest {
     let leftFrame = PixelRect(x: 0, y: 32, width: 16, height: 16)
     return OverworldSpriteManifest(
         id: id,
@@ -507,14 +645,20 @@ private func buildCharacterSprite(id: String, imagePath: String, includesRightFr
             up: .init(x: 0, y: 16, width: 16, height: 16),
             left: leftFrame,
             right: .init(x: leftFrame.x, y: leftFrame.y, width: leftFrame.width, height: leftFrame.height, flippedHorizontally: true)
-        )
+        ),
+        walkingFrames: hasWalkingFrames ? .init(
+            down: .init(x: 0, y: 48, width: 16, height: 16),
+            up: .init(x: 0, y: 64, width: 16, height: 16),
+            left: .init(x: 0, y: 80, width: 16, height: 16),
+            right: .init(x: 0, y: 80, width: 16, height: 16, flippedHorizontally: true)
+        ) : nil
     )
 }
 
-private func parseWarps(mapID: String, contents: String) -> [WarpManifest] {
+private func parseRawWarps(contents: String) -> [RawWarpEntry] {
     let regex = try! NSRegularExpression(pattern: #"warp_event\s+(\d+),\s+(\d+),\s+([A-Z0-9_]+),\s+(\d+)"#)
     let nsrange = NSRange(contents.startIndex..<contents.endIndex, in: contents)
-    return regex.matches(in: contents, range: nsrange).enumerated().compactMap { index, match in
+    return regex.matches(in: contents, range: nsrange).compactMap { match in
         guard
             let xRange = Range(match.range(at: 1), in: contents),
             let yRange = Range(match.range(at: 2), in: contents),
@@ -527,36 +671,11 @@ private func parseWarps(mapID: String, contents: String) -> [WarpManifest] {
             return nil
         }
 
-        let rawTarget = String(contents[targetRange])
-        let resolved = resolveWarp(mapID: mapID, rawTargetMapID: rawTarget, targetWarp: targetWarp)
-        return WarpManifest(
-            id: "\(mapID.lowercased())_warp_\(index)",
+        return RawWarpEntry(
             origin: .init(x: x, y: y),
-            targetMapID: resolved.mapID,
-            targetPosition: resolved.position,
-            targetFacing: resolved.facing
+            rawTargetMapID: String(contents[targetRange]),
+            targetWarp: targetWarp
         )
-    }
-}
-
-private func resolveWarp(mapID: String, rawTargetMapID: String, targetWarp: Int) -> (mapID: String, position: TilePoint, facing: FacingDirection) {
-    switch (mapID, rawTargetMapID, targetWarp) {
-    case ("REDS_HOUSE_2F", "REDS_HOUSE_1F", 3):
-        return ("REDS_HOUSE_1F", .init(x: 6, y: 2), .down)
-    case ("REDS_HOUSE_1F", "REDS_HOUSE_2F", 1):
-        return ("REDS_HOUSE_2F", .init(x: 6, y: 2), .down)
-    case ("PALLET_TOWN", "REDS_HOUSE_1F", 1):
-        return ("REDS_HOUSE_1F", .init(x: 2, y: 6), .down)
-    case ("REDS_HOUSE_1F", "LAST_MAP", 1):
-        return ("PALLET_TOWN", .init(x: 5, y: 6), .down)
-    case ("REDS_HOUSE_1F", "LAST_MAP", 2):
-        return ("PALLET_TOWN", .init(x: 5, y: 6), .down)
-    case ("PALLET_TOWN", "OAKS_LAB", 2):
-        return ("OAKS_LAB", .init(x: 4, y: 10), .up)
-    case ("OAKS_LAB", "LAST_MAP", 3):
-        return ("PALLET_TOWN", .init(x: 12, y: 12), .down)
-    default:
-        return (rawTargetMapID, .init(x: 0, y: 0), .down)
     }
 }
 

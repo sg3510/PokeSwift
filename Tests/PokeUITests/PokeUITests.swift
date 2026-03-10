@@ -328,6 +328,37 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(definition.frame(for: .right), .init(x: 0, y: 32, width: 16, height: 16, flippedHorizontally: true))
     }
 
+    func testSpriteFrameLookupUsesWalkingFramesWhenRequested() {
+        let definition = spriteDefinition(id: "SPRITE_RED", filename: "red.png")
+
+        XCTAssertEqual(definition.frame(for: .down, isWalking: true), .init(x: 0, y: 48, width: 16, height: 16))
+        XCTAssertEqual(definition.frame(for: .up, isWalking: true), .init(x: 0, y: 64, width: 16, height: 16))
+        XCTAssertEqual(definition.frame(for: .right, isWalking: true), .init(x: 0, y: 80, width: 16, height: 16, flippedHorizontally: true))
+    }
+
+    func testPlayerWalkFrameUsesSourceFourPhaseCadence() {
+        let stepDuration = 16.0 / 60.0
+
+        XCTAssertEqual(FieldMapView.playerWalkAnimationPhase(elapsed: 0, stepDuration: stepDuration), 0)
+        XCTAssertEqual(FieldMapView.playerWalkAnimationPhase(elapsed: stepDuration * 0.30, stepDuration: stepDuration), 1)
+        XCTAssertEqual(FieldMapView.playerWalkAnimationPhase(elapsed: stepDuration * 0.55, stepDuration: stepDuration), 2)
+        XCTAssertEqual(FieldMapView.playerWalkAnimationPhase(elapsed: stepDuration * 0.80, stepDuration: stepDuration), 3)
+        XCTAssertNil(FieldMapView.playerWalkAnimationPhase(elapsed: stepDuration, stepDuration: stepDuration))
+
+        XCTAssertFalse(FieldMapView.playerUsesWalkingFrame(phase: 0))
+        XCTAssertTrue(FieldMapView.playerUsesWalkingFrame(phase: 1))
+        XCTAssertFalse(FieldMapView.playerUsesWalkingFrame(phase: 2))
+        XCTAssertTrue(FieldMapView.playerUsesWalkingFrame(phase: 3))
+    }
+
+    func testPlayerWalkFrameMirrorsSecondStepForVerticalMovement() {
+        XCTAssertFalse(FieldMapView.playerUsesMirroredWalkingFrame(facing: .left, phase: 3))
+        XCTAssertFalse(FieldMapView.playerUsesMirroredWalkingFrame(facing: .right, phase: 3))
+        XCTAssertFalse(FieldMapView.playerUsesMirroredWalkingFrame(facing: .down, phase: 1))
+        XCTAssertTrue(FieldMapView.playerUsesMirroredWalkingFrame(facing: .down, phase: 3))
+        XCTAssertTrue(FieldMapView.playerUsesMirroredWalkingFrame(facing: .up, phase: 3))
+    }
+
     func testRendererCanCompositeRealFieldAssets() throws {
         let root = repoRoot()
         let assets = FieldRenderAssets(
@@ -765,6 +796,7 @@ final class PokeUITests: XCTestCase {
             visibleRGBValues(in: playerActor.image),
             Set([RGBTriplet(red: 170, green: 170, blue: 170)])
         )
+        XCTAssertNotNil(playerActor.walkingImage)
     }
 
     private func spriteDefinition(id: String, filename: String) -> FieldSpriteDefinition {
@@ -777,6 +809,12 @@ final class PokeUITests: XCTestCase {
                 .up: .init(x: 0, y: 16, width: 16, height: 16),
                 .left: .init(x: 0, y: 32, width: 16, height: 16),
                 .right: .init(x: 0, y: 32, width: 16, height: 16, flippedHorizontally: true),
+            ],
+            walkingFrames: [
+                .down: .init(x: 0, y: 48, width: 16, height: 16),
+                .up: .init(x: 0, y: 64, width: 16, height: 16),
+                .left: .init(x: 0, y: 80, width: 16, height: 16),
+                .right: .init(x: 0, y: 80, width: 16, height: 16, flippedHorizontally: true),
             ]
         )
     }

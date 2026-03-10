@@ -35,6 +35,9 @@ extension GameRuntime {
 
     func beginNewGame() {
         deferredActions.removeAll()
+        fieldTransitionTask?.cancel()
+        scriptedMovementTask?.cancel()
+        fieldTransitionState = nil
         gameplayState = makeInitialGameplayState()
         dialogueState = nil
         placeholderTitle = nil

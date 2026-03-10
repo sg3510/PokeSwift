@@ -4,6 +4,7 @@ import PokeDataModel
 
 extension GameRuntime {
     func handleField(button: RuntimeButton) {
+        guard isFieldInputLocked == false else { return }
         switch button {
         case .up:
             movePlayer(in: .up)
@@ -21,6 +22,7 @@ extension GameRuntime {
     }
 
     func movePlayer(in direction: FacingDirection) {
+        guard isFieldInputLocked == false else { return }
         guard var gameplayState, let map = currentMapManifest else { return }
         gameplayState.facing = direction
         let currentPoint = gameplayState.playerPosition
@@ -40,6 +42,7 @@ extension GameRuntime {
         if handleWarpIfNeeded() {
             return
         }
+        substate = "field"
         evaluateMapScriptsIfNeeded()
     }
 
@@ -120,7 +123,39 @@ extension GameRuntime {
               let targetMap = content.map(id: warp.targetMapID) else {
             return false
         }
+        let transitionKind = fieldTransitionKind(sourceMap: map, sourcePosition: warp.origin, targetMap: targetMap, targetPosition: warp.targetPosition)
+        let shouldStepOut = shouldAutoStepOut(on: warp.targetPosition, in: targetMap)
 
+        gameplayState.activeMapScriptTriggerID = nil
+        self.gameplayState = gameplayState
+        fieldTransitionTask?.cancel()
+        fieldTransitionTask = Task { [weak self] in
+            await self?.runWarpTransition(
+                warp: warp,
+                targetMap: targetMap,
+                kind: transitionKind,
+                shouldStepOut: shouldStepOut
+            )
+        }
+        return true
+    }
+
+    func runWarpTransition(
+        warp: WarpManifest,
+        targetMap: MapManifest,
+        kind: RuntimeFieldTransitionKind,
+        shouldStepOut: Bool
+    ) async {
+        defer {
+            fieldTransitionTask = nil
+        }
+
+        fieldTransitionState = .init(kind: kind, phase: .fadingOut)
+        substate = "field_transition_\(kind.rawValue)_\(RuntimeFieldTransitionPhase.fadingOut.rawValue)"
+        publishSnapshot()
+        await sleep(seconds: fieldFadeDuration)
+
+        guard Task.isCancelled == false, var gameplayState else { return }
         gameplayState.mapID = targetMap.id
         gameplayState.playerPosition = warp.targetPosition
         gameplayState.facing = warp.targetFacing
@@ -128,10 +163,95 @@ extension GameRuntime {
         self.gameplayState = gameplayState
 
         scene = .field
-        substate = "field"
+        substate = "field_transition_\(kind.rawValue)_\(RuntimeFieldTransitionPhase.fadingIn.rawValue)"
         requestDefaultMapMusic()
+
+        fieldTransitionState = .init(kind: kind, phase: .fadingIn)
+        publishSnapshot()
+        await sleep(seconds: fieldFadeDuration)
+
+        guard Task.isCancelled == false else { return }
+
+        if shouldStepOut {
+            fieldTransitionState = .init(kind: kind, phase: .steppingOut)
+            substate = "field_transition_\(kind.rawValue)_\(RuntimeFieldTransitionPhase.steppingOut.rawValue)"
+            gameplayState.facing = .down
+            self.gameplayState = gameplayState
+            publishSnapshot()
+            await animatePlayerMovement(path: [.down])
+            guard Task.isCancelled == false else { return }
+        }
+
+        fieldTransitionState = nil
+        substate = "field"
+        publishSnapshot()
         evaluateMapScriptsIfNeeded()
-        return true
+    }
+
+    func beginScriptedPlayerMovement(_ path: [FacingDirection]) {
+        scriptedMovementTask?.cancel()
+        scriptedMovementTask = Task { [weak self] in
+            await self?.runScriptedPlayerMovement(path)
+        }
+    }
+
+    func runScriptedPlayerMovement(_ path: [FacingDirection]) async {
+        defer {
+            scriptedMovementTask = nil
+        }
+        await animatePlayerMovement(path: path)
+        guard Task.isCancelled == false else { return }
+        runActiveScript()
+        publishSnapshot()
+    }
+
+    func animatePlayerMovement(path: [FacingDirection]) async {
+        guard path.isEmpty == false else { return }
+        for direction in path {
+            guard Task.isCancelled == false, var gameplayState else { return }
+            gameplayState.facing = direction
+            gameplayState.playerPosition = translated(gameplayState.playerPosition, by: direction)
+            self.gameplayState = gameplayState
+            publishSnapshot()
+            await sleep(seconds: fieldStepDuration)
+        }
+    }
+
+    func fieldTransitionKind(
+        sourceMap: MapManifest,
+        sourcePosition: TilePoint,
+        targetMap: MapManifest,
+        targetPosition: TilePoint
+    ) -> RuntimeFieldTransitionKind {
+        if isDoorTile(at: sourcePosition, in: sourceMap) || isDoorTile(at: targetPosition, in: targetMap) {
+            return .door
+        }
+        return .warp
+    }
+
+    func shouldAutoStepOut(on position: TilePoint, in map: MapManifest) -> Bool {
+        isDoorTile(at: position, in: map)
+    }
+
+    func isDoorTile(at position: TilePoint, in map: MapManifest) -> Bool {
+        guard let tileset = content.tileset(id: map.tileset),
+              let tileID = collisionTileID(at: position, in: map) else {
+            return false
+        }
+        return tileset.collision.doorTileIDs.contains(tileID)
+    }
+
+    var fieldFadeDuration: TimeInterval {
+        validationMode ? 0.04 : 0.14
+    }
+
+    var fieldStepDuration: TimeInterval {
+        fieldAnimationStepDuration
+    }
+
+    func sleep(seconds: TimeInterval) async {
+        guard seconds > 0 else { return }
+        try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
     }
 
     func canMove(from currentPoint: TilePoint, to nextPoint: TilePoint, in map: MapManifest, facing: FacingDirection) -> Bool {

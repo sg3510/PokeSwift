@@ -7,31 +7,38 @@ public struct FieldMapView: View {
     let map: MapManifest
     let playerPosition: TilePoint
     let playerFacing: FacingDirection
+    let playerStepDuration: TimeInterval
     let objects: [FieldObjectRenderState]
     let playerSpriteID: String
     let renderAssets: FieldRenderAssets?
+    let transition: FieldTransitionTelemetry?
     let displayStyle: FieldDisplayStyle
 
     @State private var renderedScene: FieldRenderedScene?
     @State private var presentedCameraOrigin: CGPoint = .zero
     @State private var presentedPlayerWorldPosition: CGPoint = .zero
     @State private var presentationIdentity: FieldPresentationIdentity?
+    @State private var playerStepAnimation: PlayerStepAnimationState?
 
     public init(
         map: MapManifest,
         playerPosition: TilePoint,
         playerFacing: FacingDirection,
+        playerStepDuration: TimeInterval = 16.0 / 60.0,
         objects: [FieldObjectRenderState],
         playerSpriteID: String = "SPRITE_RED",
         renderAssets: FieldRenderAssets? = nil,
+        transition: FieldTransitionTelemetry? = nil,
         displayStyle: FieldDisplayStyle = .defaultGameplayStyle
     ) {
         self.map = map
         self.playerPosition = playerPosition
         self.playerFacing = playerFacing
+        self.playerStepDuration = playerStepDuration
         self.objects = objects
         self.playerSpriteID = playerSpriteID
         self.renderAssets = renderAssets
+        self.transition = transition
         self.displayStyle = displayStyle
     }
 
@@ -45,6 +52,10 @@ public struct FieldMapView: View {
                 if let renderedScene {
                     FixedViewportRenderedField(
                         scene: renderedScene,
+                        playerFacing: playerFacing,
+                        playerStepAnimation: playerStepAnimation,
+                        playerStepDuration: playerStepDuration,
+                        transition: transition,
                         displayStyle: displayStyle,
                         displayScale: scale,
                         cameraOrigin: presentedCameraOrigin,
@@ -57,6 +68,7 @@ public struct FieldMapView: View {
                         playerFacing: playerFacing,
                         objects: objects,
                         metrics: FieldSceneRenderer.sceneMetrics(for: map),
+                        transition: transition,
                         displayStyle: displayStyle,
                         displayScale: scale,
                         cameraOrigin: presentedCameraOrigin,
@@ -151,6 +163,7 @@ public struct FieldMapView: View {
         )
         let nextIdentity = FieldPresentationIdentity(mapID: map.id, playerPosition: playerPosition)
         let shouldAnimate = shouldAnimateTransition(to: nextIdentity)
+        let nextStepAnimation = makePlayerStepAnimation(to: nextIdentity)
 
         let applyState = {
             presentedPlayerWorldPosition = CGPoint(
@@ -165,10 +178,12 @@ public struct FieldMapView: View {
         }
 
         if shouldAnimate {
-            withAnimation(.linear(duration: 0.1)) {
+            playerStepAnimation = nextStepAnimation
+            withAnimation(.linear(duration: playerStepDuration)) {
                 applyState()
             }
         } else {
+            playerStepAnimation = nil
             var transaction = Transaction()
             transaction.animation = nil
             withTransaction(transaction) {
@@ -188,6 +203,18 @@ public struct FieldMapView: View {
         return (deltaX + deltaY) == 1
     }
 
+    private func makePlayerStepAnimation(to nextIdentity: FieldPresentationIdentity) -> PlayerStepAnimationState? {
+        guard shouldAnimateTransition(to: nextIdentity) else {
+            return nil
+        }
+
+        return PlayerStepAnimationState(
+            mapID: nextIdentity.mapID,
+            destinationPosition: nextIdentity.playerPosition,
+            startedAt: Date()
+        )
+    }
+
     private func viewportScale(for size: CGSize) -> CGFloat {
         let rawScale = min(
             size.width / CGFloat(FieldSceneRenderer.viewportPixelSize.width),
@@ -200,6 +227,28 @@ public struct FieldMapView: View {
             return max(1, floor(rawScale))
         }
         return rawScale
+    }
+
+    static func playerWalkAnimationPhase(
+        elapsed: TimeInterval,
+        stepDuration: TimeInterval = 16.0 / 60.0
+    ) -> Int? {
+        guard stepDuration > 0 else { return nil }
+        let clampedElapsed = max(0, elapsed)
+        guard clampedElapsed < stepDuration else { return nil }
+        let phaseDuration = stepDuration / 4
+        guard phaseDuration > 0 else { return nil }
+        return min(3, Int(clampedElapsed / phaseDuration))
+    }
+
+    static func playerUsesWalkingFrame(phase: Int?) -> Bool {
+        guard let phase else { return false }
+        return phase == 1 || phase == 3
+    }
+
+    static func playerUsesMirroredWalkingFrame(facing: FacingDirection, phase: Int?) -> Bool {
+        guard phase == 3 else { return false }
+        return facing == .up || facing == .down
     }
 }
 
@@ -220,60 +269,100 @@ private struct FieldPresentationIdentity: Equatable {
     let playerPosition: TilePoint
 }
 
+private struct PlayerStepAnimationState: Equatable {
+    let mapID: String
+    let destinationPosition: TilePoint
+    let startedAt: Date
+}
+
 private struct FixedViewportRenderedField: View {
     let scene: FieldRenderedScene
+    let playerFacing: FacingDirection
+    let playerStepAnimation: PlayerStepAnimationState?
+    let playerStepDuration: TimeInterval
+    let transition: FieldTransitionTelemetry?
     let displayStyle: FieldDisplayStyle
     let displayScale: CGFloat
     let cameraOrigin: CGPoint
     let playerWorldPosition: CGPoint
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            lcdBackground
+        let cornerRadius = max(6, displayScale * 2.5)
 
-            Image(decorative: scene.backgroundImage, scale: 1)
-                .interpolation(.none)
-                .resizable()
-                .frame(
-                    width: CGFloat(scene.metrics.contentPixelSize.width) * displayScale,
-                    height: CGFloat(scene.metrics.contentPixelSize.height) * displayScale
-                )
-                .offset(
-                    x: -cameraOrigin.x * displayScale,
-                    y: -cameraOrigin.y * displayScale
-                )
+        TimelineView(.animation) { timeline in
+            let playerWalkPhase = playerWalkAnimationPhase(at: timeline.date)
 
-            ForEach(sortedActors) { actor in
-                let renderedWorldPosition = actor.role == .player
-                    ? playerWorldPosition
-                    : CGPoint(x: CGFloat(actor.worldPosition.x), y: CGFloat(actor.worldPosition.y))
-                Image(decorative: actor.image, scale: 1)
+            ZStack(alignment: .topLeading) {
+                lcdBackground
+
+                Image(decorative: scene.backgroundImage, scale: 1)
                     .interpolation(.none)
                     .resizable()
                     .frame(
-                        width: CGFloat(actor.size.width) * displayScale,
-                        height: CGFloat(actor.size.height) * displayScale
+                        width: CGFloat(scene.metrics.contentPixelSize.width) * displayScale,
+                        height: CGFloat(scene.metrics.contentPixelSize.height) * displayScale
                     )
-                    .scaleEffect(x: actor.flippedHorizontally ? -1 : 1, y: -1, anchor: .center)
-                    .position(
-                        x: ((renderedWorldPosition.x - cameraOrigin.x) + CGFloat(actor.size.width) / 2) * displayScale,
-                        y: ((renderedWorldPosition.y - cameraOrigin.y) + CGFloat(actor.size.height) / 2) * displayScale
+                    .offset(
+                        x: -cameraOrigin.x * displayScale,
+                        y: -cameraOrigin.y * displayScale
                     )
-                    .zIndex(renderedWorldPosition.y)
-            }
 
+                ForEach(sortedActors) { actor in
+                    let renderedWorldPosition = actor.role == .player
+                        ? playerWorldPosition
+                        : CGPoint(x: CGFloat(actor.worldPosition.x), y: CGFloat(actor.worldPosition.y))
+                    let usesWalkingFrame = actor.role == .player &&
+                        actor.walkingImage != nil &&
+                        FieldMapView.playerUsesWalkingFrame(phase: playerWalkPhase)
+                    let usesMirroredWalkFrame = actor.role == .player &&
+                        FieldMapView.playerUsesMirroredWalkingFrame(facing: playerFacing, phase: playerWalkPhase)
+                    let image = usesWalkingFrame ? (actor.walkingImage ?? actor.image) : actor.image
+                    let flipsHorizontally = actor.flippedHorizontally != usesMirroredWalkFrame
+
+                    Image(decorative: image, scale: 1)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(
+                            width: CGFloat(actor.size.width) * displayScale,
+                            height: CGFloat(actor.size.height) * displayScale
+                        )
+                        .scaleEffect(x: flipsHorizontally ? -1 : 1, y: -1, anchor: .center)
+                        .position(
+                            x: ((renderedWorldPosition.x - cameraOrigin.x) + CGFloat(actor.size.width) / 2) * displayScale,
+                            y: ((renderedWorldPosition.y - cameraOrigin.y) + CGFloat(actor.size.height) / 2) * displayScale
+                        )
+                        .zIndex(renderedWorldPosition.y)
+                }
+
+            }
+            .fieldScreenEffect(displayStyle: displayStyle, displayScale: displayScale)
+            .frame(
+                width: CGFloat(FieldSceneRenderer.viewportPixelSize.width) * displayScale,
+                height: CGFloat(FieldSceneRenderer.viewportPixelSize.height) * displayScale,
+                alignment: .topLeading
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                FieldViewportTransitionOverlay(transition: transition)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.black.opacity(0.16), lineWidth: max(1, displayScale * 0.16))
+            }
         }
-        .fieldScreenEffect(displayStyle: displayStyle, displayScale: displayScale)
-        .frame(
-            width: CGFloat(FieldSceneRenderer.viewportPixelSize.width) * displayScale,
-            height: CGFloat(FieldSceneRenderer.viewportPixelSize.height) * displayScale,
-            alignment: .topLeading
+    }
+
+    private func playerWalkAnimationPhase(at date: Date) -> Int? {
+        guard let playerStepAnimation,
+              playerStepAnimation.mapID == scene.mapID else {
+            return nil
+        }
+        let elapsed = date.timeIntervalSince(playerStepAnimation.startedAt)
+        return FieldMapView.playerWalkAnimationPhase(
+            elapsed: elapsed,
+            stepDuration: playerStepDuration
         )
-        .clipShape(RoundedRectangle(cornerRadius: max(6, displayScale * 2.5), style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: max(6, displayScale * 2.5), style: .continuous)
-                .stroke(Color.black.opacity(0.16), lineWidth: max(1, displayScale * 0.16))
-        }
     }
 
     private var sortedActors: [FieldRenderedActor] {
@@ -309,6 +398,7 @@ private struct FixedViewportPlaceholderField: View {
     let playerFacing: FacingDirection
     let objects: [FieldObjectRenderState]
     let metrics: FieldSceneMetrics
+    let transition: FieldTransitionTelemetry?
     let displayStyle: FieldDisplayStyle
     let displayScale: CGFloat
     let cameraOrigin: CGPoint
@@ -323,6 +413,7 @@ private struct FixedViewportPlaceholderField: View {
         let stepCountY = Int(ceil(Double(FieldSceneRenderer.viewportPixelSize.height) / Double(FieldSceneRenderer.stepPixelSize))) + 3
         let startStepX = Int(floor(cameraOrigin.x / CGFloat(FieldSceneRenderer.stepPixelSize))) - 1
         let startStepY = Int(floor(cameraOrigin.y / CGFloat(FieldSceneRenderer.stepPixelSize))) - 1
+        let cornerRadius = max(6, displayScale * 2.5)
 
         ZStack(alignment: .topLeading) {
             Rectangle()
@@ -376,9 +467,13 @@ private struct FixedViewportPlaceholderField: View {
         }
         .fieldScreenEffect(displayStyle: displayStyle, displayScale: displayScale)
         .frame(width: viewportWidth, height: viewportHeight, alignment: .topLeading)
-        .clipShape(RoundedRectangle(cornerRadius: max(6, displayScale * 2.5), style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: max(6, displayScale * 2.5), style: .continuous)
+            FieldViewportTransitionOverlay(transition: transition)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(Color.black.opacity(0.16), lineWidth: max(1, displayScale * 0.16))
         }
     }
@@ -449,5 +544,21 @@ private struct FixedViewportPlaceholderField: View {
         case .right:
             return CGSize(width: -amount, height: 0)
         }
+    }
+}
+
+private struct FieldViewportTransitionOverlay: View {
+    let transition: FieldTransitionTelemetry?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.black)
+            .opacity(targetOpacity)
+            .animation(.linear(duration: 0.12), value: transition?.phase)
+            .allowsHitTesting(false)
+    }
+
+    private var targetOpacity: Double {
+        transition?.phase == "fadingOut" ? 1 : 0
     }
 }

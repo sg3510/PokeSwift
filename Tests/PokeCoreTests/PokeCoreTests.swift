@@ -62,6 +62,75 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.assetLoadingFailures, [])
     }
 
+    func testRepoGeneratedDoorWarpIntoRedsHouseUsesExactDoorTileAndFadeTelemetry() async throws {
+        let runtime = try makeRepoRuntime()
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PALLET_TOWN"
+        runtime.gameplayState?.playerPosition = TilePoint(x: 5, y: 6)
+        runtime.gameplayState?.facing = .up
+
+        runtime.movePlayer(in: .up)
+        var sawDoorTransition = false
+
+        let snapshot = try await waitForSnapshot(runtime) {
+            if $0.field?.transition?.kind == "door" {
+                sawDoorTransition = true
+            }
+            return $0.field?.mapID == "REDS_HOUSE_1F" && $0.field?.transition == nil
+        }
+        XCTAssertTrue(sawDoorTransition)
+        XCTAssertEqual(snapshot.field?.playerPosition, .init(x: 2, y: 7))
+        XCTAssertEqual(snapshot.field?.facing, .up)
+    }
+
+    func testRepoGeneratedDoorWarpBackOutsideStepsOutToSettledTile() async throws {
+        let runtime = try makeRepoRuntime()
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
+        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
+        runtime.gameplayState?.facing = .down
+
+        runtime.movePlayer(in: .down)
+        var sawDoorTransition = false
+
+        let settledSnapshot = try await waitForSnapshot(runtime) {
+            if $0.field?.transition?.kind == "door" {
+                sawDoorTransition = true
+            }
+            return $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
+        }
+        XCTAssertTrue(sawDoorTransition)
+        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
+        XCTAssertEqual(settledSnapshot.field?.facing, .down)
+    }
+
+    func testRepoGeneratedStairWarpUsesExactTileWithFadeAndNoStepOut() async throws {
+        let runtime = try makeRepoRuntime()
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "REDS_HOUSE_2F"
+        runtime.gameplayState?.playerPosition = TilePoint(x: 6, y: 1)
+        runtime.gameplayState?.facing = .right
+
+        runtime.movePlayer(in: .right)
+        var sawWarpTransition = false
+
+        let snapshot = try await waitForSnapshot(runtime) {
+            if $0.field?.transition?.kind == "warp" {
+                sawWarpTransition = true
+            }
+            return $0.field?.mapID == "REDS_HOUSE_1F" && $0.field?.transition == nil
+        }
+        XCTAssertTrue(sawWarpTransition)
+        XCTAssertEqual(snapshot.field?.playerPosition, .init(x: 7, y: 1))
+        XCTAssertEqual(snapshot.field?.facing, .down)
+    }
+
     func testRepoGeneratedPalletNorthExitStartsOakIntroFromSourceScript() async throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()
@@ -613,6 +682,28 @@ final class PokeCoreTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+    }
+
+    private func makeRepoRuntime() throws -> GameRuntime {
+        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
+        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        return GameRuntime(content: content, telemetryPublisher: nil)
+    }
+
+    private func waitForSnapshot(
+        _ runtime: GameRuntime,
+        timeout: TimeInterval = 1.5,
+        matching predicate: (RuntimeTelemetrySnapshot) -> Bool
+    ) async throws -> RuntimeTelemetrySnapshot {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let snapshot = runtime.currentSnapshot()
+            if predicate(snapshot) {
+                return snapshot
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        throw XCTSkip("timed out waiting for expected runtime snapshot")
     }
 }
 

@@ -7,9 +7,11 @@ struct GameplayFieldSceneProps {
     let map: MapManifest?
     let playerPosition: TilePoint?
     let playerFacing: FacingDirection
+    let playerStepDuration: TimeInterval
     let objects: [FieldObjectRenderState]
     let playerSpriteID: String
     let renderAssets: FieldRenderAssets?
+    let fieldTransition: FieldTransitionTelemetry?
     let initialFieldDisplayStyle: FieldDisplayStyle
     let dialogueLines: [String]?
     let starterChoiceOptions: [SpeciesManifest]
@@ -84,9 +86,11 @@ struct GameplayFieldScene: View {
                 map: map,
                 playerPosition: playerPosition,
                 playerFacing: props.playerFacing,
+                playerStepDuration: props.playerStepDuration,
                 objects: props.objects,
                 playerSpriteID: props.playerSpriteID,
                 renderAssets: props.renderAssets,
+                transition: props.fieldTransition,
                 displayStyle: fieldDisplayStyle
             )
         } else {
