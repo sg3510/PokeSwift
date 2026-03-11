@@ -174,6 +174,7 @@ public struct AudioManifest: Codable, Equatable, Sendable {
         public let startTime: Double
         public let duration: Double
         public let frequencyHz: Double?
+        public let frequencyRegister: Int?
         public let amplitude: Double
         public let dutyCycle: Double?
         public let envelopeStepDuration: Double?
@@ -183,6 +184,8 @@ public struct AudioManifest: Codable, Equatable, Sendable {
         public let vibratoDepthSemitones: Double
         public let vibratoRateHz: Double
         public let pitchSlideTargetHz: Double?
+        public let pitchSlideTargetRegister: Int?
+        public let pitchSlideFrameCount: Int?
         public let noiseShortMode: Bool?
         public let waveform: Waveform
 
@@ -190,6 +193,7 @@ public struct AudioManifest: Codable, Equatable, Sendable {
             startTime: Double,
             duration: Double,
             frequencyHz: Double?,
+            frequencyRegister: Int? = nil,
             amplitude: Double,
             dutyCycle: Double? = nil,
             envelopeStepDuration: Double? = nil,
@@ -199,12 +203,15 @@ public struct AudioManifest: Codable, Equatable, Sendable {
             vibratoDepthSemitones: Double = 0,
             vibratoRateHz: Double = 0,
             pitchSlideTargetHz: Double? = nil,
+            pitchSlideTargetRegister: Int? = nil,
+            pitchSlideFrameCount: Int? = nil,
             noiseShortMode: Bool? = nil,
             waveform: Waveform
         ) {
             self.startTime = startTime
             self.duration = duration
             self.frequencyHz = frequencyHz
+            self.frequencyRegister = frequencyRegister
             self.amplitude = amplitude
             self.dutyCycle = dutyCycle
             self.envelopeStepDuration = envelopeStepDuration
@@ -214,6 +221,8 @@ public struct AudioManifest: Codable, Equatable, Sendable {
             self.vibratoDepthSemitones = vibratoDepthSemitones
             self.vibratoRateHz = vibratoRateHz
             self.pitchSlideTargetHz = pitchSlideTargetHz
+            self.pitchSlideTargetRegister = pitchSlideTargetRegister
+            self.pitchSlideFrameCount = pitchSlideFrameCount
             self.noiseShortMode = noiseShortMode
             self.waveform = waveform
         }

@@ -446,6 +446,62 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(settledSnapshot.field?.facing, .down)
     }
 
+    func testBattleFinishStopsTrainerMusicBeforePostBattleDialogue() throws {
+        let audioPlayer = RecordingAudioPlayer()
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    dialogues: [
+                        .init(id: "win", pages: [.init(lines: ["You win"], waitsForPrompt: true)]),
+                        .init(id: "lose", pages: [.init(lines: ["You lose"], waitsForPrompt: true)]),
+                    ],
+                    species: [
+                        .init(id: "CHARMANDER", displayName: "Charmander", baseExp: 62, growthRate: .mediumSlow, baseHP: 39, baseAttack: 52, baseDefense: 43, baseSpeed: 65, baseSpecial: 50, startingMoves: ["SCRATCH"]),
+                        .init(id: "BULBASAUR", displayName: "Bulbasaur", baseExp: 64, growthRate: .mediumSlow, baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 45, baseSpecial: 65, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "SCRATCH", displayName: "SCRATCH", power: 40, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ],
+                    trainerBattles: [
+                        .init(
+                            id: "opp_rival1_2",
+                            trainerClass: "OPP_RIVAL1",
+                            trainerNumber: 2,
+                            displayName: "BLUE",
+                            party: [.init(speciesID: "BULBASAUR", level: 5)],
+                            winDialogueID: "win",
+                            loseDialogueID: "lose",
+                            healsPartyAfterBattle: false,
+                            preventsBlackoutOnLoss: true,
+                            completionFlagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
+                        ),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil,
+            audioPlayer: audioPlayer
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.chosenStarterSpeciesID = "CHARMANDER"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "CHARMANDER", level: 5, nickname: "Charmander")]
+
+        runtime.startBattle(id: "opp_rival1_2")
+
+        guard let battle = runtime.gameplayState?.battle else {
+            return XCTFail("expected active battle state")
+        }
+
+        runtime.finishBattle(battle: battle, won: true)
+
+        XCTAssertNil(runtime.currentSnapshot().audio)
+        XCTAssertEqual(audioPlayer.stopAllMusicCount, 1)
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "win")
+    }
+
     func testMomHealJingleRestoresMapDefaultAfterCompletion() throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()
@@ -1267,6 +1323,7 @@ final class PokeCoreTests: XCTestCase {
 @MainActor
 private final class RecordingAudioPlayer: RuntimeAudioPlaying {
     private(set) var requests: [AudioPlaybackRequest] = []
+    private(set) var stopAllMusicCount = 0
     private var pendingCompletions: [() -> Void] = []
 
     var pendingCompletionCount: Int {
@@ -1280,7 +1337,9 @@ private final class RecordingAudioPlayer: RuntimeAudioPlaying {
         }
     }
 
-    func stopAllMusic() {}
+    func stopAllMusic() {
+        stopAllMusicCount += 1
+    }
 
     func completePendingPlayback() {
         guard pendingCompletions.isEmpty == false else { return }

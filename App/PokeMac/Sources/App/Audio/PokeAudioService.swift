@@ -28,7 +28,11 @@ final class PokeAudioService: RuntimeAudioPlaying {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
-    private let renderQueue = DispatchQueue(label: "com.dimillian.PokeSwift.audio-render", qos: .userInitiated)
+    private let renderQueue = DispatchQueue(
+        label: "com.dimillian.PokeSwift.audio-render",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
     private var renderCache: [String: RenderedEntry] = [:]
     private var rendersInFlight: Set<String> = []
     private var completionWorkItem: DispatchWorkItem?
@@ -41,6 +45,7 @@ final class PokeAudioService: RuntimeAudioPlaying {
         engine.connect(player, to: engine.mainMixerNode, format: format)
         engine.mainMixerNode.outputVolume = 0.6
         try? engine.start()
+        primeEntryIfPossible(trackID: manifest.titleTrackID, entryID: "default")
         prewarmManifest()
     }
 
@@ -109,6 +114,21 @@ final class PokeAudioService: RuntimeAudioPlaying {
                 scheduleRenderIfNeeded(cacheKey: cacheKey, entry: entry)
             }
         }
+    }
+
+    private func primeEntryIfPossible(trackID: String, entryID: String) {
+        guard let track = manifest.tracks.first(where: { $0.id == trackID }),
+              let entry = track.entries.first(where: { $0.id == entryID }) else {
+            return
+        }
+        let cacheKey = "\(trackID):\(entryID)"
+        guard renderCache[cacheKey] == nil else { return }
+        let samples = Self.renderedSamples(for: entry, sampleRate: format.sampleRate)
+        renderCache[cacheKey] = RenderedEntry(
+            prelude: makeBuffer(from: samples.prelude),
+            loop: makeBuffer(from: samples.loop),
+            oneShotDuration: samples.oneShotDuration
+        )
     }
 
     private func scheduleRenderIfNeeded(cacheKey: String, entry: AudioManifest.Entry) {
@@ -308,11 +328,24 @@ final class PokeAudioService: RuntimeAudioPlaying {
         event: AudioManifest.Event,
         localTime: Double
     ) -> Double {
-        guard let targetFrequency = event.pitchSlideTargetHz, event.duration > 0 else {
+        guard let startRegister = event.frequencyRegister,
+              let targetRegister = event.pitchSlideTargetRegister,
+              let pitchSlideFrameCount = event.pitchSlideFrameCount,
+              pitchSlideFrameCount > 0 else {
             return baseFrequency
         }
-        let progress = max(0, min(1, localTime / event.duration))
-        return baseFrequency + ((targetFrequency - baseFrequency) * progress)
+        let elapsedFrames = max(0, Int((localTime * 60).rounded(.down)))
+        let appliedFrames = min(pitchSlideFrameCount, elapsedFrames)
+        let registerDelta = targetRegister - startRegister
+        let currentRegister: Int
+        if appliedFrames >= pitchSlideFrameCount {
+            currentRegister = targetRegister
+        } else {
+            currentRegister = startRegister + Int(
+                (Double(registerDelta) * Double(appliedFrames)) / Double(pitchSlideFrameCount)
+            )
+        }
+        return frequencyHz(forRegister: currentRegister, waveform: event.waveform)
     }
 
     private nonisolated static func vibratoAdjustedFrequency(baseFrequency: Double, event: AudioManifest.Event, localTime: Double) -> Double {
@@ -394,5 +427,13 @@ final class PokeAudioService: RuntimeAudioPlaying {
         for index in 0..<frameCount {
             samples[index] *= scale
         }
+    }
+
+    private nonisolated static func frequencyHz(forRegister hardwareRegister: Int, waveform: AudioManifest.Waveform) -> Double {
+        let frequencyBits = hardwareRegister & 0x07ff
+        let denominator = 2048 - frequencyBits
+        guard denominator > 0 else { return 440 }
+        let numerator: Double = waveform == .wave ? 65_536 : 131_072
+        return numerator / Double(denominator)
     }
 }

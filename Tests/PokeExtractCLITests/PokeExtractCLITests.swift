@@ -352,8 +352,10 @@ final class PokeExtractCLITests: XCTestCase {
         let secondSlideTarget = try XCTUnwrap(opening[1].pitchSlideTargetHz)
         let secondFrequency = try XCTUnwrap(opening[1].frequencyHz)
         let thirdSlideTarget = try XCTUnwrap(opening[2].pitchSlideTargetHz)
+        let slideFrames = opening.compactMap(\.pitchSlideFrameCount)
 
         XCTAssertEqual(opening.count, 3)
+        XCTAssertEqual(slideFrames, [14, 13, 14])
         XCTAssertEqual(firstSlideTarget, firstFrequency, accuracy: 0.000_001)
         XCTAssertLessThan(secondSlideTarget, secondFrequency)
         XCTAssertEqual(thirdSlideTarget, 661.979_797_979_798, accuracy: 0.000_001)

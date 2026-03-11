@@ -254,7 +254,7 @@ private struct ChannelState {
     var vibratoDelaySeconds: Double = 0
     var vibratoDepthSemitones: Double = 0
     var vibratoRateHz: Double = 0
-    var pendingPitchSlideTargetHz: Double?
+    var pendingPitchSlide: PendingPitchSlide?
     var waveform: AudioManifest.Waveform
 }
 
@@ -262,6 +262,7 @@ private struct TimedEvent {
     let startTime: Double
     let duration: Double
     let frequencyHz: Double?
+    let frequencyRegister: Int?
     let amplitude: Double
     let dutyCycle: Double?
     let envelopeStepDuration: Double?
@@ -271,6 +272,8 @@ private struct TimedEvent {
     let vibratoDepthSemitones: Double
     let vibratoRateHz: Double
     let pitchSlideTargetHz: Double?
+    let pitchSlideTargetRegister: Int?
+    let pitchSlideFrameCount: Int?
     let noiseShortMode: Bool?
     let waveform: AudioManifest.Waveform
 }
@@ -284,6 +287,12 @@ private struct EntryRenderResult {
     let playbackMode: AudioManifest.PlaybackMode
     let prelude: [TimedEvent]
     let loop: [TimedEvent]
+}
+
+private struct PendingPitchSlide {
+    let targetHz: Double?
+    let targetRegister: Int?
+    let lengthModifier: Int
 }
 
 private struct NoiseInstrumentEventTemplate {
@@ -520,13 +529,17 @@ private func renderChannelEntry(
                 state.vibratoDelaySeconds = Double(max(0, length)) / 60
                 state.vibratoDepthSemitones = Double(abs(depth)) / 64
                 state.vibratoRateHz = rate <= 0 ? 0 : 60 / Double(rate * 2)
-            case let .pitchSlide(_, octave, noteName):
-                state.pendingPitchSlideTargetHz = frequencyHz(
+            case let .pitchSlide(length, octave, noteName):
+                let targetRegister = frequencyRegister(
                     for: noteName,
                     octave: octave,
-                    waveform: state.waveform,
                     perfectPitchEnabled: state.perfectPitchEnabled,
                     pitchRegisters: pitchRegisters
+                )
+                state.pendingPitchSlide = PendingPitchSlide(
+                    targetHz: targetRegister.map { frequencyHz(forRegister: $0, waveform: state.waveform) },
+                    targetRegister: targetRegister,
+                    lengthModifier: max(0, length - 1)
                 )
             case .togglePerfectPitch:
                 state.perfectPitchEnabled.toggle()
@@ -554,19 +567,20 @@ private func renderChannelEntry(
                 state.octave = value
             case let .note(name, length):
                 let duration = advanceNoteDurationSeconds(length: length, state: &state)
-                let slideTargetHz = state.pendingPitchSlideTargetHz
-                state.pendingPitchSlideTargetHz = nil
+                let noteRegister = frequencyRegister(
+                    for: name,
+                    octave: state.octave,
+                    perfectPitchEnabled: state.perfectPitchEnabled,
+                    pitchRegisters: pitchRegisters
+                )
+                let pitchSlide = state.pendingPitchSlide
+                state.pendingPitchSlide = nil
                 events.append(
                     TimedEvent(
                         startTime: state.currentTime,
                         duration: duration,
-                        frequencyHz: frequencyHz(
-                            for: name,
-                            octave: state.octave,
-                            waveform: state.waveform,
-                            perfectPitchEnabled: state.perfectPitchEnabled,
-                            pitchRegisters: pitchRegisters
-                        ),
+                        frequencyHz: noteRegister.map { frequencyHz(forRegister: $0, waveform: state.waveform) },
+                        frequencyRegister: noteRegister,
                         amplitude: state.masterVolume * state.noteVolume,
                         dutyCycle: state.waveform == .square ? state.dutyCycle : nil,
                         envelopeStepDuration: state.envelopeStepDuration,
@@ -575,7 +589,9 @@ private func renderChannelEntry(
                         vibratoDelaySeconds: state.vibratoDelaySeconds,
                         vibratoDepthSemitones: state.vibratoDepthSemitones,
                         vibratoRateHz: state.vibratoRateHz,
-                        pitchSlideTargetHz: slideTargetHz,
+                        pitchSlideTargetHz: pitchSlide?.targetHz,
+                        pitchSlideTargetRegister: pitchSlide?.targetRegister,
+                        pitchSlideFrameCount: pitchSlide.map { max(1, noteFrameCount(for: duration) - $0.lengthModifier) },
                         noiseShortMode: nil,
                         waveform: state.waveform
                     )
@@ -692,13 +708,17 @@ private func renderSubroutine(
                 state.vibratoDelaySeconds = Double(max(0, length)) / 60
                 state.vibratoDepthSemitones = Double(abs(depth)) / 64
                 state.vibratoRateHz = rate <= 0 ? 0 : 60 / Double(rate * 2)
-            case let .pitchSlide(_, octave, noteName):
-                state.pendingPitchSlideTargetHz = frequencyHz(
+            case let .pitchSlide(length, octave, noteName):
+                let targetRegister = frequencyRegister(
                     for: noteName,
                     octave: octave,
-                    waveform: state.waveform,
                     perfectPitchEnabled: state.perfectPitchEnabled,
                     pitchRegisters: pitchRegisters
+                )
+                state.pendingPitchSlide = PendingPitchSlide(
+                    targetHz: targetRegister.map { frequencyHz(forRegister: $0, waveform: state.waveform) },
+                    targetRegister: targetRegister,
+                    lengthModifier: max(0, length - 1)
                 )
             case .togglePerfectPitch:
                 state.perfectPitchEnabled.toggle()
@@ -726,19 +746,20 @@ private func renderSubroutine(
                 state.octave = value
             case let .note(name, length):
                 let duration = advanceNoteDurationSeconds(length: length, state: &state)
-                let slideTargetHz = state.pendingPitchSlideTargetHz
-                state.pendingPitchSlideTargetHz = nil
+                let noteRegister = frequencyRegister(
+                    for: name,
+                    octave: state.octave,
+                    perfectPitchEnabled: state.perfectPitchEnabled,
+                    pitchRegisters: pitchRegisters
+                )
+                let pitchSlide = state.pendingPitchSlide
+                state.pendingPitchSlide = nil
                 events.append(
                     TimedEvent(
                         startTime: state.currentTime,
                         duration: duration,
-                        frequencyHz: frequencyHz(
-                            for: name,
-                            octave: state.octave,
-                            waveform: state.waveform,
-                            perfectPitchEnabled: state.perfectPitchEnabled,
-                            pitchRegisters: pitchRegisters
-                        ),
+                        frequencyHz: noteRegister.map { frequencyHz(forRegister: $0, waveform: state.waveform) },
+                        frequencyRegister: noteRegister,
                         amplitude: state.masterVolume * state.noteVolume,
                         dutyCycle: state.waveform == .square ? state.dutyCycle : nil,
                         envelopeStepDuration: state.envelopeStepDuration,
@@ -747,7 +768,9 @@ private func renderSubroutine(
                         vibratoDelaySeconds: state.vibratoDelaySeconds,
                         vibratoDepthSemitones: state.vibratoDepthSemitones,
                         vibratoRateHz: state.vibratoRateHz,
-                        pitchSlideTargetHz: slideTargetHz,
+                        pitchSlideTargetHz: pitchSlide?.targetHz,
+                        pitchSlideTargetRegister: pitchSlide?.targetRegister,
+                        pitchSlideFrameCount: pitchSlide.map { max(1, noteFrameCount(for: duration) - $0.lengthModifier) },
                         noiseShortMode: nil,
                         waveform: state.waveform
                     )
@@ -848,6 +871,7 @@ private func silentTimedEvent(duration: Double, waveform: AudioManifest.Waveform
         startTime: 0,
         duration: duration,
         frequencyHz: nil,
+        frequencyRegister: nil,
         amplitude: 0,
         dutyCycle: nil,
         envelopeStepDuration: nil,
@@ -857,6 +881,8 @@ private func silentTimedEvent(duration: Double, waveform: AudioManifest.Waveform
         vibratoDepthSemitones: 0,
         vibratoRateHz: 0,
         pitchSlideTargetHz: nil,
+        pitchSlideTargetRegister: nil,
+        pitchSlideFrameCount: nil,
         noiseShortMode: nil,
         waveform: waveform
     )
@@ -876,6 +902,7 @@ private func audioEvent(from event: TimedEvent) -> AudioManifest.Event {
         startTime: event.startTime,
         duration: event.duration,
         frequencyHz: event.frequencyHz,
+        frequencyRegister: event.frequencyRegister,
         amplitude: event.amplitude,
         dutyCycle: event.dutyCycle,
         envelopeStepDuration: event.envelopeStepDuration,
@@ -885,6 +912,8 @@ private func audioEvent(from event: TimedEvent) -> AudioManifest.Event {
         vibratoDepthSemitones: event.vibratoDepthSemitones,
         vibratoRateHz: event.vibratoRateHz,
         pitchSlideTargetHz: event.pitchSlideTargetHz,
+        pitchSlideTargetRegister: event.pitchSlideTargetRegister,
+        pitchSlideFrameCount: event.pitchSlideFrameCount,
         noiseShortMode: event.noiseShortMode,
         waveform: event.waveform
     )
@@ -895,6 +924,7 @@ private func shiftTimedEvent(_ event: TimedEvent, by offset: Double) -> TimedEve
         startTime: max(0, event.startTime + offset),
         duration: event.duration,
         frequencyHz: event.frequencyHz,
+        frequencyRegister: event.frequencyRegister,
         amplitude: event.amplitude,
         dutyCycle: event.dutyCycle,
         envelopeStepDuration: event.envelopeStepDuration,
@@ -904,6 +934,8 @@ private func shiftTimedEvent(_ event: TimedEvent, by offset: Double) -> TimedEve
         vibratoDepthSemitones: event.vibratoDepthSemitones,
         vibratoRateHz: event.vibratoRateHz,
         pitchSlideTargetHz: event.pitchSlideTargetHz,
+        pitchSlideTargetRegister: event.pitchSlideTargetRegister,
+        pitchSlideFrameCount: event.pitchSlideFrameCount,
         noiseShortMode: event.noiseShortMode,
         waveform: event.waveform
     )
@@ -918,6 +950,7 @@ private func renderNoiseInstrument(
             startTime: startTime + template.startTime,
             duration: template.duration,
             frequencyHz: template.clockHz,
+            frequencyRegister: nil,
             amplitude: template.amplitude,
             dutyCycle: nil,
             envelopeStepDuration: template.envelopeStepDuration,
@@ -927,6 +960,8 @@ private func renderNoiseInstrument(
             vibratoDepthSemitones: 0,
             vibratoRateHz: 0,
             pitchSlideTargetHz: nil,
+            pitchSlideTargetRegister: nil,
+            pitchSlideFrameCount: nil,
             noiseShortMode: template.shortMode,
             waveform: .noise
         )
@@ -976,6 +1011,10 @@ private func advanceNoteDurationSeconds(length: Int, state: inout ChannelState) 
 
     state.noteDelayFraction = totalDelay & 0xff
     return Double(frameCount) / 60
+}
+
+private func noteFrameCount(for duration: Double) -> Int {
+    max(1, Int((duration * 60).rounded()))
 }
 
 private func parseWaveSampleTables(repoRoot: URL) throws -> [Int: [Double]] {
@@ -1089,6 +1128,30 @@ private func parsePitchRegisters(repoRoot: URL) throws -> [String: Int] {
     return registers
 }
 
+private func frequencyRegister(
+    for name: String,
+    octave: Int,
+    perfectPitchEnabled: Bool,
+    pitchRegisters: [String: Int]
+) -> Int? {
+    guard let baseRegister = pitchRegisters[name] else { return nil }
+    let shiftCount = max(0, octave - 1)
+    let signedRegister = Int(Int16(bitPattern: UInt16(baseRegister)))
+    var hardwareRegister = (signedRegister >> shiftCount) + 0x0800
+    if perfectPitchEnabled {
+        hardwareRegister += 1
+    }
+    return hardwareRegister
+}
+
+private func frequencyHz(forRegister hardwareRegister: Int, waveform: AudioManifest.Waveform) -> Double {
+    let frequencyBits = hardwareRegister & 0x07ff
+    let denominator = 2048 - frequencyBits
+    guard denominator > 0 else { return 0 }
+    let numerator: Double = waveform == .wave ? 65_536 : 131_072
+    return numerator / Double(denominator)
+}
+
 private func frequencyHz(
     for name: String,
     octave: Int,
@@ -1096,22 +1159,16 @@ private func frequencyHz(
     perfectPitchEnabled: Bool,
     pitchRegisters: [String: Int]
 ) -> Double? {
-    guard waveform != .noise, let baseRegister = pitchRegisters[name] else {
+    guard waveform != .noise,
+          let hardwareRegister = frequencyRegister(
+              for: name,
+              octave: octave,
+              perfectPitchEnabled: perfectPitchEnabled,
+              pitchRegisters: pitchRegisters
+          ) else {
         return nil
     }
-
-    let shiftCount = max(0, octave - 1)
-    let signedRegister = Int(Int16(bitPattern: UInt16(baseRegister)))
-    var hardwareRegister = (signedRegister >> shiftCount) + 0x0800
-    if perfectPitchEnabled {
-        hardwareRegister += 1
-    }
-
-    let frequencyBits = hardwareRegister & 0x07ff
-    let denominator = 2048 - frequencyBits
-    guard denominator > 0 else { return nil }
-    let numerator: Double = waveform == .wave ? 65_536 : 131_072
-    return numerator / Double(denominator)
+    return frequencyHz(forRegister: hardwareRegister, waveform: waveform)
 }
 
 private func noiseClockParameters(for polynomialCounter: Int) -> (Double, Bool) {

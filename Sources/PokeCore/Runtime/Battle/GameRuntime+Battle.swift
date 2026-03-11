@@ -425,6 +425,9 @@ extension GameRuntime {
         if battle.healsPartyAfterBattle {
             healParty()
         }
+        // We do not have defeated-trainer music yet, but the trainer battle track
+        // should not continue under the result dialogue.
+        stopAllMusic()
         showDialogue(id: won ? battle.winDialogueID : battle.loseDialogueID, completion: .startPostBattleDialogue(won: won))
     }
 
