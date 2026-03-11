@@ -81,6 +81,13 @@ struct AccordionSidebarCard<Content: View>: View {
 struct PartyHPBar: View {
     let currentHP: Int
     let maxHP: Int
+    let height: CGFloat
+
+    init(currentHP: Int, maxHP: Int, height: CGFloat = 10) {
+        self.currentHP = currentHP
+        self.maxHP = maxHP
+        self.height = height
+    }
 
     private var hpFraction: CGFloat {
         CGFloat(currentHP) / CGFloat(max(1, maxHP))
@@ -131,7 +138,7 @@ struct PartyHPBar: View {
                     .frame(width: width)
             }
         }
-        .frame(height: 10)
+        .frame(height: height)
     }
 }
 
@@ -139,6 +146,19 @@ struct ExperienceBar: View {
     let totalExperience: Int
     let levelStartExperience: Int
     let nextLevelExperience: Int
+    let height: CGFloat
+
+    init(
+        totalExperience: Int,
+        levelStartExperience: Int,
+        nextLevelExperience: Int,
+        height: CGFloat = 8
+    ) {
+        self.totalExperience = totalExperience
+        self.levelStartExperience = levelStartExperience
+        self.nextLevelExperience = nextLevelExperience
+        self.height = height
+    }
 
     private var experienceFraction: CGFloat {
         let range = max(0, nextLevelExperience - levelStartExperience)
@@ -169,6 +189,6 @@ struct ExperienceBar: View {
                     .frame(width: width)
             }
         }
-        .frame(height: 8)
+        .frame(height: height)
     }
 }

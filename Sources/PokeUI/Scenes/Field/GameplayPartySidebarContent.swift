@@ -7,19 +7,38 @@ struct PartySidebarContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let promptText = props.promptText {
-                Text(promptText.uppercased())
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            PartySidebarPrompt(promptText: props.promptText)
+            PartySidebarRowsContent(props: props, onRowSelected: onRowSelected)
+        }
+    }
+}
 
+struct PartySidebarPrompt: View {
+    let promptText: String?
+
+    var body: some View {
+        if let promptText {
+            Text(promptText.uppercased())
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+struct PartySidebarRowsContent: View {
+    let props: PartySidebarProps
+    let onRowSelected: ((Int) -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: rowSpacing) {
             ForEach(0..<props.totalSlots, id: \.self) { index in
                 if props.pokemon.indices.contains(index) {
                     PartySidebarRow(
                         props: props.pokemon[index],
                         slotNumber: index + 1,
                         rowIndex: index,
+                        density: props.rowDensity,
                         onSelect: onRowSelected
                     )
                 } else {
@@ -28,12 +47,17 @@ struct PartySidebarContent: View {
             }
         }
     }
+
+    private var rowSpacing: CGFloat {
+        props.rowDensity == .compact ? 8 : 10
+    }
 }
 
 struct PartySidebarRow: View {
     let props: PartySidebarPokemonProps
     let slotNumber: Int
     let rowIndex: Int
+    let density: PartySidebarRowDensity
     let onSelect: ((Int) -> Void)?
 
     @State private var isHovered = false
@@ -46,58 +70,10 @@ struct PartySidebarRow: View {
             spacing: GameplayFieldMetrics.hoverCardSpacing
         ) {
             GameplaySidebarInsetSurface(
+                padding: rowPadding,
                 tint: surfaceTint
             ) {
-                HStack(alignment: .top, spacing: 12) {
-                    PartyPokemonSpriteTile(props: props)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text("\(slotNumber)")
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                .foregroundStyle(FieldRetroPalette.ink.opacity(0.58))
-                                .frame(width: 16, alignment: .leading)
-
-                            Text(props.displayName.uppercased())
-                                .font(.system(size: 15, weight: .bold, design: .monospaced))
-                                .foregroundStyle(FieldRetroPalette.ink)
-
-                            if let selectionAnnotation = props.selectionAnnotation {
-                                Text(selectionAnnotation.uppercased())
-                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(annotationColor)
-                            }
-
-                            Spacer(minLength: 8)
-
-                            Text("Lv\(props.level)")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(FieldRetroPalette.ink.opacity(0.7))
-                        }
-
-                        HStack(spacing: 10) {
-                            PartyHPBar(currentHP: props.currentHP, maxHP: props.maxHP)
-                                .frame(maxWidth: .infinity)
-
-                            Text("HP \(props.currentHP)/\(props.maxHP)")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
-                        }
-
-                        HStack(spacing: 10) {
-                            ExperienceBar(
-                                totalExperience: props.totalExperience,
-                                levelStartExperience: props.levelStartExperience,
-                                nextLevelExperience: props.nextLevelExperience
-                            )
-                            .frame(maxWidth: .infinity)
-
-                            Text(experienceSummary)
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
-                        }
-                    }
-                }
+                rowContent
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -120,10 +96,141 @@ struct PartySidebarRow: View {
         .zIndex(isHovered ? 1 : 0)
     }
 
+    @ViewBuilder
+    private var rowContent: some View {
+        switch density {
+        case .standard:
+            HStack(alignment: .top, spacing: 12) {
+                PartyPokemonSpriteTile(props: props, density: density)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    headerRow
+                    standardMetricRow(summary: "HP \(props.currentHP)/\(props.maxHP)") {
+                        PartyHPBar(currentHP: props.currentHP, maxHP: props.maxHP)
+                            .frame(maxWidth: .infinity)
+                    }
+                    standardMetricRow(summary: experienceSummary) {
+                        ExperienceBar(
+                            totalExperience: props.totalExperience,
+                            levelStartExperience: props.levelStartExperience,
+                            nextLevelExperience: props.nextLevelExperience
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        case .compact:
+            HStack(alignment: .top, spacing: 10) {
+                PartyPokemonSpriteTile(props: props, density: density)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    headerRow
+                    HStack(alignment: .top, spacing: 8) {
+                        compactMetricColumn(title: "HP", summary: "\(props.currentHP)/\(props.maxHP)") {
+                            PartyHPBar(
+                                currentHP: props.currentHP,
+                                maxHP: props.maxHP,
+                                height: GameplayFieldMetrics.partyCompactMetricBarHeight
+                            )
+                        }
+                        compactMetricColumn(title: "EXP", summary: compactExperienceSummary) {
+                            ExperienceBar(
+                                totalExperience: props.totalExperience,
+                                levelStartExperience: props.levelStartExperience,
+                                nextLevelExperience: props.nextLevelExperience,
+                                height: GameplayFieldMetrics.partyCompactMetricBarHeight
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var experienceSummary: String {
         let progress = max(0, props.totalExperience - props.levelStartExperience)
         let needed = max(1, props.nextLevelExperience - props.levelStartExperience)
         return "EXP \(progress)/\(needed)"
+    }
+
+    private var compactExperienceSummary: String {
+        let progress = max(0, props.totalExperience - props.levelStartExperience)
+        let needed = max(1, props.nextLevelExperience - props.levelStartExperience)
+        return "\(progress)/\(needed)"
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(slotNumber)")
+                .font(.system(size: density == .compact ? 12 : 13, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.58))
+                .frame(width: density == .compact ? 14 : 16, alignment: .leading)
+
+            Text(props.displayName.uppercased())
+                .font(.system(size: density == .compact ? 13 : 15, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink)
+                .lineLimit(1)
+
+            if let selectionAnnotation = props.selectionAnnotation {
+                Text(selectionAnnotation.uppercased())
+                    .font(.system(size: density == .compact ? 9 : 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(annotationColor)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Text("Lv\(props.level)")
+                .font(.system(size: density == .compact ? 11 : 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.7))
+                .lineLimit(1)
+        }
+    }
+
+    private func standardMetricRow<Content: View>(
+        summary: String,
+        @ViewBuilder bar: () -> Content
+    ) -> some View {
+        HStack(spacing: 10) {
+            bar()
+            Text(summary)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+        }
+    }
+
+    private func compactMetricColumn<Content: View>(
+        title: String,
+        summary: String,
+        @ViewBuilder bar: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.5))
+                    .frame(
+                        width: GameplayFieldMetrics.partyCompactMetricLabelWidth,
+                        alignment: .leading
+                    )
+
+                Text(summary)
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+
+            bar()
+                .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var rowPadding: EdgeInsets {
+        density == .compact
+            ? GameplayFieldMetrics.partyCompactRowPadding
+            : EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
     }
 
     private var surfaceTint: Color {
@@ -171,30 +278,47 @@ struct EmptyPartySidebarRow: View {
 
 struct PartyPokemonSpriteTile: View {
     let props: PartySidebarPokemonProps
+    let density: PartySidebarRowDensity
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(FieldRetroPalette.portraitFill.opacity(0.9))
 
             if let spriteURL = props.spriteURL {
                 PixelAssetView(url: spriteURL, label: props.displayName, whiteIsTransparent: true)
-                    .padding(4)
+                    .padding(innerPadding)
             } else {
                 Text(String(props.displayName.prefix(2)).uppercased())
-                    .font(.system(size: 14, weight: .black, design: .monospaced))
+                    .font(.system(size: fallbackFontSize, weight: .black, design: .monospaced))
                     .foregroundStyle(FieldRetroPalette.ink)
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(FieldRetroPalette.outline.opacity(0.12), lineWidth: 1)
         }
-        .frame(width: 46, height: 46)
+        .frame(width: tileSize, height: tileSize)
         .glassEffect(
             .regular.tint(FieldRetroPalette.interactiveGlassTint),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         )
+    }
+
+    private var tileSize: CGFloat {
+        density == .compact ? GameplayFieldMetrics.partyCompactSpriteSize : 46
+    }
+
+    private var cornerRadius: CGFloat {
+        density == .compact ? 10 : 12
+    }
+
+    private var innerPadding: CGFloat {
+        density == .compact ? 3 : 4
+    }
+
+    private var fallbackFontSize: CGFloat {
+        density == .compact ? 11 : 14
     }
 }
 

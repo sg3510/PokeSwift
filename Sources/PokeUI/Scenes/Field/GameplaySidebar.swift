@@ -94,7 +94,7 @@ private struct FieldModeSidebarContent: View {
             ) {
                 onActivateSection(.party)
             } content: {
-                PartySidebarContent(props: props.party, onRowSelected: onPartyRowSelected)
+                PartySidebarSectionContent(props: props.party, onRowSelected: onPartyRowSelected)
             }
 
             AccordionSidebarCard(
@@ -167,7 +167,7 @@ private struct BattleModeSidebarContent: View {
             ) {
                 onActivateSection(.party)
             } content: {
-                PartySidebarContent(props: props.party, onRowSelected: onPartyRowSelected)
+                PartySidebarSectionContent(props: props.party, onRowSelected: onPartyRowSelected)
             }
 
             Spacer(minLength: 0)
@@ -191,6 +191,30 @@ private struct BattleModeSidebarContent: View {
             return "Result"
         default:
             return "Battle"
+        }
+    }
+}
+
+struct PartySidebarSectionContent: View {
+    let props: PartySidebarProps
+    let onRowSelected: ((Int) -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PartySidebarPrompt(promptText: props.promptText)
+
+            if props.rowDensity == .compact {
+                ScrollView(.vertical) {
+                    PartySidebarRowsContent(props: props, onRowSelected: onRowSelected)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollClipDisabled()
+                .frame(maxHeight: GameplayFieldMetrics.partyExpandedMaxHeight, alignment: .top)
+            } else {
+                PartySidebarRowsContent(props: props, onRowSelected: onRowSelected)
+            }
         }
     }
 }

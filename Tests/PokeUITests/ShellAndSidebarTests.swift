@@ -1,3 +1,4 @@
+import AppKit
 import ImageIO
 import PokeCore
 import PokeDataModel
@@ -747,6 +748,67 @@ extension PokeUITests {
     XCTAssertTrue(sidebarParty.pokemon[1].isFocused)
     XCTAssertTrue(sidebarParty.pokemon[1].isSelectable)
   }
+  func testPartySidebarUsesCompactDensityWithThreeOrMorePokemon() {
+    let twoPokemonParty = PartySidebarProps(
+      pokemon: [
+        .init(id: "bulbasaur-0", speciesID: "BULBASAUR", displayName: "Bulbasaur", level: 5, totalExperience: 150, levelStartExperience: 135, nextLevelExperience: 179, currentHP: 19, maxHP: 19, isLead: true),
+        .init(id: "pidgey-1", speciesID: "PIDGEY", displayName: "Pidgey", level: 3, totalExperience: 27, levelStartExperience: 27, nextLevelExperience: 64, currentHP: 12, maxHP: 12, isLead: false),
+      ]
+    )
+    let threePokemonParty = PartySidebarProps(
+      pokemon: [
+        .init(id: "bulbasaur-0", speciesID: "BULBASAUR", displayName: "Bulbasaur", level: 5, totalExperience: 150, levelStartExperience: 135, nextLevelExperience: 179, currentHP: 19, maxHP: 19, isLead: true),
+        .init(id: "pidgey-1", speciesID: "PIDGEY", displayName: "Pidgey", level: 3, totalExperience: 27, levelStartExperience: 27, nextLevelExperience: 64, currentHP: 12, maxHP: 12, isLead: false),
+        .init(id: "rattata-2", speciesID: "RATTATA", displayName: "Rattata", level: 2, totalExperience: 8, levelStartExperience: 0, nextLevelExperience: 27, currentHP: 10, maxHP: 10, isLead: false),
+      ]
+    )
+
+    XCTAssertEqual(twoPokemonParty.rowDensity, .standard)
+    XCTAssertEqual(threePokemonParty.rowDensity, .compact)
+  }
+  func testCompactPartyDensityPreservesBattleMetadataContract() {
+    let compactBattleParty = PartySidebarProps(
+      pokemon: [
+        .init(id: "bulbasaur-0", speciesID: "BULBASAUR", displayName: "Bulbasaur", level: 5, totalExperience: 150, levelStartExperience: 135, nextLevelExperience: 179, currentHP: 19, maxHP: 19, isLead: true, isSelected: true, selectionAnnotation: "ACTIVE"),
+        .init(id: "pidgey-1", speciesID: "PIDGEY", displayName: "Pidgey", level: 3, totalExperience: 27, levelStartExperience: 27, nextLevelExperience: 64, currentHP: 12, maxHP: 12, isLead: false, isSelectable: true, isFocused: true),
+        .init(id: "rattata-2", speciesID: "RATTATA", displayName: "Rattata", level: 2, totalExperience: 8, levelStartExperience: 0, nextLevelExperience: 27, currentHP: 0, maxHP: 10, isLead: false, selectionAnnotation: "FAINTED"),
+      ],
+      mode: .battleSwitch,
+      promptText: "Bring out which #MON?"
+    )
+
+    XCTAssertEqual(compactBattleParty.rowDensity, .compact)
+    XCTAssertEqual(compactBattleParty.mode, .battleSwitch)
+    XCTAssertEqual(compactBattleParty.promptText, "Bring out which #MON?")
+    XCTAssertEqual(compactBattleParty.pokemon[0].selectionAnnotation, "ACTIVE")
+    XCTAssertTrue(compactBattleParty.pokemon[0].isSelected)
+    XCTAssertEqual(compactBattleParty.pokemon[1].currentHP, 12)
+    XCTAssertEqual(compactBattleParty.pokemon[1].totalExperience, 27)
+    XCTAssertTrue(compactBattleParty.pokemon[1].isFocused)
+    XCTAssertTrue(compactBattleParty.pokemon[1].isSelectable)
+    XCTAssertEqual(compactBattleParty.pokemon[2].selectionAnnotation, "FAINTED")
+    XCTAssertEqual(compactBattleParty.pokemon[2].currentHP, 0)
+  }
+  func testCompactPartySectionContentStaysHeightBounded() {
+    let party = PartySidebarProps(
+      pokemon: [
+        .init(id: "bulbasaur-0", speciesID: "BULBASAUR", displayName: "Bulbasaur", level: 5, totalExperience: 150, levelStartExperience: 135, nextLevelExperience: 179, currentHP: 19, maxHP: 19, isLead: true),
+        .init(id: "pidgey-1", speciesID: "PIDGEY", displayName: "Pidgey", level: 3, totalExperience: 27, levelStartExperience: 27, nextLevelExperience: 64, currentHP: 12, maxHP: 12, isLead: false),
+        .init(id: "rattata-2", speciesID: "RATTATA", displayName: "Rattata", level: 2, totalExperience: 8, levelStartExperience: 0, nextLevelExperience: 27, currentHP: 10, maxHP: 10, isLead: false),
+        .init(id: "caterpie-3", speciesID: "CATERPIE", displayName: "Caterpie", level: 4, totalExperience: 60, levelStartExperience: 27, nextLevelExperience: 64, currentHP: 16, maxHP: 16, isLead: false),
+        .init(id: "spearow-4", speciesID: "SPEAROW", displayName: "Spearow", level: 4, totalExperience: 58, levelStartExperience: 27, nextLevelExperience: 64, currentHP: 15, maxHP: 15, isLead: false),
+        .init(id: "pikachu-5", speciesID: "PIKACHU", displayName: "Pikachu", level: 5, totalExperience: 130, levelStartExperience: 100, nextLevelExperience: 172, currentHP: 18, maxHP: 18, isLead: false),
+      ]
+    )
+
+    let measuredHeight = measureFittingHeight(
+      of: PartySidebarSectionContent(props: party, onRowSelected: nil),
+      width: 280
+    )
+
+    XCTAssertEqual(party.rowDensity, .compact)
+    XCTAssertLessThanOrEqual(measuredHeight, GameplayFieldMetrics.partyExpandedMaxHeight + 1)
+  }
   func testSidebarPropBuilderMapsPartyAfterStarterSelection() {
     let party = PartyTelemetry(
       pokemon: [
@@ -862,5 +924,12 @@ extension PokeUITests {
       options.rows.map(\.title), ["Text Speed", "Battle Scene", "Battle Style", "Music"])
     XCTAssertEqual(options.rows.map(\.isEnabled), [false, false, false, true])
     XCTAssertEqual(options.rows.last?.detail, "On")
+  }
+
+  private func measureFittingHeight<Content: View>(of view: Content, width: CGFloat) -> CGFloat {
+    let hostingView = NSHostingView(rootView: view.frame(width: width))
+    hostingView.setFrameSize(NSSize(width: width, height: 10_000))
+    hostingView.layoutSubtreeIfNeeded()
+    return hostingView.fittingSize.height
   }
 }

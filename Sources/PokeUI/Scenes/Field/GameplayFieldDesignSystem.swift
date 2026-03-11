@@ -12,6 +12,12 @@ enum GameplayFieldMetrics {
     static let hoverCardSpacing: CGFloat = 22
     static let inventoryExpandedMaxHeight: CGFloat = 210
     static let glassMergeSpacing: CGFloat = 16
+    static let compactPartyThreshold = 3
+    static let partyExpandedMaxHeight: CGFloat = 420
+    static let partyCompactSpriteSize: CGFloat = 34
+    static let partyCompactRowPadding = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
+    static let partyCompactMetricLabelWidth: CGFloat = 24
+    static let partyCompactMetricBarHeight: CGFloat = 7
 }
 
 enum FieldRetroPalette {

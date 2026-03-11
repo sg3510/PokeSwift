@@ -204,6 +204,17 @@ public struct PartySidebarProps: Equatable, Sendable {
     }
 }
 
+enum PartySidebarRowDensity: Equatable, Sendable {
+    case standard
+    case compact
+}
+
+extension PartySidebarProps {
+    var rowDensity: PartySidebarRowDensity {
+        pokemon.count >= GameplayFieldMetrics.compactPartyThreshold ? .compact : .standard
+    }
+}
+
 public struct InventorySidebarItemProps: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
