@@ -167,6 +167,9 @@ private struct BattleModeSidebarContent: View {
     }
 
     private var battleSummaryLabel: String {
+        guard props.showsInterface else {
+            return "Intro"
+        }
         switch props.phase {
         case "moveSelection":
             return "Moves"

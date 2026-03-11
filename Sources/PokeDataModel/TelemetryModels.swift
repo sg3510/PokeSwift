@@ -221,6 +221,111 @@ public struct ExperienceProgressTelemetry: Codable, Equatable, Sendable {
     }
 }
 
+public enum BattlePresentationStage: String, Codable, Equatable, Sendable {
+    case idle
+    case introTransition
+    case introEnemySendOut
+    case introPlayerSendOut
+    case introSettle
+    case commandReady
+    case attackWindup
+    case attackImpact
+    case hpDrain
+    case resultText
+    case faint
+    case experience
+    case levelUp
+    case enemySendOut
+    case turnSettle
+    case battleComplete
+}
+
+public enum BattlePresentationSide: String, Codable, Equatable, Sendable {
+    case player
+    case enemy
+}
+
+public enum BattlePresentationUIVisibility: String, Codable, Equatable, Sendable {
+    case hidden
+    case visible
+}
+
+public enum BattleTransitionStyle: String, Codable, Equatable, Sendable {
+    case none
+    case circle
+    case spiral
+}
+
+public enum BattleMeterKind: String, Codable, Equatable, Sendable {
+    case hp
+    case experience
+}
+
+public struct BattleMeterAnimationTelemetry: Codable, Equatable, Sendable {
+    public let kind: BattleMeterKind
+    public let side: BattlePresentationSide
+    public let fromValue: Int
+    public let toValue: Int
+    public let maximumValue: Int
+    public let startLevel: Int?
+    public let endLevel: Int?
+    public let startLevelStart: Int?
+    public let startNextLevel: Int?
+    public let endLevelStart: Int?
+    public let endNextLevel: Int?
+
+    public init(
+        kind: BattleMeterKind,
+        side: BattlePresentationSide,
+        fromValue: Int,
+        toValue: Int,
+        maximumValue: Int,
+        startLevel: Int? = nil,
+        endLevel: Int? = nil,
+        startLevelStart: Int? = nil,
+        startNextLevel: Int? = nil,
+        endLevelStart: Int? = nil,
+        endNextLevel: Int? = nil
+    ) {
+        self.kind = kind
+        self.side = side
+        self.fromValue = fromValue
+        self.toValue = toValue
+        self.maximumValue = maximumValue
+        self.startLevel = startLevel
+        self.endLevel = endLevel
+        self.startLevelStart = startLevelStart
+        self.startNextLevel = startNextLevel
+        self.endLevelStart = endLevelStart
+        self.endNextLevel = endNextLevel
+    }
+}
+
+public struct BattlePresentationTelemetry: Codable, Equatable, Sendable {
+    public let stage: BattlePresentationStage
+    public let revision: Int
+    public let uiVisibility: BattlePresentationUIVisibility
+    public let activeSide: BattlePresentationSide?
+    public let transitionStyle: BattleTransitionStyle
+    public let meterAnimation: BattleMeterAnimationTelemetry?
+
+    public init(
+        stage: BattlePresentationStage,
+        revision: Int,
+        uiVisibility: BattlePresentationUIVisibility,
+        activeSide: BattlePresentationSide? = nil,
+        transitionStyle: BattleTransitionStyle = .none,
+        meterAnimation: BattleMeterAnimationTelemetry? = nil
+    ) {
+        self.stage = stage
+        self.revision = revision
+        self.uiVisibility = uiVisibility
+        self.activeSide = activeSide
+        self.transitionStyle = transitionStyle
+        self.meterAnimation = meterAnimation
+    }
+}
+
 public enum PokemonStatGrowthTelemetry: String, Codable, Equatable, Sendable {
     case favored
     case neutral
@@ -299,6 +404,7 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
     public let textLines: [String]
     public let moveSlots: [BattleMoveSlotTelemetry]
     public let battleMessage: String
+    public let presentation: BattlePresentationTelemetry
 
     public init(
         battleID: String,
@@ -313,7 +419,12 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         phase: String = "moveSelection",
         textLines: [String] = [],
         moveSlots: [BattleMoveSlotTelemetry] = [],
-        battleMessage: String
+        battleMessage: String,
+        presentation: BattlePresentationTelemetry = .init(
+            stage: .idle,
+            revision: 0,
+            uiVisibility: .visible
+        )
     ) {
         self.battleID = battleID
         self.kind = kind
@@ -328,6 +439,7 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         self.textLines = textLines
         self.moveSlots = moveSlots
         self.battleMessage = battleMessage
+        self.presentation = presentation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -344,6 +456,7 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         case textLines
         case moveSlots
         case battleMessage
+        case presentation
     }
 
     public init(from decoder: Decoder) throws {
@@ -361,6 +474,11 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         textLines = try container.decodeIfPresent([String].self, forKey: .textLines) ?? []
         moveSlots = try container.decodeIfPresent([BattleMoveSlotTelemetry].self, forKey: .moveSlots) ?? []
         battleMessage = try container.decode(String.self, forKey: .battleMessage)
+        presentation = try container.decodeIfPresent(BattlePresentationTelemetry.self, forKey: .presentation) ?? .init(
+            stage: .idle,
+            revision: 0,
+            uiVisibility: .visible
+        )
     }
 }
 

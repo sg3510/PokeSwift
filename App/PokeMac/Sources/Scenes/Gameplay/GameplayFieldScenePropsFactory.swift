@@ -77,11 +77,13 @@ enum GameplayScenePropsFactory {
                 viewport: .battle(
                     BattleViewportProps(
                         trainerName: battle.trainerName,
+                        kind: battle.kind,
                         textLines: battle.textLines,
                         playerPokemon: battle.playerPokemon,
                         enemyPokemon: battle.enemyPokemon,
                         playerSpriteURL: playerSpriteURL,
-                        enemySpriteURL: enemySpriteURL
+                        enemySpriteURL: enemySpriteURL,
+                        presentation: battle.presentation
                     )
                 ),
                 sidebarMode: .battle(
@@ -95,7 +97,8 @@ enum GameplayScenePropsFactory {
                         moveSlots: battle.moveSlots,
                         focusedMoveIndex: battle.focusedMoveIndex,
                         canRun: battle.canRun,
-                        party: sidebarParty
+                        party: sidebarParty,
+                        presentation: battle.presentation
                     )
                 ),
                 onSidebarAction: nil,

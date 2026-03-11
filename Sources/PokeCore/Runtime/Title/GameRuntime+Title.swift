@@ -41,6 +41,8 @@ extension GameRuntime {
 
     func beginNewGame() {
         deferredActions.removeAll()
+        battlePresentationTask?.cancel()
+        battlePresentationTask = nil
         fieldTransitionTask?.cancel()
         scriptedMovementTask?.cancel()
         fieldTransitionState = nil

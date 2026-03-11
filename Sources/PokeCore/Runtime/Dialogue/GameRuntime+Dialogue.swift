@@ -4,9 +4,13 @@ import PokeDataModel
 extension GameRuntime {
     func handleDialogue(button: RuntimeButton) {
         guard button == .confirm || button == .start || button == .cancel,
-              isDialogueAudioBlockingInput == false,
               var dialogueState,
-              let dialogue = content.dialogue(id: dialogueState.dialogueID) else {
+              let dialogue = content.dialogue(id: dialogueState.dialogueID),
+              dialogue.pages.indices.contains(dialogueState.pageIndex) else {
+            return
+        }
+        let currentPageHasBlockingEvents = dialogue.pages[dialogueState.pageIndex].events.contains(where: \.waitForCompletion)
+        guard currentPageHasBlockingEvents == false || isDialogueAudioBlockingInput == false else {
             return
         }
 

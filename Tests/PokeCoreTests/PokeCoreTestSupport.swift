@@ -170,23 +170,88 @@ func fixtureAudioManifest() -> AudioManifest {
 }
 
 @MainActor
-func drainBattleText(_ runtime: GameRuntime, maxInteractions: Int = 16) {
-    var remaining = maxInteractions
-    while let battle = runtime.currentSnapshot().battle, battle.phase != "moveSelection" {
-        XCTAssertGreaterThan(remaining, 0, "battle text did not drain to move selection")
-        remaining -= 1
-        runtime.handle(button: .confirm)
-    }
+func drainBattleText(_ runtime: GameRuntime, maxTicks: Int = 160) {
+    guard runtime.currentSnapshot().battle != nil else { return }
+    waitUntil(
+        runtime.currentSnapshot().battle?.phase == "moveSelection",
+        message: "battle text did not drain to move selection",
+        maxTicks: maxTicks
+    )
 }
 
 @MainActor
-func drainBattleUntilComplete(_ runtime: GameRuntime, maxInteractions: Int = 16) {
-    var remaining = maxInteractions
-    while runtime.scene == .battle {
-        XCTAssertGreaterThan(remaining, 0, "battle did not resolve")
-        remaining -= 1
-        runtime.handle(button: .confirm)
+func drainBattleUntilComplete(_ runtime: GameRuntime, maxTicks: Int = 240) {
+    let pollInterval = 0.01
+    let deadline = Date().addingTimeInterval(Double(maxTicks) * pollInterval)
+
+    while runtime.scene == .battle, Date() < deadline {
+        if let battle = runtime.currentSnapshot().battle,
+           battle.phase != "moveSelection" {
+            runtime.handle(button: .confirm)
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(pollInterval))
     }
+
+    XCTAssertNotEqual(runtime.scene, .battle, "battle did not resolve")
+}
+
+@MainActor
+func advanceBattlePresentationBatch(_ runtime: GameRuntime, maxTicks: Int = 120) {
+    waitUntil(
+        runtime.battlePresentationTask == nil &&
+            (runtime.gameplayState?.battle?.pendingPresentationBatches.isEmpty == false),
+        message: "battle did not pause for the next presentation batch",
+        maxTicks: maxTicks
+    )
+    runtime.handle(button: .confirm)
+}
+
+@MainActor
+func waitUntil(
+    _ predicate: @autoclosure @escaping () -> Bool,
+    message: String,
+    maxTicks: Int = 80
+) {
+    if predicate() {
+        return
+    }
+
+    let pollInterval = 0.01
+    let deadline = Date().addingTimeInterval(Double(maxTicks) * pollInterval)
+
+    while Date() < deadline {
+        if predicate() {
+            return
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(pollInterval))
+    }
+
+    XCTAssertTrue(predicate(), message)
+}
+
+@MainActor
+func captureBattleTimeline(
+    _ runtime: GameRuntime,
+    duration: TimeInterval = 0.45,
+    pollInterval: TimeInterval = 0.005
+) -> [BattleTelemetry] {
+    var history: [BattleTelemetry] = []
+    let deadline = Date().addingTimeInterval(duration)
+
+    while Date() < deadline {
+        if let snapshot = runtime.currentSnapshot().battle,
+           history.last != snapshot {
+            history.append(snapshot)
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(pollInterval))
+    }
+
+    if let snapshot = runtime.currentSnapshot().battle,
+       history.last != snapshot {
+        history.append(snapshot)
+    }
+
+    return history
 }
 
 @MainActor

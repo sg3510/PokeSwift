@@ -370,6 +370,55 @@ extension PokeUITests {
     XCTAssertEqual(props.actionRows[1].isFocused, true)
     XCTAssertEqual(props.actionRows.last?.isSelectable, true)
   }
+  func testBattleSidebarPropsHideCombatUiDuringIntroPresentation() {
+    let props = BattleSidebarProps(
+      trainerName: "BLUE",
+      kind: .trainer,
+      phase: "introText",
+      promptText: "BLUE challenges you!",
+      playerPokemon: .init(
+        speciesID: "BULBASAUR",
+        displayName: "Bulbasaur",
+        level: 5,
+        currentHP: 19,
+        maxHP: 19,
+        attack: 11,
+        defense: 10,
+        speed: 9,
+        special: 12,
+        moves: ["TACKLE", "GROWL"]
+      ),
+      enemyPokemon: .init(
+        speciesID: "CHARMANDER",
+        displayName: "Charmander",
+        level: 5,
+        currentHP: 18,
+        maxHP: 20,
+        attack: 10,
+        defense: 9,
+        speed: 11,
+        special: 10,
+        moves: ["SCRATCH", "GROWL"]
+      ),
+      moveSlots: [
+        .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true)
+      ],
+      focusedMoveIndex: 0,
+      canRun: false,
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .introTransition,
+        revision: 1,
+        uiVisibility: .hidden,
+        activeSide: nil,
+        transitionStyle: .spiral
+      )
+    )
+
+    XCTAssertFalse(props.showsInterface)
+    XCTAssertFalse(props.shouldForceCombatSectionOpen)
+    XCTAssertEqual(props.actionRows, [])
+  }
   func testBattleSidebarActionRowsFocusRunOnlyForWildBattles() {
     let wildProps = BattleSidebarProps(
       trainerName: "PIDGEY",

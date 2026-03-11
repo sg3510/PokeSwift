@@ -202,6 +202,34 @@ extension PokeCoreTests {
 
         XCTAssertEqual(audioPlayer.soundEffectRequests.map(\.soundEffectID), ["SFX_COLLISION", "SFX_COLLISION"])
     }
+
+    func testDialogueWithoutBlockingEventsAdvancesEvenIfBlockingFlagLeaked() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    dialogues: [
+                        .init(
+                            id: "plain_dialogue",
+                            pages: [
+                                .init(lines: ["Page 1"], waitsForPrompt: true),
+                                .init(lines: ["Page 2"], waitsForPrompt: true),
+                            ]
+                        ),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        runtime.showDialogue(id: "plain_dialogue", completion: .returnToField)
+        runtime.isDialogueAudioBlockingInput = true
+
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "plain_dialogue")
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.pageIndex, 1)
+    }
+
     func testRepoGeneratedRivalBattleAudioTransitionsFromIntroToBattleToExitAndBack() async throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()

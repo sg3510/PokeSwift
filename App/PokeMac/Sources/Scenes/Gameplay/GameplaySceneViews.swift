@@ -31,11 +31,23 @@ struct GameplayFieldViewportProps {
 
 struct BattleViewportProps {
     let trainerName: String
+    let kind: BattleKind
     let textLines: [String]
     let playerPokemon: PartyPokemonTelemetry
     let enemyPokemon: PartyPokemonTelemetry
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
+    let presentation: BattlePresentationTelemetry
+
+    var showsFooterTextDuringIntro: Bool {
+        guard textLines.isEmpty == false, presentation.uiVisibility == .hidden else { return false }
+        switch kind {
+        case .wild:
+            return presentation.stage == .introSettle
+        case .trainer:
+            return presentation.stage == .introTransition
+        }
+    }
 }
 
 struct PlaceholderSceneProps {
@@ -103,7 +115,8 @@ struct GameplayScene: View {
                     playerPokemon: battleProps.playerPokemon,
                     enemyPokemon: battleProps.enemyPokemon,
                     playerSpriteURL: battleProps.playerSpriteURL,
-                    enemySpriteURL: battleProps.enemySpriteURL
+                    enemySpriteURL: battleProps.enemySpriteURL,
+                    presentation: battleProps.presentation
                 )
             } footer: {
                 DialogueBoxView(
@@ -111,6 +124,11 @@ struct GameplayScene: View {
                     lines: battleProps.textLines.isEmpty ? ["Pick the next move."] : battleProps.textLines
                 )
                 .frame(maxWidth: 760)
+                .opacity(
+                    battleProps.presentation.uiVisibility == .visible || battleProps.showsFooterTextDuringIntro
+                        ? 1
+                        : 0
+                )
             }
         }
     }

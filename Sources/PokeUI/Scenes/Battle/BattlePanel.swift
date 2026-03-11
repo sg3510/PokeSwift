@@ -7,19 +7,22 @@ public struct BattlePanel: View {
     let enemyPokemon: PartyPokemonTelemetry
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
+    let presentation: BattlePresentationTelemetry
 
     public init(
         trainerName: String,
         playerPokemon: PartyPokemonTelemetry,
         enemyPokemon: PartyPokemonTelemetry,
         playerSpriteURL: URL?,
-        enemySpriteURL: URL?
+        enemySpriteURL: URL?,
+        presentation: BattlePresentationTelemetry
     ) {
         self.trainerName = trainerName
         self.playerPokemon = playerPokemon
         self.enemyPokemon = enemyPokemon
         self.playerSpriteURL = playerSpriteURL
         self.enemySpriteURL = enemySpriteURL
+        self.presentation = presentation
     }
 
     public var body: some View {
@@ -34,10 +37,11 @@ public struct BattlePanel: View {
                 playerPokemon: playerPokemon,
                 enemyPokemon: enemyPokemon,
                 playerSpriteURL: playerSpriteURL,
-                enemySpriteURL: enemySpriteURL
+                enemySpriteURL: enemySpriteURL,
+                presentation: presentation
             )
             .frame(width: viewportSize.width, height: viewportSize.height)
-            .battleScreenEffect(displayScale: scale)
+            .battleScreenEffect(displayScale: scale, presentation: presentation)
             .clipShape(RoundedRectangle(cornerRadius: max(6, scale * 2.5), style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: max(6, scale * 2.5), style: .continuous)

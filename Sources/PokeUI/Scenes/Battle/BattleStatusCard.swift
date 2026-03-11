@@ -5,6 +5,7 @@ struct BattleStatusCard: View {
     let pokemon: PartyPokemonTelemetry
     let chrome: Chrome
     let showsExperience: Bool
+    let presentation: BattlePresentationTelemetry
 
     var body: some View {
         GeometryReader { proxy in
@@ -49,7 +50,12 @@ struct BattleStatusCard: View {
                         fallbackFont: .system(size: max(10, size.height * 0.17), weight: .bold, design: .monospaced)
                     )
 
-                    BattleHPBar(currentHP: pokemon.currentHP, maxHP: pokemon.maxHP)
+                    BattleHPBar(
+                        currentHP: pokemon.currentHP,
+                        maxHP: pokemon.maxHP,
+                        meterAnimation: hpMeterAnimation,
+                        animationRevision: presentation.revision
+                    )
                         .frame(maxWidth: .infinity)
                         .frame(height: max(10, size.height * 0.14))
                 }
@@ -63,7 +69,11 @@ struct BattleStatusCard: View {
                             fallbackFont: .system(size: max(10, size.height * 0.17), weight: .bold, design: .monospaced)
                         )
 
-                        BattleExperienceBar(experience: pokemon.experience)
+                        BattleExperienceBar(
+                            experience: pokemon.experience,
+                            meterAnimation: experienceMeterAnimation,
+                            animationRevision: presentation.revision
+                        )
                             .frame(maxWidth: .infinity)
                             .frame(height: max(8, size.height * 0.11))
                     }
@@ -82,6 +92,24 @@ struct BattleStatusCard: View {
             .glassEffect(.regular.tint(chrome.tint), in: cardShape)
             .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
         }
+    }
+
+    private var hpMeterAnimation: BattleMeterAnimationTelemetry? {
+        guard let meterAnimation = presentation.meterAnimation,
+              meterAnimation.kind == .hp,
+              meterAnimation.side == chrome.side else {
+            return nil
+        }
+        return meterAnimation
+    }
+
+    private var experienceMeterAnimation: BattleMeterAnimationTelemetry? {
+        guard let meterAnimation = presentation.meterAnimation,
+              meterAnimation.kind == .experience,
+              meterAnimation.side == chrome.side else {
+            return nil
+        }
+        return meterAnimation
     }
 }
 
@@ -105,6 +133,15 @@ extension BattleStatusCard {
                 return Color.white.opacity(0.18)
             case .player:
                 return Color(red: 0.86, green: 0.93, blue: 0.8).opacity(0.22)
+            }
+        }
+
+        var side: BattlePresentationSide {
+            switch self {
+            case .enemy:
+                return .enemy
+            case .player:
+                return .player
             }
         }
     }

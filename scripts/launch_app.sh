@@ -9,6 +9,9 @@ APP_BUNDLE="$PRODUCTS_DIR/PokeMac.app"
 CONTENT_ROOT="$ROOT/Content"
 CONTENT_VARIANT_ROOT="$CONTENT_ROOT/Red"
 CONTENT_MANIFEST="$CONTENT_VARIANT_ROOT/game_manifest.json"
+TRACE_ROOT="${POKESWIFT_TRACE_DIR:-$HOME/Library/Caches/PokeSwift/Traces/pokemac}"
+SAVE_ROOT="${POKESWIFT_SAVE_ROOT:-$HOME/Library/Application Support/PokeSwift/Saves}"
+APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/PokeMac"
 
 timestamp() {
   date '+%H:%M:%S'
@@ -79,7 +82,10 @@ section "PokeSwift launch pipeline"
 detail "Repo root: $ROOT"
 detail "Derived data: $DERIVED_DATA"
 detail "App bundle: $APP_BUNDLE"
+detail "App executable: $APP_EXECUTABLE"
 detail "Content root: $CONTENT_VARIANT_ROOT"
+detail "Trace root: $TRACE_ROOT"
+detail "Save root: $SAVE_ROOT"
 
 section "1/4 Generate workspace and build debug targets"
 detail "Building schemes: PokeExtractCLI, PokeMac"
@@ -90,6 +96,7 @@ if [[ ! -d "$APP_BUNDLE" ]]; then
   printf '[%s] Missing PokeMac.app at %s\n' "$(timestamp)" "$APP_BUNDLE" >&2
   exit 1
 fi
+require_executable "$APP_EXECUTABLE" "PokeMac executable"
 
 section "2/4 Extract Red content"
 if should_refresh_content; then
@@ -104,8 +111,14 @@ detail "Checking extracted manifests and asset availability"
 "$EXTRACTOR" verify --game red --repo-root "$ROOT" --output-root "$CONTENT_ROOT"
 
 section "4/4 Launch macOS app"
-detail "Launching PokeMac.app directly"
-open "$APP_BUNDLE"
+detail "Launching PokeMac executable with explicit runtime roots"
+(
+  cd "$ROOT"
+  POKESWIFT_CONTENT_ROOT="$CONTENT_ROOT" \
+  POKESWIFT_TRACE_DIR="$TRACE_ROOT" \
+  POKESWIFT_SAVE_ROOT="$SAVE_ROOT" \
+  "$APP_EXECUTABLE" >/dev/null 2>&1 &
+) >/dev/null 2>&1
 
 section "Launch request sent"
 detail "App bundle: $APP_BUNDLE"

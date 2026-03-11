@@ -276,6 +276,7 @@ public struct BattleSidebarProps: Equatable, Sendable {
     public let focusedMoveIndex: Int
     public let canRun: Bool
     public let party: PartySidebarProps
+    public let presentation: BattlePresentationTelemetry
 
     public init(
         trainerName: String,
@@ -287,7 +288,12 @@ public struct BattleSidebarProps: Equatable, Sendable {
         moveSlots: [BattleMoveSlotTelemetry],
         focusedMoveIndex: Int,
         canRun: Bool,
-        party: PartySidebarProps
+        party: PartySidebarProps,
+        presentation: BattlePresentationTelemetry = .init(
+            stage: .idle,
+            revision: 0,
+            uiVisibility: .visible
+        )
     ) {
         self.trainerName = trainerName
         self.kind = kind
@@ -299,13 +305,21 @@ public struct BattleSidebarProps: Equatable, Sendable {
         self.focusedMoveIndex = focusedMoveIndex
         self.canRun = canRun
         self.party = party
+        self.presentation = presentation
     }
 
     public var shouldForceCombatSectionOpen: Bool {
-        phase == "moveSelection"
+        showsInterface && phase == "moveSelection"
+    }
+
+    public var showsInterface: Bool {
+        presentation.uiVisibility == .visible
     }
 
     public var actionRows: [BattleSidebarActionRowProps] {
+        guard showsInterface else {
+            return []
+        }
         let moveRows = moveSlots.enumerated().map { index, slot in
             BattleSidebarActionRowProps(
                 id: "move-\(index)",

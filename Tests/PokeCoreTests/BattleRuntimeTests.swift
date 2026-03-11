@@ -52,7 +52,7 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.currentSnapshot().battle?.kind, .trainer)
         XCTAssertEqual(runtime.currentSnapshot().battle?.focusedMoveIndex, 1)
     }
-    func testBattleAdvancesAcrossExtractedEnemyParty() async {
+    func testBattleAdvancesAcrossExtractedEnemyParty() {
         let runtime = GameRuntime(
             content: fixtureContent(
                 gameplayManifest: fixtureGameplayManifest(
@@ -61,11 +61,11 @@ extension PokeCoreTests {
                         .init(id: "lose", pages: [.init(lines: ["You lose"], waitsForPrompt: true)]),
                     ],
                     species: [
-                        .init(id: "SQUIRTLE", displayName: "Squirtle", baseExp: 66, growthRate: .mediumSlow, baseHP: 44, baseAttack: 200, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
+                        .init(id: "SQUIRTLE", displayName: "Squirtle", baseExp: 66, growthRate: .mediumSlow, baseHP: 44, baseAttack: 255, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
                         .init(id: "BULBASAUR", displayName: "Bulbasaur", baseExp: 64, growthRate: .mediumSlow, baseHP: 45, baseAttack: 30, baseDefense: 49, baseSpeed: 1, baseSpecial: 65, startingMoves: ["TACKLE"]),
                     ],
                     moves: [
-                        .init(id: "TACKLE", displayName: "TACKLE", power: 120, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 500, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
                     ],
                     trainerBattles: [
                         .init(
@@ -88,10 +88,12 @@ extension PokeCoreTests {
             ),
             telemetryPublisher: nil
         )
-        runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
-        runtime.handle(button: .start)
-        runtime.handle(button: .confirm)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "OAKS_LAB"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 6)
+        runtime.gameplayState?.facing = .up
         runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
         runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
 
@@ -103,7 +105,11 @@ extension PokeCoreTests {
         drainBattleText(runtime)
         runtime.battleRandomOverrides = [0, 255]
         runtime.handle(button: .confirm)
-        drainBattleText(runtime)
+        advanceBattlePresentationBatch(runtime)
+        waitUntil(
+            runtime.currentSnapshot().battle?.enemyActiveIndex == 1,
+            message: "battle did not advance to the next enemy party member"
+        )
 
         XCTAssertEqual(runtime.currentSnapshot().battle?.enemyActiveIndex, 1)
         XCTAssertEqual(runtime.currentSnapshot().battle?.enemyPartyCount, 2)
@@ -207,7 +213,230 @@ extension PokeCoreTests {
         player.attackStage = -6
         XCTAssertEqual(runtime.selectEnemyMoveIndex(enemyPokemon: enemy, playerPokemon: player), 1)
     }
-    func testBattleTelemetrySequencesQueuedTextAcrossIntroAndTurns() async throws {
+    func testBattleIntroPresentationAutoRevealsHudAndMoveSelection() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "OAKS_LAB"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 6)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+
+        runtime.startBattle(id: "opp_rival1_1")
+
+        let introSnapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(introSnapshot.phase, "introText")
+        XCTAssertEqual(introSnapshot.presentation.stage, .introTransition)
+        XCTAssertEqual(introSnapshot.presentation.uiVisibility, .hidden)
+
+        waitUntil(
+            runtime.currentSnapshot().battle?.phase == "moveSelection",
+            message: "battle intro did not settle into move selection"
+        )
+        let readySnapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(readySnapshot.presentation.stage, .commandReady)
+        XCTAssertEqual(readySnapshot.presentation.uiVisibility, .visible)
+    }
+
+    func testWildBattleIntroRetainsCircleTransitionThroughSettle() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+
+        runtime.startWildBattle(speciesID: "PIDGEY", level: 3)
+
+        var snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(snapshot.presentation.stage, .introTransition)
+        XCTAssertEqual(snapshot.presentation.transitionStyle, .circle)
+        XCTAssertEqual(snapshot.textLines, [])
+
+        waitUntil(
+            runtime.currentSnapshot().battle?.presentation.stage == .introPlayerSendOut,
+            message: "wild battle intro did not advance to the player send-out beat"
+        )
+        snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(snapshot.presentation.transitionStyle, .circle)
+
+        waitUntil(
+            runtime.currentSnapshot().battle?.presentation.stage == .introSettle,
+            message: "wild battle intro did not advance to the settle beat"
+        )
+        snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(snapshot.presentation.transitionStyle, .circle)
+        XCTAssertEqual(snapshot.presentation.uiVisibility, .hidden)
+        XCTAssertEqual(snapshot.textLines, ["Wild Pidgey appeared!"])
+
+        waitUntil(
+            runtime.currentSnapshot().battle?.phase == "moveSelection",
+            message: "wild battle intro did not settle into move selection"
+        )
+        snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(snapshot.presentation.stage, .commandReady)
+        XCTAssertEqual(snapshot.presentation.transitionStyle, .none)
+        XCTAssertEqual(snapshot.presentation.uiVisibility, .visible)
+    }
+
+    func testBattleTurnPresentationStagesPlayerThenEnemy() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    dialogues: [
+                        .init(id: "win", pages: [.init(lines: ["You win"], waitsForPrompt: true)]),
+                        .init(id: "lose", pages: [.init(lines: ["You lose"], waitsForPrompt: true)]),
+                    ],
+                    species: [
+                        .init(id: "SQUIRTLE", displayName: "Squirtle", primaryType: "WATER", baseHP: 44, baseAttack: 48, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
+                        .init(id: "BULBASAUR", displayName: "Bulbasaur", primaryType: "GRASS", secondaryType: "POISON", baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 35, baseSpecial: 65, startingMoves: ["GROWL"]),
+                    ],
+                    moves: [
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "GROWL", displayName: "GROWL", power: 0, accuracy: 100, maxPP: 40, effect: "ATTACK_DOWN1_EFFECT", type: "NORMAL"),
+                    ],
+                    trainerBattles: [
+                        .init(
+                            id: "opp_rival1_1",
+                            trainerClass: "OPP_RIVAL1",
+                            trainerNumber: 1,
+                            displayName: "BLUE",
+                            party: [.init(speciesID: "BULBASAUR", level: 5)],
+                            winDialogueID: "win",
+                            loseDialogueID: "lose",
+                            healsPartyAfterBattle: false,
+                            preventsBlackoutOnLoss: true,
+                            completionFlagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
+                        ),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+        runtime.startBattle(id: "opp_rival1_1")
+        drainBattleText(runtime)
+
+        runtime.battleRandomOverrides = [0, 255, 0]
+        runtime.handle(button: .confirm)
+        let timeline = captureBattleTimeline(runtime)
+        let playerWindupIndex = timeline.firstIndex {
+            $0.presentation.stage == .attackWindup &&
+                $0.presentation.activeSide == .player &&
+                $0.battleMessage == "Squirtle used TACKLE!"
+        }
+        XCTAssertNotNil(playerWindupIndex, "player attack windup did not appear")
+
+        let enemyWindupIndex = timeline.firstIndex {
+            $0.presentation.stage == .attackWindup &&
+                $0.presentation.activeSide == .enemy &&
+                $0.battleMessage == "Bulbasaur used GROWL!"
+        }
+        XCTAssertNil(enemyWindupIndex, "enemy attack should wait for confirm after the player action")
+
+        runtime.handle(button: .confirm)
+        let resumedTimeline = captureBattleTimeline(runtime)
+        let resumedEnemyWindupIndex = resumedTimeline.firstIndex {
+            $0.presentation.stage == .attackWindup &&
+                $0.presentation.activeSide == .enemy &&
+                $0.battleMessage == "Bulbasaur used GROWL!"
+        }
+        XCTAssertNotNil(
+            resumedEnemyWindupIndex,
+            "enemy attack did not start after confirming the next action"
+        )
+
+        let enemyResultIndex = resumedTimeline.firstIndex {
+            $0.presentation.stage == .resultText &&
+                $0.battleMessage == "Squirtle's Attack fell!"
+        }
+        XCTAssertNotNil(
+            enemyResultIndex,
+            "enemy follow-up effect text did not appear"
+        )
+
+        if let resumedEnemyWindupIndex, let enemyResultIndex {
+            XCTAssertGreaterThan(enemyResultIndex, resumedEnemyWindupIndex)
+
+            let snapshotBeforeEnemyAction = resumedTimeline[resumedEnemyWindupIndex]
+            XCTAssertEqual(snapshotBeforeEnemyAction.playerPokemon.currentHP, snapshotBeforeEnemyAction.playerPokemon.maxHP)
+            XCTAssertLessThan(snapshotBeforeEnemyAction.enemyPokemon.currentHP, snapshotBeforeEnemyAction.enemyPokemon.maxHP)
+        }
+    }
+
+    func testBattleKoPresentationTriggersExperienceWithoutEnemyCounterattack() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    dialogues: [
+                        .init(id: "win", pages: [.init(lines: ["You win"], waitsForPrompt: true)]),
+                        .init(id: "lose", pages: [.init(lines: ["You lose"], waitsForPrompt: true)]),
+                    ],
+                    species: [
+                        .init(id: "CHARMANDER", displayName: "Charmander", primaryType: "FIRE", baseExp: 62, growthRate: .mediumSlow, baseHP: 39, baseAttack: 200, baseDefense: 43, baseSpeed: 65, baseSpecial: 50, startingMoves: ["SCRATCH"]),
+                        .init(id: "BULBASAUR", displayName: "Bulbasaur", primaryType: "GRASS", secondaryType: "POISON", baseExp: 64, growthRate: .mediumSlow, baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 35, baseSpecial: 65, startingMoves: ["GROWL"]),
+                    ],
+                    moves: [
+                        .init(id: "SCRATCH", displayName: "SCRATCH", power: 120, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "GROWL", displayName: "GROWL", power: 0, accuracy: 100, maxPP: 40, effect: "ATTACK_DOWN1_EFFECT", type: "NORMAL"),
+                    ],
+                    trainerBattles: [
+                        .init(
+                            id: "opp_rival1_1",
+                            trainerClass: "OPP_RIVAL1",
+                            trainerNumber: 1,
+                            displayName: "BLUE",
+                            party: [.init(speciesID: "BULBASAUR", level: 5)],
+                            winDialogueID: "win",
+                            loseDialogueID: "lose",
+                            healsPartyAfterBattle: false,
+                            preventsBlackoutOnLoss: true,
+                            completionFlagID: "EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
+                        ),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.chosenStarterSpeciesID = "CHARMANDER"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "CHARMANDER", level: 5, nickname: "Charmander")]
+        runtime.startBattle(id: "opp_rival1_1")
+        drainBattleText(runtime)
+
+        runtime.battleRandomOverrides = [0, 255]
+        runtime.handle(button: .confirm)
+        advanceBattlePresentationBatch(runtime)
+
+        waitUntil(
+            runtime.currentSnapshot().battle?.presentation.stage == .experience,
+            message: "ko flow did not reach the experience presentation stage"
+        )
+        let experienceSnapshot = runtime.currentSnapshot().battle
+        XCTAssertEqual(experienceSnapshot?.presentation.meterAnimation?.kind, .experience)
+        XCTAssertEqual(experienceSnapshot?.presentation.activeSide, .player)
+
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertNotEqual(runtime.currentSnapshot().battle?.presentation.activeSide, .enemy)
+        XCTAssertNotEqual(runtime.currentSnapshot().battle?.presentation.stage, .attackWindup)
+    }
+
+    func testBattleTelemetrySequencesQueuedTextAcrossIntroAndTurns() throws {
         let runtime = GameRuntime(
             content: fixtureContent(
                 gameplayManifest: fixtureGameplayManifest(
@@ -242,7 +471,7 @@ extension PokeCoreTests {
             telemetryPublisher: nil
         )
         runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
+        RunLoop.current.run(until: Date().addingTimeInterval(1.7))
         runtime.handle(button: .start)
         runtime.handle(button: .confirm)
         runtime.gameplayState?.chosenStarterSpeciesID = "CHARMANDER"
@@ -253,31 +482,56 @@ extension PokeCoreTests {
         var snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
         XCTAssertEqual(snapshot.phase, "introText")
         XCTAssertEqual(snapshot.textLines, ["BLUE challenges you!"])
-
-        runtime.handle(button: .confirm)
-        snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
-        XCTAssertEqual(snapshot.textLines, ["BLUE sent out Bulbasaur!"])
+        XCTAssertEqual(snapshot.presentation.stage, .introTransition)
+        XCTAssertEqual(snapshot.presentation.uiVisibility, .hidden)
 
         drainBattleText(runtime)
         snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
         XCTAssertEqual(snapshot.phase, "moveSelection")
         XCTAssertEqual(snapshot.moveSlots.map(\.displayName), ["SCRATCH"])
+        XCTAssertEqual(snapshot.presentation.uiVisibility, .visible)
 
         runtime.battleRandomOverrides = [0, 255, 0]
         runtime.handle(button: .confirm)
+
+        waitUntil(
+            runtime.currentSnapshot().battle?.presentation.stage == .attackWindup &&
+                runtime.currentSnapshot().battle?.presentation.activeSide == .player,
+            message: "player attack windup did not begin"
+        )
         snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
         XCTAssertEqual(snapshot.phase, "turnText")
         XCTAssertEqual(snapshot.textLines, ["Charmander used SCRATCH!"])
 
-        runtime.handle(button: .confirm)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.12))
+        snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertFalse(
+            snapshot.presentation.stage == .attackWindup &&
+                snapshot.presentation.activeSide == .enemy &&
+                snapshot.battleMessage == "Bulbasaur used GROWL!"
+        )
+
+        advanceBattlePresentationBatch(runtime)
+        waitUntil(
+            runtime.currentSnapshot().battle?.presentation.stage == .attackWindup &&
+                runtime.currentSnapshot().battle?.presentation.activeSide == .enemy,
+            message: "enemy attack windup did not begin after confirm"
+        )
         snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
         XCTAssertEqual(snapshot.textLines, ["Bulbasaur used GROWL!"])
 
-        runtime.handle(button: .confirm)
+        waitUntil(
+            runtime.currentSnapshot().battle?.battleMessage == "Charmander's Attack fell!",
+            message: "enemy effect text did not appear"
+        )
         snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
         XCTAssertEqual(snapshot.textLines, ["Charmander's Attack fell!"])
 
-        drainBattleText(runtime)
+        advanceBattlePresentationBatch(runtime)
+        waitUntil(
+            runtime.currentSnapshot().battle?.phase == "moveSelection",
+            message: "battle text did not drain to move selection"
+        )
         snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
         XCTAssertEqual(snapshot.phase, "moveSelection")
     }

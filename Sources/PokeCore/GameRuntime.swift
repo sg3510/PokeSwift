@@ -19,6 +19,7 @@ public final class GameRuntime {
     let audioPlayer: (any RuntimeAudioPlaying)?
     let saveStore: (any SaveStore)?
     let validationMode: Bool
+    let isTestEnvironment: Bool
     var substate = "launching"
     var recentInputEvents: [InputEventTelemetry] = []
     var assetLoadingFailures: [String]
@@ -28,6 +29,7 @@ public final class GameRuntime {
     var fieldMovementTask: Task<Void, Never>?
     var scriptedMovementTask: Task<Void, Never>?
     var idleMovementTask: Task<Void, Never>?
+    var battlePresentationTask: Task<Void, Never>?
     var hasStarted = false
     var gameplayState: GameplayState?
     var dialogueState: DialogueState?
@@ -60,6 +62,7 @@ public final class GameRuntime {
         self.saveStore = saveStore
         self.assetLoadingFailures = Self.missingAssets(in: content)
         self.validationMode = ProcessInfo.processInfo.environment["POKESWIFT_VALIDATION_MODE"] == "1"
+        self.isTestEnvironment = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         refreshSaveState()
     }
 

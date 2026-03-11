@@ -100,7 +100,15 @@ extension GameRuntime {
                     isSelectable: runtimeMove.currentPP > 0
                 )
             },
-            battleMessage: battle.message
+            battleMessage: battle.message,
+            presentation: .init(
+                stage: battle.presentation.stage,
+                revision: battle.presentation.revision,
+                uiVisibility: battle.presentation.uiVisibility,
+                activeSide: battle.presentation.activeSide,
+                transitionStyle: battle.presentation.transitionStyle,
+                meterAnimation: battle.presentation.meterAnimation
+            )
         )
     }
 

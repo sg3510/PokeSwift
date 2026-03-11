@@ -106,6 +106,89 @@ enum RuntimeBattlePendingAction {
     case escape
 }
 
+struct RuntimeBattlePresentationState {
+    var stage: BattlePresentationStage
+    var revision: Int
+    var uiVisibility: BattlePresentationUIVisibility
+    var activeSide: BattlePresentationSide?
+    var transitionStyle: BattleTransitionStyle
+    var meterAnimation: BattleMeterAnimationTelemetry?
+
+    init(
+        stage: BattlePresentationStage = .idle,
+        revision: Int = 0,
+        uiVisibility: BattlePresentationUIVisibility = .visible,
+        activeSide: BattlePresentationSide? = nil,
+        transitionStyle: BattleTransitionStyle = .none,
+        meterAnimation: BattleMeterAnimationTelemetry? = nil
+    ) {
+        self.stage = stage
+        self.revision = revision
+        self.uiVisibility = uiVisibility
+        self.activeSide = activeSide
+        self.transitionStyle = transitionStyle
+        self.meterAnimation = meterAnimation
+    }
+}
+
+struct RuntimeBattlePresentationBeat {
+    let delay: TimeInterval
+    let stage: BattlePresentationStage
+    let uiVisibility: BattlePresentationUIVisibility
+    let activeSide: BattlePresentationSide?
+    let transitionStyle: BattleTransitionStyle
+    let meterAnimation: BattleMeterAnimationTelemetry?
+    let message: String?
+    let phase: RuntimeBattlePhase?
+    let pendingAction: RuntimeBattlePendingAction?
+    let playerPokemon: RuntimePokemonState?
+    let enemyPokemon: RuntimePokemonState?
+    let enemyParty: [RuntimePokemonState]?
+    let enemyActiveIndex: Int?
+    let moveAudioMoveID: String?
+    let moveAudioAttackerSpeciesID: String?
+    let finishBattleWon: Bool?
+    let escapeBattle: Bool
+
+    init(
+        delay: TimeInterval,
+        stage: BattlePresentationStage,
+        uiVisibility: BattlePresentationUIVisibility,
+        activeSide: BattlePresentationSide? = nil,
+        transitionStyle: BattleTransitionStyle = .none,
+        meterAnimation: BattleMeterAnimationTelemetry? = nil,
+        message: String? = nil,
+        phase: RuntimeBattlePhase? = nil,
+        pendingAction: RuntimeBattlePendingAction? = nil,
+        playerPokemon: RuntimePokemonState? = nil,
+        enemyPokemon: RuntimePokemonState? = nil,
+        enemyParty: [RuntimePokemonState]? = nil,
+        enemyActiveIndex: Int? = nil,
+        moveAudioMoveID: String? = nil,
+        moveAudioAttackerSpeciesID: String? = nil,
+        finishBattleWon: Bool? = nil,
+        escapeBattle: Bool = false
+    ) {
+        self.delay = delay
+        self.stage = stage
+        self.uiVisibility = uiVisibility
+        self.activeSide = activeSide
+        self.transitionStyle = transitionStyle
+        self.meterAnimation = meterAnimation
+        self.message = message
+        self.phase = phase
+        self.pendingAction = pendingAction
+        self.playerPokemon = playerPokemon
+        self.enemyPokemon = enemyPokemon
+        self.enemyParty = enemyParty
+        self.enemyActiveIndex = enemyActiveIndex
+        self.moveAudioMoveID = moveAudioMoveID
+        self.moveAudioAttackerSpeciesID = moveAudioAttackerSpeciesID
+        self.finishBattleWon = finishBattleWon
+        self.escapeBattle = escapeBattle
+    }
+}
+
 struct RuntimeBattleState {
     let battleID: String
     let kind: BattleKind
@@ -124,6 +207,8 @@ struct RuntimeBattleState {
     var message: String
     var queuedMessages: [String]
     var pendingAction: RuntimeBattlePendingAction?
+    var pendingPresentationBatches: [[RuntimeBattlePresentationBeat]]
+    var presentation: RuntimeBattlePresentationState
 
     var enemyPokemon: RuntimePokemonState {
         get { enemyParty[enemyActiveIndex] }

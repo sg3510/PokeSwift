@@ -1,4 +1,5 @@
 #include <metal_stdlib>
+#include <SwiftUI/SwiftUI_Metal.h>
 using namespace metal;
 
 namespace {
@@ -76,6 +77,44 @@ float3 applyTintedReflection(float3 baseColor, float2 uv) {
     return (baseColor * edgeShade * panelVariation) + (glassTint * reflection);
 }
 
+float2 safeNormalize(float2 value) {
+    float lengthSquared = max(dot(value, value), 1e-6);
+    return value * rsqrt(lengthSquared);
+}
+
+float battleIntroVignette(float2 uv, float amount) {
+    float edgeDistance = min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y));
+    float vignette = smoothstep(0.0, 0.22, edgeDistance);
+    return mix(0.7, 1.0, vignette * (1.0 - (amount * 0.22)));
+}
+
+float2 spiralIntroSampleUV(float2 uv, float progress, float amount, float2 aspectScale) {
+    float2 centered = (uv - 0.5) * aspectScale;
+    float radius = length(centered);
+    float angle = atan2(centered.y, centered.x);
+    float falloff = pow(max(0.0, 1.0 - (radius * 1.18)), 2.0);
+    float turbulence = sin((radius * 32.0) - (progress * 19.0));
+    float swirl = amount * pow(1.0 - progress, 0.72) * (2.6 + (turbulence * 0.35)) * falloff;
+    float pinch = amount * (1.0 - progress) * 0.16 * falloff;
+
+    angle += swirl;
+    radius = max(0.0, radius * (1.0 - pinch));
+
+    float2 warped = float2(cos(angle), sin(angle)) * radius;
+    warped += safeNormalize(centered + float2(1e-4)) * (turbulence * 0.015 * amount * (1.0 - progress) * falloff);
+    return clamp((warped / aspectScale) + 0.5, 0.0, 1.0);
+}
+
+float spiralIntroMask(float2 uv, float progress, float amount, float2 aspectScale) {
+    float2 centered = (uv - 0.5) * aspectScale;
+    float radius = length(centered);
+    float angle = atan2(centered.y, centered.x);
+    float arms = (angle * 3.6) + (radius * 24.0) - (progress * 18.0);
+    float pinwheel = 0.5 + (0.5 * sin(arms));
+    float reveal = smoothstep(-0.12, 0.68, (progress * 1.9) - (radius * 0.55) + (pinwheel * 0.46));
+    return mix(1.0, reveal, amount);
+}
+
 } // namespace
 
 [[ stitchable ]] half4 fieldScreenEffect(
@@ -108,22 +147,49 @@ float3 applyTintedReflection(float3 baseColor, float2 uv) {
 
 [[ stitchable ]] half4 battleScreenEffect(
     float2 position,
-    half4 currentColor,
-    float pixelScale
+    SwiftUI::Layer layer,
+    float viewportWidth,
+    float viewportHeight,
+    float pixelScale,
+    float introStyle,
+    float introProgress,
+    float introAmount
 ) {
-    if (currentColor.a <= 0.0h) {
-        return currentColor;
+    float2 safeViewport = max(float2(viewportWidth, viewportHeight), float2(1.0));
+    float2 uv = clamp(position / safeViewport, 0.0, 1.0);
+    float safeScale = max(pixelScale, 1.0);
+    float2 aspectScale = float2(max(safeViewport.x / safeViewport.y, 1.0), 1.0);
+    float transitionPhase = clamp(introProgress, 0.0, 1.0);
+    float effectAmount = introAmount * (introStyle > 1.5 ? 1.0 : 0.76);
+
+    float2 sampleUV = uv;
+    float introMask = 1.0;
+
+    if (effectAmount > 0.001 && introStyle > 0.5) {
+        sampleUV = spiralIntroSampleUV(uv, transitionPhase, effectAmount, aspectScale);
+        introMask = spiralIntroMask(uv, transitionPhase, effectAmount, aspectScale);
     }
 
-    float safeScale = max(pixelScale, 1.0);
+    half4 sampledColor = layer.sample(sampleUV * safeViewport);
+    if (sampledColor.a <= 0.0h) {
+        return sampledColor;
+    }
+
     float2 cellFraction = fract(position / safeScale) - 0.5;
     float aperture = cellInteriorMask(cellFraction);
     float interior = gapMask(cellFraction);
 
-    float3 sourceColor = float3(currentColor.rgb);
+    float3 sourceColor = float3(sampledColor.rgb);
     float3 shaded = sourceColor;
     shaded *= mix(0.9, 0.985, interior);
     shaded *= mix(0.96, 1.0, aperture);
+    shaded *= battleIntroVignette(uv, effectAmount);
+    shaded *= introMask;
 
-    return half4(half3(clamp(shaded, 0.0, 1.0)), currentColor.a);
+    if (effectAmount > 0.001) {
+        float edgeGlow = (1.0 - introMask) * (0.12 + (0.1 * (1.0 - transitionPhase)));
+        shaded += float3(0.18, 0.21, 0.14) * edgeGlow * effectAmount;
+    }
+
+    return half4(half3(clamp(shaded, 0.0, 1.0)), sampledColor.a);
 }

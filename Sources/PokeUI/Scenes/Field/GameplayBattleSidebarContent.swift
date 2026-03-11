@@ -5,6 +5,9 @@ struct BattleSummaryContent: View {
     let props: BattleSidebarProps
 
     private var phaseTitle: String {
+        if props.showsInterface == false {
+            return "Intro"
+        }
         switch props.phase {
         case "introText":
             return "Intro"
@@ -42,24 +45,30 @@ struct BattleSummaryContent: View {
                 }
             }
 
-            BattleCombatantStatusRow(
-                title: "FOE",
-                pokemon: props.enemyPokemon,
-                accentFill: FieldRetroPalette.slotFill.opacity(0.82),
-                showsExperience: false
-            )
+            if props.showsInterface {
+                BattleCombatantStatusRow(
+                    title: "FOE",
+                    pokemon: props.enemyPokemon,
+                    accentFill: FieldRetroPalette.slotFill.opacity(0.82),
+                    showsExperience: false
+                )
 
-            BattleCombatantStatusRow(
-                title: "YOU",
-                pokemon: props.playerPokemon,
-                accentFill: FieldRetroPalette.leadSlotFill,
-                showsExperience: true
-            )
+                BattleCombatantStatusRow(
+                    title: "YOU",
+                    pokemon: props.playerPokemon,
+                    accentFill: FieldRetroPalette.leadSlotFill,
+                    showsExperience: true
+                )
 
-            Text(props.promptText.uppercased())
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
-                .fixedSize(horizontal: false, vertical: true)
+                Text(props.promptText.uppercased())
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("BATTLE STARTING...")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
+            }
         }
     }
 }
@@ -69,7 +78,9 @@ struct BattleActionContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if props.actionRows.isEmpty {
+            if props.showsInterface == false {
+                EmptyView()
+            } else if props.actionRows.isEmpty {
                 Text("NO MOVE CHOICES AVAILABLE IN THIS PHASE.")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
