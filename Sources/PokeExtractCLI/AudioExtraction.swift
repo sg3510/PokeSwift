@@ -1078,7 +1078,6 @@ private func parsePitchRegisters(repoRoot: URL) throws -> [String: Int] {
     guard matches.count >= noteOrder.count else {
         throw ExtractorError.invalidArguments("failed to resolve all pitch registers from audio/notes.asm")
     }
-
     var registers: [String: Int] = [:]
     for (index, noteName) in noteOrder.enumerated() {
         guard let range = Range(matches[index].range(at: 1), in: contents),

@@ -90,6 +90,9 @@ extension GameRuntime {
             case let .battle(battleID):
                 startBattle(id: battleID)
                 return
+            case let .script(scriptID):
+                beginScript(id: scriptID)
+                return
             case let .hideObject(objectID):
                 gameplayState?.objectStates[objectID]?.visible = false
                 scene = .field

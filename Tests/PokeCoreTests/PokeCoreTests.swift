@@ -43,6 +43,7 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.field?.mapID, "REDS_HOUSE_2F")
         XCTAssertEqual(snapshot.field?.playerPosition, TilePoint(x: 4, y: 4))
         XCTAssertEqual(snapshot.field?.renderMode, "placeholder")
+        XCTAssertEqual(snapshot.field?.objects, [])
     }
 
     func testSaveAndContinueRestoreGameplayState() async throws {
@@ -366,7 +367,31 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(runtime.currentSnapshot().audio?.reason, "mapDefault")
     }
 
-    func testRepoGeneratedRivalBattleAudioTransitionsFromIntroToBattleToExitAndBack() throws {
+    func testFinalizeStarterChoiceSequenceLeavesRivalBallVisibleForDeferredPickupScript() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "OAKS_LAB"
+        runtime.gameplayState?.playerPosition = .init(x: 7, y: 4)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.pendingStarterSpeciesID = "SQUIRTLE"
+
+        runtime.finalizeStarterChoiceSequence()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "oaks_lab_received_mon_squirtle")
+        XCTAssertFalse(runtime.gameplayState?.objectStates["oaks_lab_poke_ball_squirtle"]?.visible ?? true)
+        XCTAssertTrue(runtime.gameplayState?.objectStates["oaks_lab_poke_ball_bulbasaur"]?.visible ?? false)
+        XCTAssertEqual(runtime.gameplayState?.rivalStarterSpeciesID, "BULBASAUR")
+        XCTAssertEqual(runtime.deferredActions.count, 1)
+        guard case let .script(scriptID) = runtime.deferredActions.first else {
+            return XCTFail("expected rival pickup script to be queued")
+        }
+        XCTAssertEqual(scriptID, "oaks_lab_rival_picks_after_squirtle")
+    }
+
+    func testRepoGeneratedRivalBattleAudioTransitionsFromIntroToBattleToExitAndBack() async throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()
         let runtime = GameRuntime(content: content, telemetryPublisher: nil)
@@ -399,13 +424,16 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(runtime.currentSnapshot().audio?.entryID, "alternateStart")
         XCTAssertEqual(runtime.currentSnapshot().audio?.reason, "scriptOverride")
 
-        runtime.dialogueState = nil
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.advanceDeferredQueueIfNeeded()
+        advanceDialogueUntilComplete(runtime)
+        let settledSnapshot = try await waitForSnapshot(runtime) {
+            $0.audio?.trackID == "MUSIC_OAKS_LAB" &&
+                $0.audio?.reason == "mapDefault" &&
+                $0.field?.objects.first(where: { $0.id == "oaks_lab_rival" }) == nil
+        }
 
-        XCTAssertEqual(runtime.currentSnapshot().audio?.trackID, "MUSIC_OAKS_LAB")
-        XCTAssertEqual(runtime.currentSnapshot().audio?.reason, "mapDefault")
+        XCTAssertEqual(settledSnapshot.audio?.trackID, "MUSIC_OAKS_LAB")
+        XCTAssertEqual(settledSnapshot.audio?.reason, "mapDefault")
+        XCTAssertEqual(settledSnapshot.field?.facing, .down)
     }
 
     func testMomHealJingleRestoresMapDefaultAfterCompletion() throws {

@@ -962,7 +962,15 @@
           "facing" : "left",
           "id" : "reds_house_1f_mom",
           "interactionDialogueID" : "reds_house_1f_mom_wakeup",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 5,
+              "y" : 4
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 5,
             "y" : 4
@@ -1221,7 +1229,15 @@
           "facing" : "down",
           "id" : "pallet_town_oak",
           "interactionDialogueID" : "pallet_town_oak_its_unsafe",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 8,
+              "y" : 5
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 8,
             "y" : 5
@@ -1234,7 +1250,15 @@
           "facing" : "down",
           "id" : "pallet_town_girl",
           "interactionDialogueID" : "pallet_town_girl",
-          "movementType" : "WALK",
+          "movementBehavior" : {
+            "axis" : "any",
+            "home" : {
+              "x" : 3,
+              "y" : 8
+            },
+            "idleMode" : "walk",
+            "maxDistanceFromHome" : 1
+          },
           "position" : {
             "x" : 3,
             "y" : 8
@@ -1247,7 +1271,15 @@
           "facing" : "down",
           "id" : "pallet_town_fisher",
           "interactionDialogueID" : "pallet_town_fisher",
-          "movementType" : "WALK",
+          "movementBehavior" : {
+            "axis" : "any",
+            "home" : {
+              "x" : 11,
+              "y" : 14
+            },
+            "idleMode" : "walk",
+            "maxDistanceFromHome" : 1
+          },
           "position" : {
             "x" : 11,
             "y" : 14
@@ -1711,7 +1743,15 @@
           "facing" : "down",
           "id" : "oaks_lab_rival",
           "interactionDialogueID" : "oaks_lab_rival_gramps_isnt_around",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 4,
+              "y" : 3
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 4,
             "y" : 3
@@ -1727,7 +1767,15 @@
           "facing" : "down",
           "id" : "oaks_lab_poke_ball_charmander",
           "interactionDialogueID" : "oaks_lab_those_are_pokeballs",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 6,
+              "y" : 3
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 6,
             "y" : 3
@@ -1740,7 +1788,15 @@
           "facing" : "down",
           "id" : "oaks_lab_poke_ball_squirtle",
           "interactionDialogueID" : "oaks_lab_those_are_pokeballs",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 7,
+              "y" : 3
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 7,
             "y" : 3
@@ -1753,7 +1809,15 @@
           "facing" : "down",
           "id" : "oaks_lab_poke_ball_bulbasaur",
           "interactionDialogueID" : "oaks_lab_those_are_pokeballs",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 8,
+              "y" : 3
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 8,
             "y" : 3
@@ -1766,7 +1830,15 @@
           "facing" : "down",
           "id" : "oaks_lab_oak_1",
           "interactionDialogueID" : "oaks_lab_oak_which_pokemon_do_you_want",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 5,
+              "y" : 2
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 5,
             "y" : 2
@@ -1779,7 +1851,15 @@
           "facing" : "down",
           "id" : "oaks_lab_pokedex_1",
           "interactionDialogueID" : "oaks_lab_pokedex",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 2,
+              "y" : 1
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 2,
             "y" : 1
@@ -1792,7 +1872,15 @@
           "facing" : "down",
           "id" : "oaks_lab_pokedex_2",
           "interactionDialogueID" : "oaks_lab_pokedex",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 3,
+              "y" : 1
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 3,
             "y" : 1
@@ -1805,7 +1893,15 @@
           "facing" : "up",
           "id" : "oaks_lab_oak_2",
           "interactionDialogueID" : "oaks_lab_oak_choose_mon",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 5,
+              "y" : 10
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 5,
             "y" : 10
@@ -1818,7 +1914,15 @@
           "facing" : "down",
           "id" : "oaks_lab_object_8",
           "interactionDialogueID" : "oaks_lab_girl",
-          "movementType" : "WALK",
+          "movementBehavior" : {
+            "axis" : "upDown",
+            "home" : {
+              "x" : 1,
+              "y" : 9
+            },
+            "idleMode" : "walk",
+            "maxDistanceFromHome" : 1
+          },
           "position" : {
             "x" : 1,
             "y" : 9
@@ -1831,7 +1935,15 @@
           "facing" : "down",
           "id" : "oaks_lab_object_9",
           "interactionDialogueID" : "oaks_lab_girl",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 2,
+              "y" : 10
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 2,
             "y" : 10
@@ -1844,7 +1956,15 @@
           "facing" : "down",
           "id" : "oaks_lab_object_10",
           "interactionDialogueID" : "oaks_lab_girl",
-          "movementType" : "STAY",
+          "movementBehavior" : {
+            "axis" : "none",
+            "home" : {
+              "x" : 8,
+              "y" : 10
+            },
+            "idleMode" : "stay",
+            "maxDistanceFromHome" : 0
+          },
           "position" : {
             "x" : 8,
             "y" : 10
@@ -2618,12 +2738,47 @@
           ]
         },
         {
-          "action" : "moveObject",
-          "objectID" : "pallet_town_oak",
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "player",
+                "path" : [
+                  "down"
+                ]
+              }
+            ],
+            "kind" : "fixedPath",
+            "variants" : [
+
+            ]
+          },
           "path" : [
-            "up",
-            "up",
-            "up"
+
+          ]
+        },
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "pallet_town_oak",
+                "path" : [
+
+                ]
+              }
+            ],
+            "kind" : "pathToPlayerAdjacent",
+            "targetPlayerOffset" : {
+              "x" : 0,
+              "y" : 1
+            },
+            "variants" : [
+
+            ]
+          },
+          "path" : [
+
           ]
         },
         {
@@ -2634,15 +2789,172 @@
           ]
         },
         {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+
+            ],
+            "kind" : "palletEscort",
+            "variants" : [
+              {
+                "actors" : [
+                  {
+                    "actorID" : "pallet_town_oak",
+                    "path" : [
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "left",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "up"
+                    ]
+                  },
+                  {
+                    "actorID" : "player",
+                    "path" : [
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "left",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "up",
+                      "up"
+                    ]
+                  }
+                ],
+                "conditions" : [
+                  {
+                    "intValue" : 10,
+                    "kind" : "playerXEquals"
+                  }
+                ],
+                "id" : "player_left_lane"
+              },
+              {
+                "actors" : [
+                  {
+                    "actorID" : "pallet_town_oak",
+                    "path" : [
+                      "left",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "left",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "up"
+                    ]
+                  },
+                  {
+                    "actorID" : "player",
+                    "path" : [
+                      "left",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "left",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "up",
+                      "up"
+                    ]
+                  }
+                ],
+                "conditions" : [
+                  {
+                    "intValue" : 11,
+                    "kind" : "playerXEquals"
+                  }
+                ],
+                "id" : "player_right_lane"
+              }
+            ]
+          },
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "pallet_town_oak",
+          "path" : [
+
+          ],
+          "visible" : false
+        },
+        {
           "action" : "setMap",
           "path" : [
 
           ],
           "point" : {
             "x" : 5,
-            "y" : 10
+            "y" : 11
           },
           "stringValue" : "OAKS_LAB"
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_oak_2",
+          "path" : [
+
+          ],
+          "visible" : true
+        },
+        {
+          "action" : "setObjectPosition",
+          "objectID" : "oaks_lab_oak_2",
+          "path" : [
+
+          ],
+          "point" : {
+            "x" : 5,
+            "y" : 10
+          }
+        },
+        {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_oak_2",
+          "path" : [
+
+          ],
+          "stringValue" : "up"
         },
         {
           "action" : "restoreMapMusic",
@@ -2651,16 +2963,76 @@
           ]
         },
         {
-          "action" : "movePlayer",
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "oaks_lab_oak_2",
+                "path" : [
+                  "up",
+                  "up",
+                  "up"
+                ]
+              }
+            ],
+            "kind" : "fixedPath",
+            "variants" : [
+
+            ]
+          },
           "path" : [
-            "up",
-            "up",
-            "up",
-            "up",
-            "up",
-            "up",
-            "up",
-            "up"
+
+          ]
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_oak_2",
+          "path" : [
+
+          ],
+          "visible" : false
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_oak_1",
+          "path" : [
+
+          ],
+          "visible" : true
+        },
+        {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_oak_1",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "player",
+                "path" : [
+                  "up",
+                  "up",
+                  "up",
+                  "up",
+                  "up",
+                  "up",
+                  "up",
+                  "up"
+                ]
+              }
+            ],
+            "kind" : "fixedPath",
+            "variants" : [
+
+            ]
+          },
+          "path" : [
+
           ]
         },
         {
@@ -2676,6 +3048,14 @@
           "path" : [
 
           ]
+        },
+        {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "stringValue" : "up"
         },
         {
           "action" : "facePlayer",
@@ -2725,6 +3105,22 @@
       "id" : "oaks_lab_dont_go_away",
       "steps" : [
         {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_oak_1",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
           "action" : "showDialogue",
           "dialogueID" : "oaks_lab_oak_dont_go_away_yet",
           "path" : [
@@ -2732,9 +3128,23 @@
           ]
         },
         {
-          "action" : "movePlayer",
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "player",
+                "path" : [
+                  "up"
+                ]
+              }
+            ],
+            "kind" : "fixedPath",
+            "variants" : [
+
+            ]
+          },
           "path" : [
-            "up"
+
           ]
         },
         {
@@ -2747,8 +3157,262 @@
       ]
     },
     {
+      "id" : "oaks_lab_rival_picks_after_charmander",
+      "steps" : [
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+
+            ],
+            "kind" : "rivalStarterPickup",
+            "variants" : [
+              {
+                "actors" : [
+                  {
+                    "actorID" : "oaks_lab_rival",
+                    "path" : [
+                      "down",
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "up"
+                    ]
+                  }
+                ],
+                "conditions" : [
+                  {
+                    "intValue" : 4,
+                    "kind" : "playerYEquals"
+                  }
+                ],
+                "id" : "player_below_table"
+              },
+              {
+                "actors" : [
+                  {
+                    "actorID" : "oaks_lab_rival",
+                    "path" : [
+                      "down",
+                      "right",
+                      "right",
+                      "right"
+                    ]
+                  }
+                ],
+                "conditions" : [
+
+                ],
+                "id" : "default"
+              }
+            ]
+          },
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_ill_take_this_one",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_poke_ball_squirtle",
+          "path" : [
+
+          ],
+          "visible" : false
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_received_mon_squirtle",
+          "path" : [
+
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "oaks_lab_rival_picks_after_squirtle",
+      "steps" : [
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+
+            ],
+            "kind" : "rivalStarterPickup",
+            "variants" : [
+              {
+                "actors" : [
+                  {
+                    "actorID" : "oaks_lab_rival",
+                    "path" : [
+                      "down",
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "right",
+                      "up"
+                    ]
+                  }
+                ],
+                "conditions" : [
+                  {
+                    "intValue" : 4,
+                    "kind" : "playerYEquals"
+                  }
+                ],
+                "id" : "player_below_table"
+              },
+              {
+                "actors" : [
+                  {
+                    "actorID" : "oaks_lab_rival",
+                    "path" : [
+                      "down",
+                      "right",
+                      "right",
+                      "right",
+                      "right"
+                    ]
+                  }
+                ],
+                "conditions" : [
+
+                ],
+                "id" : "default"
+              }
+            ]
+          },
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_ill_take_this_one",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_poke_ball_bulbasaur",
+          "path" : [
+
+          ],
+          "visible" : false
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_received_mon_bulbasaur",
+          "path" : [
+
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "oaks_lab_rival_picks_after_bulbasaur",
+      "steps" : [
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+
+            ],
+            "kind" : "rivalStarterPickup",
+            "variants" : [
+              {
+                "actors" : [
+                  {
+                    "actorID" : "oaks_lab_rival",
+                    "path" : [
+                      "right"
+                    ]
+                  }
+                ],
+                "conditions" : [
+                  {
+                    "intValue" : 9,
+                    "kind" : "playerXEquals"
+                  }
+                ],
+                "id" : "player_right_of_table",
+                "point" : {
+                  "x" : 9,
+                  "y" : 8
+                }
+              },
+              {
+                "actors" : [
+                  {
+                    "actorID" : "oaks_lab_rival",
+                    "path" : [
+                      "down",
+                      "right"
+                    ]
+                  }
+                ],
+                "conditions" : [
+
+                ],
+                "id" : "default"
+              }
+            ]
+          },
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_ill_take_this_one",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_poke_ball_charmander",
+          "path" : [
+
+          ],
+          "visible" : false
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_received_mon_charmander",
+          "path" : [
+
+          ]
+        }
+      ]
+    },
+    {
       "id" : "oaks_lab_rival_challenge_vs_squirtle",
       "steps" : [
+        {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "facePlayer",
+          "path" : [
+
+          ],
+          "stringValue" : "up"
+        },
         {
           "action" : "playMusicCue",
           "path" : [
@@ -2759,6 +3423,30 @@
         {
           "action" : "showDialogue",
           "dialogueID" : "oaks_lab_rival_ill_take_you_on",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "oaks_lab_rival",
+                "path" : [
+
+                ]
+              }
+            ],
+            "kind" : "pathToPlayerAdjacent",
+            "targetPlayerOffset" : {
+              "x" : 0,
+              "y" : -1
+            },
+            "variants" : [
+
+            ]
+          },
           "path" : [
 
           ]
@@ -2776,6 +3464,21 @@
       "id" : "oaks_lab_rival_challenge_vs_bulbasaur",
       "steps" : [
         {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "facePlayer",
+          "path" : [
+
+          ],
+          "stringValue" : "up"
+        },
+        {
           "action" : "playMusicCue",
           "path" : [
 
@@ -2785,6 +3488,30 @@
         {
           "action" : "showDialogue",
           "dialogueID" : "oaks_lab_rival_ill_take_you_on",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "oaks_lab_rival",
+                "path" : [
+
+                ]
+              }
+            ],
+            "kind" : "pathToPlayerAdjacent",
+            "targetPlayerOffset" : {
+              "x" : 0,
+              "y" : -1
+            },
+            "variants" : [
+
+            ]
+          },
           "path" : [
 
           ]
@@ -2802,6 +3529,21 @@
       "id" : "oaks_lab_rival_challenge_vs_charmander",
       "steps" : [
         {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "facePlayer",
+          "path" : [
+
+          ],
+          "stringValue" : "up"
+        },
+        {
           "action" : "playMusicCue",
           "path" : [
 
@@ -2816,8 +3558,104 @@
           ]
         },
         {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "oaks_lab_rival",
+                "path" : [
+
+                ]
+              }
+            ],
+            "kind" : "pathToPlayerAdjacent",
+            "targetPlayerOffset" : {
+              "x" : 0,
+              "y" : -1
+            },
+            "variants" : [
+
+            ]
+          },
+          "path" : [
+
+          ]
+        },
+        {
           "action" : "startBattle",
           "battleID" : "opp_rival1_3",
+          "path" : [
+
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "oaks_lab_rival_exit_after_battle",
+      "steps" : [
+        {
+          "action" : "playMusicCue",
+          "path" : [
+
+          ],
+          "stringValue" : "rival_exit"
+        },
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "oaks_lab_rival_smell_you_later",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "faceObject",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "performMovement",
+          "movement" : {
+            "actors" : [
+              {
+                "actorID" : "oaks_lab_rival",
+                "path" : [
+                  "down",
+                  "down",
+                  "down",
+                  "down",
+                  "down"
+                ]
+              }
+            ],
+            "kind" : "fixedPath",
+            "variants" : [
+
+            ]
+          },
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "facePlayer",
+          "path" : [
+
+          ],
+          "stringValue" : "down"
+        },
+        {
+          "action" : "setObjectVisibility",
+          "objectID" : "oaks_lab_rival",
+          "path" : [
+
+          ],
+          "visible" : false
+        },
+        {
+          "action" : "restoreMapMusic",
           "path" : [
 
           ]

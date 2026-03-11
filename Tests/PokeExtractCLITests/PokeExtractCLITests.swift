@@ -79,6 +79,14 @@ final class PokeExtractCLITests: XCTestCase {
             "pallet_town_girl",
             "pallet_town_fisher",
         ])
+        XCTAssertEqual(
+            palletTown.objects.first { $0.id == "pallet_town_girl" }?.movementBehavior,
+            .init(idleMode: .walk, axis: .any, home: .init(x: 3, y: 8))
+        )
+        XCTAssertEqual(
+            palletTown.objects.first { $0.id == "pallet_town_fisher" }?.movementBehavior,
+            .init(idleMode: .walk, axis: .any, home: .init(x: 11, y: 14))
+        )
 
         let oaksLab = try XCTUnwrap(manifest.maps.first { $0.id == "OAKS_LAB" })
         XCTAssertEqual(oaksLab.borderBlockID, 0x03)
@@ -102,10 +110,35 @@ final class PokeExtractCLITests: XCTestCase {
         XCTAssertEqual(manifest.scripts.map(\.id), [
             "pallet_town_oak_intro",
             "oaks_lab_dont_go_away",
+            "oaks_lab_rival_picks_after_charmander",
+            "oaks_lab_rival_picks_after_squirtle",
+            "oaks_lab_rival_picks_after_bulbasaur",
             "oaks_lab_rival_challenge_vs_squirtle",
             "oaks_lab_rival_challenge_vs_bulbasaur",
             "oaks_lab_rival_challenge_vs_charmander",
+            "oaks_lab_rival_exit_after_battle",
         ])
+        XCTAssertEqual(
+            oaksLab.objects.first { $0.id == "oaks_lab_object_8" }?.movementBehavior,
+            .init(idleMode: .walk, axis: .upDown, home: .init(x: 1, y: 9))
+        )
+        let oakIntroScript = try XCTUnwrap(manifest.scripts.first { $0.id == "pallet_town_oak_intro" })
+        XCTAssertEqual(
+            oakIntroScript.steps.compactMap { $0.movement?.kind },
+            [.fixedPath, .pathToPlayerAdjacent, .palletEscort, .fixedPath, .fixedPath]
+        )
+        let palletEscortMovement = try XCTUnwrap(oakIntroScript.steps.first { $0.movement?.kind == .palletEscort }?.movement)
+        let leftLaneEscort = try XCTUnwrap(palletEscortMovement.variants.first { $0.id == "player_left_lane" })
+        XCTAssertEqual(
+            leftLaneEscort.actors.first { $0.actorID == "player" }?.path,
+            [.down, .down, .down, .down, .down, .down, .left, .down, .down, .down, .down, .down, .right, .right, .right, .up, .up]
+        )
+        let rivalBulbasaurPickup = try XCTUnwrap(manifest.scripts.first { $0.id == "oaks_lab_rival_picks_after_squirtle" })
+        XCTAssertEqual(rivalBulbasaurPickup.steps.map(\.action), ["performMovement", "showDialogue", "setObjectVisibility", "showDialogue"])
+        XCTAssertEqual(rivalBulbasaurPickup.steps[2].objectID, "oaks_lab_poke_ball_bulbasaur")
+        let rivalExitScript = try XCTUnwrap(manifest.scripts.first { $0.id == "oaks_lab_rival_exit_after_battle" })
+        XCTAssertEqual(rivalExitScript.steps.compactMap(\.movement?.kind), [.fixedPath])
+        XCTAssertEqual(rivalExitScript.steps.last?.action, "restoreMapMusic")
         XCTAssertEqual(manifest.species.map(\.id), ["CHARMANDER", "SQUIRTLE", "BULBASAUR"])
         let charmander = try XCTUnwrap(manifest.species.first { $0.id == "CHARMANDER" })
         XCTAssertEqual(charmander.primaryType, "FIRE")
@@ -319,6 +352,38 @@ final class PokeExtractCLITests: XCTestCase {
         XCTAssertEqual(firstSlideTarget, firstFrequency, accuracy: 0.000_001)
         XCTAssertLessThan(secondSlideTarget, secondFrequency)
         XCTAssertEqual(thirdSlideTarget, 661.979_797_979_798, accuracy: 0.000_001)
+    }
+
+    func testAudioExtractorUsesASMFrequencyTableForPerfectPitchSquareChannel() throws {
+        let manifest = try extractAudioManifest(
+            source: SourceTree(repoRoot: repoRoot()),
+            titleTrackID: "MUSIC_TITLE_SCREEN"
+        )
+
+        let oakIntroTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_MEET_PROF_OAK" })
+        let channelOne = try XCTUnwrap(
+            oakIntroTrack.entries.first { $0.id == "default" }?.channels.first { $0.channelNumber == 1 }
+        )
+        let firstEvent = try XCTUnwrap(channelOne.prelude.first)
+        let frequency = try XCTUnwrap(firstEvent.frequencyHz)
+
+        XCTAssertEqual(frequency, 370.259_887_005_649_7, accuracy: 0.000_001)
+    }
+
+    func testAudioExtractorUsesWaveChannelFrequencyFormulaForOakIntroCounterline() throws {
+        let manifest = try extractAudioManifest(
+            source: SourceTree(repoRoot: repoRoot()),
+            titleTrackID: "MUSIC_TITLE_SCREEN"
+        )
+
+        let oakIntroTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_MEET_PROF_OAK" })
+        let channelThree = try XCTUnwrap(
+            oakIntroTrack.entries.first { $0.id == "default" }?.channels.first { $0.channelNumber == 3 }
+        )
+        let firstEvent = try XCTUnwrap(channelThree.prelude.first)
+        let frequency = try XCTUnwrap(firstEvent.frequencyHz)
+
+        XCTAssertEqual(frequency, 368.179_775_280_898_87, accuracy: 0.000_001)
     }
 
     func testExtractorWritesDeterministicAudioManifestJSON() throws {

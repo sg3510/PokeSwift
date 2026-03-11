@@ -17,8 +17,10 @@ public struct FieldMapView: View {
     @State private var renderedScene: FieldRenderedScene?
     @State private var presentedCameraOrigin: CGPoint = .zero
     @State private var presentedPlayerWorldPosition: CGPoint = .zero
+    @State private var presentedObjectWorldPositions: [String: CGPoint] = [:]
     @State private var presentationIdentity: FieldPresentationIdentity?
     @State private var playerStepAnimation: PlayerStepAnimationState?
+    @State private var objectStepAnimations: [String: ObjectStepAnimationState] = [:]
 
     public init(
         map: MapManifest,
@@ -59,7 +61,9 @@ public struct FieldMapView: View {
                         displayStyle: displayStyle,
                         displayScale: scale,
                         cameraOrigin: presentedCameraOrigin,
-                        playerWorldPosition: presentedPlayerWorldPosition
+                        playerWorldPosition: presentedPlayerWorldPosition,
+                        objectWorldPositions: presentedObjectWorldPositions,
+                        objectStepAnimations: objectStepAnimations
                     )
                 } else {
                     FixedViewportPlaceholderField(
@@ -88,7 +92,13 @@ public struct FieldMapView: View {
     }
 
     private var presentationSignature: FieldPresentationIdentity {
-        FieldPresentationIdentity(mapID: map.id, playerPosition: playerPosition)
+        FieldPresentationIdentity(
+            mapID: map.id,
+            playerPosition: playerPosition,
+            objects: objects.map {
+                .init(id: $0.id, position: $0.position, movementMode: $0.movementMode)
+            }
+        )
     }
 
     private var sceneRenderSignature: FieldSceneRenderIdentity? {
@@ -161,9 +171,26 @@ public struct FieldMapView: View {
             playerWorldPosition: targetPlayerWorld,
             contentPixelSize: metrics.contentPixelSize
         )
-        let nextIdentity = FieldPresentationIdentity(mapID: map.id, playerPosition: playerPosition)
+        let nextIdentity = FieldPresentationIdentity(
+            mapID: map.id,
+            playerPosition: playerPosition,
+            objects: objects.map {
+                .init(id: $0.id, position: $0.position, movementMode: $0.movementMode)
+            }
+        )
         let shouldAnimate = shouldAnimateTransition(to: nextIdentity)
         let nextStepAnimation = makePlayerStepAnimation(to: nextIdentity)
+        let nextObjectWorldPositions = Dictionary(uniqueKeysWithValues: objects.map { object in
+            (
+                object.id,
+                CGPoint(
+                    x: CGFloat(FieldSceneRenderer.playerWorldPosition(for: object.position, metrics: metrics).x),
+                    y: CGFloat(FieldSceneRenderer.playerWorldPosition(for: object.position, metrics: metrics).y)
+                )
+            )
+        })
+        let nextObjectStepAnimations = makeObjectStepAnimations(to: nextIdentity)
+        let shouldAnimateObjects = nextObjectStepAnimations.isEmpty == false
 
         let applyState = {
             presentedPlayerWorldPosition = CGPoint(
@@ -174,16 +201,19 @@ public struct FieldMapView: View {
                 x: CGFloat(targetCamera.origin.x),
                 y: CGFloat(targetCamera.origin.y)
             )
+            presentedObjectWorldPositions = nextObjectWorldPositions
             presentationIdentity = nextIdentity
         }
 
-        if shouldAnimate {
+        if shouldAnimate || shouldAnimateObjects {
             playerStepAnimation = nextStepAnimation
+            objectStepAnimations = nextObjectStepAnimations
             withAnimation(.linear(duration: playerStepDuration)) {
                 applyState()
             }
         } else {
             playerStepAnimation = nil
+            objectStepAnimations = [:]
             var transaction = Transaction()
             transaction.animation = nil
             withTransaction(transaction) {
@@ -213,6 +243,28 @@ public struct FieldMapView: View {
             destinationPosition: nextIdentity.playerPosition,
             startedAt: Date()
         )
+    }
+
+    private func makeObjectStepAnimations(to nextIdentity: FieldPresentationIdentity) -> [String: ObjectStepAnimationState] {
+        guard let previousIdentity = presentationIdentity,
+              previousIdentity.mapID == nextIdentity.mapID else {
+            return [:]
+        }
+
+        let previousObjects = Dictionary(uniqueKeysWithValues: previousIdentity.objects.map { ($0.id, $0) })
+        return nextIdentity.objects.reduce(into: [:]) { result, object in
+            guard let previousObject = previousObjects[object.id] else { return }
+            let deltaX = abs(previousObject.position.x - object.position.x)
+            let deltaY = abs(previousObject.position.y - object.position.y)
+            guard (deltaX + deltaY) == 1 else { return }
+            guard object.movementMode != nil || previousObject.movementMode != nil else { return }
+            result[object.id] = .init(
+                mapID: nextIdentity.mapID,
+                objectID: object.id,
+                destinationPosition: object.position,
+                startedAt: Date()
+            )
+        }
     }
 
     private func viewportScale(for size: CGSize) -> CGFloat {
@@ -267,10 +319,24 @@ struct FieldSceneRenderIdentity: Equatable {
 private struct FieldPresentationIdentity: Equatable {
     let mapID: String
     let playerPosition: TilePoint
+    let objects: [FieldObjectPresentationIdentity]
 }
 
 private struct PlayerStepAnimationState: Equatable {
     let mapID: String
+    let destinationPosition: TilePoint
+    let startedAt: Date
+}
+
+private struct FieldObjectPresentationIdentity: Equatable {
+    let id: String
+    let position: TilePoint
+    let movementMode: ActorMovementMode?
+}
+
+private struct ObjectStepAnimationState: Equatable {
+    let mapID: String
+    let objectID: String
     let destinationPosition: TilePoint
     let startedAt: Date
 }
@@ -285,6 +351,8 @@ private struct FixedViewportRenderedField: View {
     let displayScale: CGFloat
     let cameraOrigin: CGPoint
     let playerWorldPosition: CGPoint
+    let objectWorldPositions: [String: CGPoint]
+    let objectStepAnimations: [String: ObjectStepAnimationState]
 
     var body: some View {
         let cornerRadius = max(6, displayScale * 2.5)
@@ -310,14 +378,18 @@ private struct FixedViewportRenderedField: View {
                 ForEach(sortedActors) { actor in
                     let renderedWorldPosition = actor.role == .player
                         ? playerWorldPosition
-                        : CGPoint(x: CGFloat(actor.worldPosition.x), y: CGFloat(actor.worldPosition.y))
-                    let usesWalkingFrame = actor.role == .player &&
-                        actor.walkingImage != nil &&
-                        FieldMapView.playerUsesWalkingFrame(phase: playerWalkPhase)
+                        : (objectWorldPositions[actor.id] ?? CGPoint(x: CGFloat(actor.worldPosition.x), y: CGFloat(actor.worldPosition.y)))
+                    let objectWalkPhase = objectWalkAnimationPhase(actorID: actor.id, at: timeline.date)
+                    let usesWalkingFrame = actor.walkingImage != nil && (
+                        (actor.role == .player && FieldMapView.playerUsesWalkingFrame(phase: playerWalkPhase)) ||
+                        (actor.role == .object && FieldMapView.playerUsesWalkingFrame(phase: objectWalkPhase))
+                    )
                     let usesMirroredWalkFrame = actor.role == .player &&
                         FieldMapView.playerUsesMirroredWalkingFrame(facing: playerFacing, phase: playerWalkPhase)
                     let image = usesWalkingFrame ? (actor.walkingImage ?? actor.image) : actor.image
-                    let flipsHorizontally = actor.flippedHorizontally != usesMirroredWalkFrame
+                    let flipsHorizontally = actor.role == .player
+                        ? actor.flippedHorizontally != usesMirroredWalkFrame
+                        : actor.flippedHorizontally
 
                     Image(decorative: image, scale: 1)
                         .interpolation(.none)
@@ -359,6 +431,18 @@ private struct FixedViewportRenderedField: View {
             return nil
         }
         let elapsed = date.timeIntervalSince(playerStepAnimation.startedAt)
+        return FieldMapView.playerWalkAnimationPhase(
+            elapsed: elapsed,
+            stepDuration: playerStepDuration
+        )
+    }
+
+    private func objectWalkAnimationPhase(actorID: String, at date: Date) -> Int? {
+        guard let animation = objectStepAnimations[actorID],
+              animation.mapID == scene.mapID else {
+            return nil
+        }
+        let elapsed = date.timeIntervalSince(animation.startedAt)
         return FieldMapView.playerWalkAnimationPhase(
             elapsed: elapsed,
             stepDuration: playerStepDuration

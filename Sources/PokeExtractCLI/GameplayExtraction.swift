@@ -63,7 +63,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
         dialogues: try buildDialogues(repoRoot: source.repoRoot),
         eventFlags: EventFlagManifest(flags: eventFlags),
         mapScripts: buildMapScripts(),
-        scripts: buildScripts(),
+        scripts: try buildScripts(repoRoot: source.repoRoot),
         species: try buildSpecies(repoRoot: source.repoRoot),
         moves: try buildMoves(repoRoot: source.repoRoot),
         typeEffectiveness: try buildTypeEffectiveness(repoRoot: source.repoRoot),
@@ -726,20 +726,49 @@ private func parseObjects(mapID: String, contents: String) -> [MapObjectManifest
         let trainerClass = Range(match.range(at: 7), in: contents).map { String(contents[$0]) }
         let trainerNumber = Range(match.range(at: 8), in: contents).flatMap { Int(contents[$0]) }
         let trainerBattleID = trainerBattleIDFor(trainerClass: trainerClass, trainerNumber: trainerNumber)
+        let position = TilePoint(x: x, y: y)
 
         return MapObjectManifest(
             id: objectID,
             displayName: displayNameForObject(objectID: objectID, textID: textID),
             sprite: sprite,
-            position: .init(x: x, y: y),
+            position: position,
             facing: facing,
             interactionDialogueID: dialogueID(for: mapID, textID: textID),
-            movementType: movement,
+            movementBehavior: movementBehavior(
+                movementToken: movement,
+                facingToken: String(contents[facingRange]),
+                home: position
+            ),
             trainerBattleID: trainerBattleID,
             trainerClass: trainerClass,
             trainerNumber: trainerNumber,
             visibleByDefault: defaultVisibility(for: objectID)
         )
+    }
+}
+
+private func movementBehavior(
+    movementToken: String,
+    facingToken: String,
+    home: TilePoint
+) -> ObjectMovementBehavior {
+    switch movementToken {
+    case "WALK":
+        let axis: ObjectMovementAxis
+        switch facingToken {
+        case "ANY_DIR":
+            axis = .any
+        case "UP_DOWN":
+            axis = .upDown
+        case "LEFT_RIGHT":
+            axis = .leftRight
+        default:
+            axis = .any
+        }
+        return .init(idleMode: .walk, axis: axis, home: home)
+    default:
+        return .init(idleMode: .stay, axis: .none, home: home, maxDistanceFromHome: 0)
     }
 }
 
@@ -999,8 +1028,23 @@ private func buildMapScripts() -> [MapScriptManifest] {
     ]
 }
 
-private func buildScripts() -> [ScriptManifest] {
-    [
+private func buildScripts(repoRoot: URL) throws -> [ScriptManifest] {
+    let autoMovement = try String(contentsOf: repoRoot.appendingPathComponent("engine/overworld/auto_movement.asm"))
+    let oaksLabScripts = try String(contentsOf: repoRoot.appendingPathComponent("scripts/OaksLab.asm"))
+
+    let palletOakEscortPath = try parseRepeatedMovementLabel("RLEList_ProfOakWalkToLab", from: autoMovement)
+    let palletPlayerEscortPath = try parseSimulatedJoypadMovementLabel("RLEList_PlayerWalkToLab", from: autoMovement)
+    let oakEntryPath = try parseMovementLabel("OakEntryMovement", from: oaksLabScripts)
+    let playerEntryPath = try parseSimulatedJoypadMovementLabel("PlayerEntryMovementRLE", from: oaksLabScripts)
+    let rivalMiddleBall1 = try parseMovementLabel(".MiddleBallMovement1", from: oaksLabScripts)
+    let rivalMiddleBall2 = try parseMovementLabel(".MiddleBallMovement2", from: oaksLabScripts)
+    let rivalRightBall1 = try parseMovementLabel(".RightBallMovement1", from: oaksLabScripts)
+    let rivalRightBall2 = try parseMovementLabel(".RightBallMovement2", from: oaksLabScripts)
+    let rivalLeftBall1 = try parseMovementLabel(".LeftBallMovement1", from: oaksLabScripts)
+    let rivalLeftBall2 = try parseMovementLabel(".LeftBallMovement2", from: oaksLabScripts)
+    let rivalExitPath = try parseMovementLabel(".RivalExitMovement", from: oaksLabScripts)
+
+    return [
         ScriptManifest(
             id: "pallet_town_oak_intro",
             steps: [
@@ -1010,13 +1054,72 @@ private func buildScripts() -> [ScriptManifest] {
                 .init(action: "setObjectPosition", point: .init(x: 8, y: 5), objectID: "pallet_town_oak"),
                 .init(action: "faceObject", stringValue: "down", objectID: "pallet_town_oak"),
                 .init(action: "showDialogue", dialogueID: "pallet_town_oak_hey_wait"),
-                .init(action: "moveObject", path: [.up, .up, .up], objectID: "pallet_town_oak"),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .fixedPath,
+                        actors: [.init(actorID: "player", path: [.down])]
+                    )
+                ),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .pathToPlayerAdjacent,
+                        actors: [.init(actorID: "pallet_town_oak", path: [])],
+                        targetPlayerOffset: .init(x: 0, y: 1)
+                    )
+                ),
                 .init(action: "showDialogue", dialogueID: "pallet_town_oak_its_unsafe"),
-                .init(action: "setMap", stringValue: "OAKS_LAB", point: .init(x: 5, y: 10)),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .palletEscort,
+                        variants: [
+                            .init(
+                                id: "player_left_lane",
+                                conditions: [.init(kind: "playerXEquals", intValue: 10)],
+                                actors: [
+                                    .init(actorID: "pallet_town_oak", path: palletOakEscortPath),
+                                    .init(actorID: "player", path: palletPlayerEscortPath),
+                                ]
+                            ),
+                            .init(
+                                id: "player_right_lane",
+                                conditions: [.init(kind: "playerXEquals", intValue: 11)],
+                                actors: [
+                                    .init(actorID: "pallet_town_oak", path: [.left] + palletOakEscortPath),
+                                    .init(actorID: "player", path: [.left] + palletPlayerEscortPath),
+                                ]
+                            ),
+                        ]
+                    )
+                ),
+                .init(action: "setObjectVisibility", objectID: "pallet_town_oak", visible: false),
+                .init(action: "setMap", stringValue: "OAKS_LAB", point: .init(x: 5, y: 11)),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_oak_2", visible: true),
+                .init(action: "setObjectPosition", point: .init(x: 5, y: 10), objectID: "oaks_lab_oak_2"),
+                .init(action: "faceObject", stringValue: "up", objectID: "oaks_lab_oak_2"),
                 .init(action: "restoreMapMusic"),
-                .init(action: "movePlayer", path: [.up, .up, .up, .up, .up, .up, .up, .up]),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .fixedPath,
+                        actors: [.init(actorID: "oaks_lab_oak_2", path: oakEntryPath)]
+                    )
+                ),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_oak_2", visible: false),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_oak_1", visible: true),
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_oak_1"),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .fixedPath,
+                        actors: [.init(actorID: "player", path: playerEntryPath)]
+                    )
+                ),
                 .init(action: "setFlag", flagID: "EVENT_FOLLOWED_OAK_INTO_LAB"),
                 .init(action: "setFlag", flagID: "EVENT_FOLLOWED_OAK_INTO_LAB_2"),
+                .init(action: "faceObject", stringValue: "up", objectID: "oaks_lab_rival"),
                 .init(action: "facePlayer", stringValue: "up"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_rival_fed_up_with_waiting"),
                 .init(action: "setFlag", flagID: "EVENT_OAK_ASKED_TO_CHOOSE_MON"),
@@ -1028,36 +1131,283 @@ private func buildScripts() -> [ScriptManifest] {
         ScriptManifest(
             id: "oaks_lab_dont_go_away",
             steps: [
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_oak_1"),
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_rival"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_oak_dont_go_away_yet"),
-                .init(action: "movePlayer", path: [.up]),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .fixedPath,
+                        actors: [.init(actorID: "player", path: [.up])]
+                    )
+                ),
                 .init(action: "facePlayer", stringValue: "up"),
+            ]
+        ),
+        ScriptManifest(
+            id: "oaks_lab_rival_picks_after_charmander",
+            steps: [
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .rivalStarterPickup,
+                        variants: [
+                            .init(
+                                id: "player_below_table",
+                                conditions: [.init(kind: "playerYEquals", intValue: 4)],
+                                actors: [.init(actorID: "oaks_lab_rival", path: rivalMiddleBall1)]
+                            ),
+                            .init(
+                                id: "default",
+                                conditions: [],
+                                actors: [.init(actorID: "oaks_lab_rival", path: rivalMiddleBall2)]
+                            ),
+                        ]
+                    )
+                ),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_this_one"),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_poke_ball_squirtle", visible: false),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_received_mon_squirtle"),
+            ]
+        ),
+        ScriptManifest(
+            id: "oaks_lab_rival_picks_after_squirtle",
+            steps: [
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .rivalStarterPickup,
+                        variants: [
+                            .init(
+                                id: "player_below_table",
+                                conditions: [.init(kind: "playerYEquals", intValue: 4)],
+                                actors: [.init(actorID: "oaks_lab_rival", path: rivalRightBall1)]
+                            ),
+                            .init(
+                                id: "default",
+                                conditions: [],
+                                actors: [.init(actorID: "oaks_lab_rival", path: rivalRightBall2)]
+                            ),
+                        ]
+                    )
+                ),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_this_one"),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_poke_ball_bulbasaur", visible: false),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_received_mon_bulbasaur"),
+            ]
+        ),
+        ScriptManifest(
+            id: "oaks_lab_rival_picks_after_bulbasaur",
+            steps: [
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .rivalStarterPickup,
+                        variants: [
+                            .init(
+                                id: "player_right_of_table",
+                                conditions: [.init(kind: "playerXEquals", intValue: 9)],
+                                actors: [.init(actorID: "oaks_lab_rival", path: rivalLeftBall2)],
+                                point: .init(x: 9, y: 8)
+                            ),
+                            .init(
+                                id: "default",
+                                conditions: [],
+                                actors: [.init(actorID: "oaks_lab_rival", path: rivalLeftBall1)]
+                            ),
+                        ]
+                    )
+                ),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_this_one"),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_poke_ball_charmander", visible: false),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_received_mon_charmander"),
             ]
         ),
         ScriptManifest(
             id: "oaks_lab_rival_challenge_vs_squirtle",
             steps: [
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_rival"),
+                .init(action: "facePlayer", stringValue: "up"),
                 .init(action: "playMusicCue", stringValue: "rival_intro"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_you_on"),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .pathToPlayerAdjacent,
+                        actors: [.init(actorID: "oaks_lab_rival", path: [])],
+                        targetPlayerOffset: .init(x: 0, y: -1)
+                    )
+                ),
                 .init(action: "startBattle", battleID: "opp_rival1_1"),
             ]
         ),
         ScriptManifest(
             id: "oaks_lab_rival_challenge_vs_bulbasaur",
             steps: [
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_rival"),
+                .init(action: "facePlayer", stringValue: "up"),
                 .init(action: "playMusicCue", stringValue: "rival_intro"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_you_on"),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .pathToPlayerAdjacent,
+                        actors: [.init(actorID: "oaks_lab_rival", path: [])],
+                        targetPlayerOffset: .init(x: 0, y: -1)
+                    )
+                ),
                 .init(action: "startBattle", battleID: "opp_rival1_2"),
             ]
         ),
         ScriptManifest(
             id: "oaks_lab_rival_challenge_vs_charmander",
             steps: [
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_rival"),
+                .init(action: "facePlayer", stringValue: "up"),
                 .init(action: "playMusicCue", stringValue: "rival_intro"),
                 .init(action: "showDialogue", dialogueID: "oaks_lab_rival_ill_take_you_on"),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .pathToPlayerAdjacent,
+                        actors: [.init(actorID: "oaks_lab_rival", path: [])],
+                        targetPlayerOffset: .init(x: 0, y: -1)
+                    )
+                ),
                 .init(action: "startBattle", battleID: "opp_rival1_3"),
             ]
         ),
+        ScriptManifest(
+            id: "oaks_lab_rival_exit_after_battle",
+            steps: [
+                .init(action: "playMusicCue", stringValue: "rival_exit"),
+                .init(action: "showDialogue", dialogueID: "oaks_lab_rival_smell_you_later"),
+                .init(action: "faceObject", stringValue: "down", objectID: "oaks_lab_rival"),
+                .init(
+                    action: "performMovement",
+                    movement: .init(
+                        kind: .fixedPath,
+                        actors: [.init(actorID: "oaks_lab_rival", path: rivalExitPath)]
+                    )
+                ),
+                .init(action: "facePlayer", stringValue: "down"),
+                .init(action: "setObjectVisibility", objectID: "oaks_lab_rival", visible: false),
+                .init(action: "restoreMapMusic"),
+            ]
+        ),
     ]
+}
+
+private func parseMovementLabel(_ label: String, from contents: String) throws -> [FacingDirection] {
+    let lines = try linesForMovementLabel(label, in: contents)
+    return expandMovementLines(lines)
+}
+
+private func parseRepeatedMovementLabel(_ label: String, from contents: String) throws -> [FacingDirection] {
+    let lines = try linesForMovementLabel(label, in: contents)
+    return expandRepeatedMovementLines(lines)
+}
+
+private func parseSimulatedJoypadMovementLabel(_ label: String, from contents: String) throws -> [FacingDirection] {
+    let lines = try linesForMovementLabel(label, in: contents)
+    // The engine decrements `wSimulatedJoypadStatesIndex` before reading from the decoded buffer,
+    // so simulated joypad paths execute from the tail of the RLE list back to the head.
+    return Array(expandRepeatedMovementLines(lines).reversed())
+}
+
+private func linesForMovementLabel(_ label: String, in contents: String) throws -> [String] {
+    let pattern = "(?m)^\\s*\(NSRegularExpression.escapedPattern(for: label))(?::)?\\s*$"
+    let regex = try NSRegularExpression(pattern: pattern)
+    let fullRange = NSRange(contents.startIndex..<contents.endIndex, in: contents)
+    guard let match = regex.firstMatch(in: contents, range: fullRange),
+          let labelRange = Range(match.range, in: contents) else {
+        throw ExtractorError.invalidArguments("missing movement label \(label)")
+    }
+
+    let tail = contents[labelRange.upperBound...]
+    var lines: [String] = []
+    for rawLine in tail.split(separator: "\n", omittingEmptySubsequences: false) {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        if line.isEmpty {
+            if lines.isEmpty == false {
+                break
+            }
+            continue
+        }
+        if line.hasPrefix(".") || line.hasSuffix(":") || line.contains("Script:") || line.contains("Text:") {
+            if lines.isEmpty == false {
+                break
+            }
+        }
+        lines.append(line)
+        if line.contains("db -1") {
+            break
+        }
+    }
+    guard lines.isEmpty == false else {
+        throw ExtractorError.invalidArguments("movement label \(label) had no data")
+    }
+    return lines
+}
+
+private func expandMovementLines(_ lines: [String]) -> [FacingDirection] {
+    var path: [FacingDirection] = []
+    for line in lines where line.hasPrefix("db ") {
+        let tokens = movementTokens(from: line)
+        for token in tokens {
+            if token == "-1" {
+                return path
+            }
+            if token == "NPC_CHANGE_FACING" {
+                continue
+            }
+            if let direction = directionToken(token) {
+                path.append(direction)
+            }
+        }
+    }
+    return path
+}
+
+private func expandRepeatedMovementLines(_ lines: [String]) -> [FacingDirection] {
+    var path: [FacingDirection] = []
+    for line in lines where line.hasPrefix("db ") {
+        let tokens = movementTokens(from: line)
+        guard let first = tokens.first else { continue }
+        if first == "-1" {
+            return path
+        }
+        guard let direction = directionToken(first) else {
+            continue
+        }
+        let repeatCount = tokens.count > 1 ? Int(tokens[1]) ?? 1 : 1
+        path.append(contentsOf: Array(repeating: direction, count: repeatCount))
+    }
+    return path
+}
+
+private func movementTokens(from line: String) -> [String] {
+    line
+        .split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+        .first?
+        .replacingOccurrences(of: "db", with: "")
+        .split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+}
+
+private func directionToken(_ token: String) -> FacingDirection? {
+    switch token {
+    case "NPC_MOVEMENT_UP", "PAD_UP":
+        return .up
+    case "NPC_MOVEMENT_DOWN", "PAD_DOWN":
+        return .down
+    case "NPC_MOVEMENT_LEFT", "PAD_LEFT":
+        return .left
+    case "NPC_MOVEMENT_RIGHT", "PAD_RIGHT":
+        return .right
+    default:
+        return nil
+    }
 }
 
 private func buildSpecies(repoRoot: URL) throws -> [SpeciesManifest] {

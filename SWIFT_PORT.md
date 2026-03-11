@@ -45,7 +45,7 @@ The port target is not "run the ROM." The target is:
 
 ### Current State Summary
 
-Milestones `M1`, `M2`, `M3`, and `M4A` remain complete as of `2026-03-10`.
+Milestones `M1`, `M2`, `M3`, and `M4A` remain complete as of `2026-03-11`.
 
 The repo now contains:
 
@@ -58,6 +58,7 @@ The repo now contains:
 - a playable field/dialogue/starter-choice/battle runtime slice from `New Game` through the first rival battle
 - source-driven tileset collision metadata and per-map step collision grids for the four-map M3 slice
 - source-driven Pallet Town and Oak's Lab map-script triggers and extracted script manifests, with no fallback Swift-only story paths for the slice
+- source-driven M3 NPC movement manifests for Pallet Town and Oak's Lab, including actor-aware scripted movement kinds, starter-dependent rival pickup paths, Oak's Pallet escort, and structured idle-wander metadata extracted from map objects
 - source-driven trainer battle manifests with extracted enemy parties and starter-dependent rival selection for Oak's Lab
 - extracted starter typings, starter battle sprite paths, copied starter battle assets, and a source-driven type-effectiveness table for Oak Lab battle hardening
 - a native overworld/dialogue/battle UI shell for the M3 slice
@@ -70,16 +71,18 @@ The repo now contains:
 - bounded native M3 music playback driven from extracted ASM-backed audio manifests, including title, map-default, scripted override, battle, rival-exit, and Mom-heal routing
 - a native-first single-slot save/load foundation using schema-versioned JSON save envelopes, title-menu `Continue` gating from readable save metadata, in-session sidebar save/load actions, XP-preserving party snapshots in save schema `2`, and save telemetry/control endpoints for the harness
 - battle telemetry that now exposes phase, queued/current text, and move-slot state so the UI and harness can consume turn sequencing directly
+- field telemetry that now exposes visible object id, tile position, facing, and idle-vs-scripted movement mode so the harness can assert NPC choreography and no-overlap behavior directly
 - audio telemetry that now exposes current track, entry, playback reason, and revision so the harness can validate music transitions during the slice
 - save telemetry that now exposes metadata, save/load availability, the last save operation result, and save-store error details so title flow, the gameplay shell, and the harness can verify restore behavior explicitly
-- a passing workspace test run across the current module test targets
+- a unified tile-by-tile movement runner for player and NPC actors, with blocking occupancy checks, scripted movement serialization, bounded idle walking for the current `WALK` NPCs, and animated Oak/Blue movement instead of teleport shortcuts
+- a passing validation sweep across the current movement-sensitive module test targets plus the M3 milestone harness
 - a macOS `26.0+` baseline for the Swift port so native Liquid Glass UI can be used without legacy fallback surfaces
 
-The current accepted baseline was revalidated on `2026-03-10` with:
+The current accepted baseline was revalidated on `2026-03-11` with:
 
 - `./scripts/extract_red.sh`
 - `./scripts/validate_milestone.sh`
-- `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`
+- `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test -only-testing:PokeExtractCLITests -only-testing:PokeCoreTests -only-testing:PokeUITests`
 
 ### M1 Acceptance Criteria
 
@@ -149,9 +152,9 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Save / load / persistence | `in progress` | Usable native-first save system for progression restart, with future adapters for ROM-compatible formats | save format references, WRAM/SRAM behaviors, menu flows | `PokeCore`, `PokeDataModel`, `PokeMac`, `PokeTelemetry` | save slot inventory, metadata, load failures, save/load timing traces | v1 ships as a versioned single-slot native save in Application Support, and schema `2` now persists exact party EXP totals; defer raw `.sav` compatibility until broader runtime parity exists |
 | Overworld map loading | `in progress` | All maps load with correct tilesets, warps, objects, metadata | `maps/**`, `data/maps/**`, tileset data | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeUI` | current map id/name, tileset id, warp traces, missing map asset reports | M3 covers four maps only, but bounded warps now resolve from source destination-warp tiles instead of runtime offset tables; expand map coverage and edge rules next |
 | Overworld rendering | `in progress` | Native tile and sprite rendering with deterministic visual composition | map assets, sprite assets, tilesets | `PokeUI`, `PokeCore`, `PokeContent` | render surface dimensions, visible map region, sprite layer traces, render mode | Real extracted tile and sprite rendering is accepted for the M3 slice, and the player now uses extracted walking frames plus field-local indoor/outdoor black fades; camera polish and full asset parity remain |
-| Player movement and collisions | `in progress` | Correct grid movement, collision, ledges, doors, warps, cut/surf/bike gating | movement/collision logic in disassembly | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeTelemetry` | player position, heading, blocked movement reasons, warp transitions | M3 movement now uses extracted tileset collision metadata, source-resolved warp destinations, black fade transitions for field warps, door-only step-out behavior, and explicit transition telemetry for the four-map slice; broader movement rules and more map coverage remain |
-| NPC objects and trainer objects | `in progress` | Correct object spawning, movement, facing, trainer line-of-sight, interactions | object event data, scripts, map data | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | object states, interaction target ids, trainer trigger traces | M3 lab/Pallet objects are extracted and interactive; general NPC behavior remains |
-| Script engine and event flags | `in progress` | Full script execution and event flag parity | `scripts/**`, event tables, map scripts, flag constants | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | current script id, active flags, script transitions, blocking reasons | Pallet Town and Oak's Lab now run extracted map-script triggers and script manifests end to end in M3; broaden the extracted script subset only as new map coverage demands it |
+| Player movement and collisions | `in progress` | Correct grid movement, collision, ledges, doors, warps, cut/surf/bike gating | movement/collision logic in disassembly | `PokeExtractCLI`, `PokeContent`, `PokeCore`, `PokeTelemetry` | player position, heading, blocked movement reasons, warp transitions | M3 movement now uses extracted tileset collision metadata, source-resolved warp destinations, black fade transitions for field warps, door-only step-out behavior, blocking occupancy checks against moving actors, and serialized tile-by-tile scripted movement for the four-map slice; broader movement rules and more map coverage remain |
+| NPC objects and trainer objects | `in progress` | Correct object spawning, movement, facing, trainer line-of-sight, interactions | object event data, scripts, map data | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | object states, interaction target ids, trainer trigger traces | M3 lab/Pallet objects are now extracted with structured idle movement behavior, bounded wandering is live for the current `WALK` NPCs, and Oak/Blue use animated source-driven movement sequences; trainer sight, broader NPC schedules, and full-map coverage still remain |
+| Script engine and event flags | `in progress` | Full script execution and event flag parity | `scripts/**`, event tables, map scripts, flag constants | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | current script id, active flags, script transitions, blocking reasons | Pallet Town and Oak's Lab now run extracted map-script triggers plus actor-aware movement manifests end to end in M3, including Oak escort, lab entry, forced walkback, starter-dependent rival pickup, rival approach, and rival exit; broaden the extracted script subset only as new map coverage demands it |
 | Inventory, items, shops, PC | `not started` | Functional bag, PC storage, marts, item use, hidden items | item data, shop tables, menu scripts | `PokeExtractCLI`, `PokeCore`, `PokeUI`, `PokeTelemetry` | bag contents, item actions, mart transactions, storage traces | Extract item catalogs and menu layouts |
 | Party, stats, moves, evolution | `in progress` | Correct party state, stat growth, level up, learnsets, evolution rules | species/move data, evolution tables | `PokeExtractCLI`, `PokeCore`, `PokeTelemetry` | party summary, move learn events, evolution triggers, stat deltas | Starter acquisition, exact EXP totals, bounded level-up/stat recalculation, and battle-driven party progression are implemented for M3; learnsets and evolution still remain |
 | Battle engine | `in progress` | Wild, trainer, scripted, and special battle parity | battle engine code, move data, trainer data, effects tables | `PokeExtractCLI`, `PokeCore`, `PokeUI`, `PokeTelemetry` | battle state snapshots, turn/action logs, HP/status/EXP deltas | Oak Lab rival battle now applies source-driven type data, accuracy/evasion, STAB, type effectiveness, critical hits, bounded debuff effects, trainer EXP gain, bounded level-up handling, queued turn text, and deterministic `RIVAL1`-style move choice; broader battle parity still excludes wild battles, capture, items, switching, statuses, animations, and general trainer systems |
@@ -160,7 +163,7 @@ The following table is the top-level full-port checklist. Each row represents a 
 | Menus, naming, Pokedex, party UI | `not started` | Full native menu/navigation stack with gameplay parity | menu scripts, text resources, species data | `PokeCore`, `PokeUI`, `PokeMac`, `PokeTelemetry` | current menu stack, selection state, naming input events | Build generic menu framework after title menu is stable |
 | Audio / music / SFX | `in progress` | Native playback matching timing and event hooks closely enough for parity | `audio/**`, music/sfx data, track references | `PokeExtractCLI`, `PokeCore`, `PokeMac`, `PokeTelemetry` | current track ids, entry ids, playback reasons, audio load failures, playback state | Bounded M3 music extraction, routing, telemetry, and native playback are live for title, map-default, scripted, battle, rival-exit, and heal cues; fidelity and broader SFX/music parity still remain |
 | Native macOS shell and UX | `in progress` | Native menus, settings, scaling, input mapping, window behavior, accessibility basics | app-level design decisions and extracted content constraints | `PokeMac`, `PokeUI`, `PokeTelemetry` | window scale, focused scene, input bindings, command usage | Title-shell scope is accepted; expand settings and accessibility with later gameplay milestones |
-| Telemetry, debug tooling, parity harnesses | `in progress` | Stable state snapshots, control hooks, regression harnesses, parity/debug surfaces | runtime state plus extracted content metadata | `PokeTelemetry`, `PokeHarness`, `PokeCore` | JSONL traces, latest snapshot endpoint, smoke validators, debug overlay | Battle telemetry and harness flow now use explicit battle phase, queued text, and move-slot state for the Oak Lab slice; parity tooling still needs expansion beyond M3 |
+| Telemetry, debug tooling, parity harnesses | `in progress` | Stable state snapshots, control hooks, regression harnesses, parity/debug surfaces | runtime state plus extracted content metadata | `PokeTelemetry`, `PokeHarness`, `PokeCore` | JSONL traces, latest snapshot endpoint, smoke validators, debug overlay | Battle telemetry and harness flow now use explicit battle phase, queued text, move-slot state, and field-object telemetry for the Oak Lab slice, and the milestone validator now asserts object visibility/no-overlap checkpoints through the new scripted movement flow; parity tooling still needs expansion beyond M3 |
 
 ## End-to-End Delivery Checklist
 
@@ -445,6 +448,7 @@ When a blocker is discovered, add:
 - Tightened extractor timing fidelity for the bounded music slice by matching the engine's carried note-delay behavior more closely.
 - Extended telemetry to surface active map-script triggers and enemy party progress so harnesses and tests can validate the source-driven runtime path directly.
 - Updated the field renderer/view baseline so gameplay maps default to the tinted Game Boy presentation, while preserving raw grayscale composition internally and existing `renderMode == realAssets` telemetry semantics.
+- Corrected two Oak/Blue choreography parity gaps in the accepted M3 slice: simulated joypad escort paths now execute in the same order as the GB engine, and Blue's counter-starter ball stays visible until his post-walk pickup dialogue reaches the original hide point.
 - Replaced the cached pixel-matrix overlay with a shader-based LCD treatment in the field view so DMG palette remap, pixel-cell shaping, and a restrained reflective glass sheen all live in a single display-only pass.
 - Added a working field-filter switcher in the gameplay sidebar options section so the UI can swap between authentic DMG, tinted, and raw grayscale field presentation without touching runtime state contracts.
 - Optimized field presentation updates so the SwiftUI field view no longer regenerates the full scene bitmap during ordinary body invalidations, and the renderer now caches decoded assets plus recent rendered frames by render signature.

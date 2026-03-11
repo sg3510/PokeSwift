@@ -21,11 +21,11 @@ extension GameRuntime {
         beginScript(id: trigger.scriptID)
     }
 
-    private func conditionsMatch(_ trigger: MapScriptTriggerManifest, blockedMoveFacing: FacingDirection?) -> Bool {
+    func conditionsMatch(_ trigger: MapScriptTriggerManifest, blockedMoveFacing: FacingDirection?) -> Bool {
         trigger.conditions.allSatisfy { conditionMatches($0, blockedMoveFacing: blockedMoveFacing) }
     }
 
-    private func conditionMatches(_ condition: ScriptConditionManifest, blockedMoveFacing: FacingDirection?) -> Bool {
+    func conditionMatches(_ condition: ScriptConditionManifest, blockedMoveFacing: FacingDirection?) -> Bool {
         switch condition.kind {
         case "flagSet":
             guard let flagID = condition.flagID else { return false }
@@ -103,6 +103,10 @@ extension GameRuntime {
         case "restoreMapMusic":
             requestDefaultMapMusic()
             return false
+        case "performMovement":
+            guard let movement = step.movement else { return false }
+            beginScriptedMovement(movement)
+            return true
         default:
             guard var gameplayState else { return false }
             switch step.action {
@@ -119,16 +123,24 @@ extension GameRuntime {
                     gameplayState.objectStates[objectID]?.visible = visible
                 }
             case "moveObject":
-                if let objectID = step.objectID, var object = gameplayState.objectStates[objectID] {
-                    for direction in step.path {
-                        object.position = translated(object.position, by: direction)
-                        object.facing = direction
-                    }
-                    gameplayState.objectStates[objectID] = object
+                if let objectID = step.objectID {
+                    self.gameplayState = gameplayState
+                    beginScriptedMovement(
+                        .init(
+                            kind: .fixedPath,
+                            actors: [.init(actorID: objectID, path: step.path)]
+                        )
+                    )
+                    return true
                 }
             case "movePlayer":
                 self.gameplayState = gameplayState
-                beginScriptedPlayerMovement(step.path)
+                beginScriptedMovement(
+                    .init(
+                        kind: .fixedPath,
+                        actors: [.init(actorID: "player", path: step.path)]
+                    )
+                )
                 return true
             case "faceObject":
                 if let objectID = step.objectID, let raw = step.stringValue {
@@ -170,7 +182,13 @@ extension GameRuntime {
         var objectStates: [String: RuntimeObjectState] = [:]
         for map in content.gameplayManifest.maps {
             for object in map.objects {
-                objectStates[object.id] = RuntimeObjectState(position: object.position, facing: object.facing, visible: object.visibleByDefault)
+                objectStates[object.id] = RuntimeObjectState(
+                    position: object.position,
+                    facing: object.facing,
+                    visible: object.visibleByDefault,
+                    movementMode: nil,
+                    idleStepIndex: 0
+                )
             }
         }
         objectStates["pallet_town_oak"]?.visible = false

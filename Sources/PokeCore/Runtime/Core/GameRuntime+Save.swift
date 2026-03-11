@@ -174,6 +174,7 @@ extension GameRuntime {
         fieldTransitionTask?.cancel()
         fieldMovementTask?.cancel()
         scriptedMovementTask?.cancel()
+        idleMovementTask?.cancel()
 
         playthroughID = envelope.metadata.playthroughID
         gameplayState = GameplayState(
@@ -181,7 +182,13 @@ extension GameRuntime {
             playerPosition: envelope.snapshot.playerPosition,
             facing: envelope.snapshot.facing,
             objectStates: envelope.snapshot.objectStates.mapValues {
-                RuntimeObjectState(position: $0.position, facing: $0.facing, visible: $0.visible)
+                RuntimeObjectState(
+                    position: $0.position,
+                    facing: $0.facing,
+                    visible: $0.visible,
+                    movementMode: nil,
+                    idleStepIndex: 0
+                )
             },
             activeFlags: Set(envelope.snapshot.activeFlags),
             money: envelope.snapshot.money,

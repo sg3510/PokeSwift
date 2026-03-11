@@ -201,7 +201,11 @@ private struct HarnessCLI {
         snapshot = try waitForSettledField(on: "REDS_HOUSE_1F", timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "REDS_HOUSE_1F")
         try assertAudio(snapshot, trackID: "MUSIC_PALLET_TOWN", reason: "mapDefault")
-        snapshot = try walk(to: TilePoint(x: 3, y: 6), on: "REDS_HOUSE_1F", startingFrom: snapshot, yFirst: true)
+        // The real collision grid blocks a straight vertical walk from the stair landing.
+        snapshot = try walk(to: TilePoint(x: 4, y: 1), on: "REDS_HOUSE_1F", startingFrom: snapshot)
+        snapshot = try walk(to: TilePoint(x: 4, y: 2), on: "REDS_HOUSE_1F", startingFrom: snapshot, yFirst: true)
+        snapshot = try walk(to: TilePoint(x: 2, y: 2), on: "REDS_HOUSE_1F", startingFrom: snapshot)
+        snapshot = try walk(to: TilePoint(x: 2, y: 6), on: "REDS_HOUSE_1F", startingFrom: snapshot, yFirst: true)
         try postInput("down")
         snapshot = try waitForSettledField(on: "PALLET_TOWN", timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "PALLET_TOWN")
@@ -214,7 +218,7 @@ private struct HarnessCLI {
         snapshot = try drainDialogues(startingFrom: snapshot, maxInteractions: 16)
         snapshot = try advanceNarrative(
             startingFrom: snapshot,
-            maxInteractions: 12,
+            maxInteractions: 24,
             until: {
                 $0.scene == .field &&
                 $0.field?.mapID == "OAKS_LAB" &&
@@ -223,6 +227,13 @@ private struct HarnessCLI {
         )
         try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
         try assertAudio(snapshot, trackID: "MUSIC_OAKS_LAB", reason: "mapDefault")
+        try assertNoPlayerObjectOverlap(snapshot)
+        guard snapshot.field?.objects.contains(where: { $0.id == "oaks_lab_oak_1" }) == true else {
+            throw HarnessError.validationFailed("expected Oak to remain visible after escorting the player into the lab")
+        }
+        guard snapshot.field?.objects.contains(where: { $0.id == "oaks_lab_oak_2" }) == false else {
+            throw HarnessError.validationFailed("temporary Oak escort object should be hidden after the lab entry movement finishes")
+        }
 
         snapshot = try walk(to: TilePoint(x: 7, y: 4), on: "OAKS_LAB", startingFrom: snapshot, yFirst: true)
         try postInput("up")
@@ -242,10 +253,18 @@ private struct HarnessCLI {
         }
         try postInput("confirm")
         snapshot = try poll(until: { $0.scene == .dialogue }, timeout: 4)
-        snapshot = try drainDialogues(startingFrom: snapshot, maxInteractions: 16)
-        snapshot = try poll(until: { $0.scene == .field && ($0.eventFlags?.activeFlags.contains("EVENT_GOT_STARTER") ?? false) }, timeout: 4)
+        snapshot = try advanceNarrative(
+            startingFrom: snapshot,
+            maxInteractions: 24,
+            until: {
+                $0.scene == .field &&
+                $0.field?.mapID == "OAKS_LAB" &&
+                ($0.eventFlags?.activeFlags.contains("EVENT_GOT_STARTER") ?? false)
+            }
+        )
         try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
         try assertAudio(snapshot, trackID: "MUSIC_OAKS_LAB", reason: "mapDefault")
+        try assertNoPlayerObjectOverlap(snapshot)
 
         snapshot = try walk(to: TilePoint(x: 4, y: 6), on: "OAKS_LAB", startingFrom: snapshot)
         if snapshot.scene != .dialogue || snapshot.dialogue?.dialogueID != "oaks_lab_rival_ill_take_you_on" {
@@ -313,6 +332,10 @@ private struct HarnessCLI {
         }, timeout: 4)
         try assertRealFieldRendering(snapshot, expectedMapID: "OAKS_LAB")
         try assertAudio(snapshot, trackID: "MUSIC_OAKS_LAB", reason: "mapDefault")
+        try assertNoPlayerObjectOverlap(snapshot)
+        guard snapshot.field?.objects.contains(where: { $0.id == "oaks_lab_rival" }) == false else {
+            throw HarnessError.validationFailed("rival should have left Oak's Lab after the post-battle exit sequence")
+        }
 
         guard snapshot.party?.pokemon.count == 1 else {
             throw HarnessError.validationFailed("expected one starter in party after rival battle")
@@ -361,6 +384,15 @@ private struct HarnessCLI {
         }
         guard snapshot.assetLoadingFailures.isEmpty else {
             throw HarnessError.validationFailed("asset-loading failures present on \(expectedMapID): \(snapshot.assetLoadingFailures.joined(separator: ", "))")
+        }
+    }
+
+    private func assertNoPlayerObjectOverlap(_ snapshot: RuntimeTelemetrySnapshot) throws {
+        guard let field = snapshot.field else {
+            throw HarnessError.validationFailed("expected field telemetry while checking object overlap")
+        }
+        guard field.objects.contains(where: { $0.position == field.playerPosition }) == false else {
+            throw HarnessError.validationFailed("player overlapped a visible field object on \(field.mapID)")
         }
     }
 

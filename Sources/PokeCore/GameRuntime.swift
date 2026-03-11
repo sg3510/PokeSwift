@@ -27,6 +27,7 @@ public final class GameRuntime {
     var fieldTransitionTask: Task<Void, Never>?
     var fieldMovementTask: Task<Void, Never>?
     var scriptedMovementTask: Task<Void, Never>?
+    var idleMovementTask: Task<Void, Never>?
     var hasStarted = false
     var gameplayState: GameplayState?
     var dialogueState: DialogueState?
@@ -133,6 +134,8 @@ public final class GameRuntime {
                 sprite: object.sprite,
                 position: state?.position ?? object.position,
                 facing: state?.facing ?? object.facing,
+                movementBehavior: object.movementBehavior,
+                movementMode: state?.movementMode,
                 interactionDialogueID: object.interactionDialogueID,
                 trainerBattleID: object.trainerBattleID
             )
@@ -198,6 +201,7 @@ public final class GameRuntime {
             fieldTransitionState == nil &&
             fieldMovementTask == nil &&
             scriptedMovementTask == nil &&
+            gameplayState?.objectStates.values.contains(where: { $0.movementMode != nil }) == false &&
             gameplayState?.battle == nil
     }
 

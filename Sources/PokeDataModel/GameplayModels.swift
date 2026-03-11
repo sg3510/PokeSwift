@@ -71,6 +71,55 @@ public struct BackgroundEventManifest: Codable, Equatable, Sendable {
     }
 }
 
+public enum ObjectIdleMovementMode: String, Codable, Equatable, Sendable {
+    case stay
+    case walk
+}
+
+public enum ActorMovementMode: String, Codable, Equatable, Sendable {
+    case idle
+    case scripted
+}
+
+public enum ObjectMovementAxis: String, Codable, Equatable, Sendable {
+    case none
+    case any
+    case upDown
+    case leftRight
+
+    public var allowedDirections: [FacingDirection] {
+        switch self {
+        case .none:
+            return []
+        case .any:
+            return FacingDirection.allCases
+        case .upDown:
+            return [.up, .down]
+        case .leftRight:
+            return [.left, .right]
+        }
+    }
+}
+
+public struct ObjectMovementBehavior: Codable, Equatable, Sendable {
+    public let idleMode: ObjectIdleMovementMode
+    public let axis: ObjectMovementAxis
+    public let home: TilePoint
+    public let maxDistanceFromHome: Int
+
+    public init(
+        idleMode: ObjectIdleMovementMode,
+        axis: ObjectMovementAxis,
+        home: TilePoint,
+        maxDistanceFromHome: Int = 1
+    ) {
+        self.idleMode = idleMode
+        self.axis = axis
+        self.home = home
+        self.maxDistanceFromHome = maxDistanceFromHome
+    }
+}
+
 public struct MapObjectManifest: Codable, Equatable, Sendable {
     public let id: String
     public let displayName: String
@@ -78,7 +127,7 @@ public struct MapObjectManifest: Codable, Equatable, Sendable {
     public let position: TilePoint
     public let facing: FacingDirection
     public let interactionDialogueID: String?
-    public let movementType: String
+    public let movementBehavior: ObjectMovementBehavior
     public let trainerBattleID: String?
     public let trainerClass: String?
     public let trainerNumber: Int?
@@ -91,7 +140,7 @@ public struct MapObjectManifest: Codable, Equatable, Sendable {
         position: TilePoint,
         facing: FacingDirection,
         interactionDialogueID: String?,
-        movementType: String,
+        movementBehavior: ObjectMovementBehavior,
         trainerBattleID: String?,
         trainerClass: String? = nil,
         trainerNumber: Int? = nil,
@@ -103,11 +152,104 @@ public struct MapObjectManifest: Codable, Equatable, Sendable {
         self.position = position
         self.facing = facing
         self.interactionDialogueID = interactionDialogueID
-        self.movementType = movementType
+        self.movementBehavior = movementBehavior
         self.trainerBattleID = trainerBattleID
         self.trainerClass = trainerClass
         self.trainerNumber = trainerNumber
         self.visibleByDefault = visibleByDefault
+    }
+
+    public var movementType: String {
+        switch movementBehavior.idleMode {
+        case .stay:
+            return "STAY"
+        case .walk:
+            return "WALK"
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName
+        case sprite
+        case position
+        case facing
+        case interactionDialogueID
+        case movementBehavior
+        case movementType
+        case trainerBattleID
+        case trainerClass
+        case trainerNumber
+        case visibleByDefault
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        sprite = try container.decode(String.self, forKey: .sprite)
+        position = try container.decode(TilePoint.self, forKey: .position)
+        facing = try container.decode(FacingDirection.self, forKey: .facing)
+        interactionDialogueID = try container.decodeIfPresent(String.self, forKey: .interactionDialogueID)
+        if let movementBehavior = try container.decodeIfPresent(ObjectMovementBehavior.self, forKey: .movementBehavior) {
+            self.movementBehavior = movementBehavior
+        } else {
+            let legacyMovementType = try container.decodeIfPresent(String.self, forKey: .movementType) ?? "STAY"
+            self.movementBehavior = Self.legacyMovementBehavior(
+                movementType: legacyMovementType,
+                facing: facing,
+                home: position
+            )
+        }
+        trainerBattleID = try container.decodeIfPresent(String.self, forKey: .trainerBattleID)
+        trainerClass = try container.decodeIfPresent(String.self, forKey: .trainerClass)
+        trainerNumber = try container.decodeIfPresent(Int.self, forKey: .trainerNumber)
+        visibleByDefault = try container.decode(Bool.self, forKey: .visibleByDefault)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(sprite, forKey: .sprite)
+        try container.encode(position, forKey: .position)
+        try container.encode(facing, forKey: .facing)
+        try container.encodeIfPresent(interactionDialogueID, forKey: .interactionDialogueID)
+        try container.encode(movementBehavior, forKey: .movementBehavior)
+        try container.encodeIfPresent(trainerBattleID, forKey: .trainerBattleID)
+        try container.encodeIfPresent(trainerClass, forKey: .trainerClass)
+        try container.encodeIfPresent(trainerNumber, forKey: .trainerNumber)
+        try container.encode(visibleByDefault, forKey: .visibleByDefault)
+    }
+
+    private static func legacyMovementBehavior(
+        movementType: String,
+        facing: FacingDirection,
+        home: TilePoint
+    ) -> ObjectMovementBehavior {
+        switch movementType {
+        case "WALK":
+            return .init(idleMode: .walk, axis: .any, home: home)
+        case "UP_DOWN":
+            return .init(idleMode: .walk, axis: .upDown, home: home)
+        case "LEFT_RIGHT":
+            return .init(idleMode: .walk, axis: .leftRight, home: home)
+        case "NONE":
+            return .init(idleMode: .stay, axis: .none, home: home, maxDistanceFromHome: 0)
+        case "UP", "DOWN":
+            return .init(idleMode: .stay, axis: .none, home: home, maxDistanceFromHome: 0)
+        case "ANY_DIR":
+            return .init(idleMode: .walk, axis: .any, home: home)
+        default:
+            let axis: ObjectMovementAxis
+            switch facing {
+            case .up, .down:
+                axis = .upDown
+            case .left, .right:
+                axis = .leftRight
+            }
+            return .init(idleMode: .stay, axis: axis, home: home, maxDistanceFromHome: 0)
+        }
     }
 }
 
@@ -315,6 +457,7 @@ public struct ScriptStep: Codable, Equatable, Sendable {
     public let secondaryStringValue: String?
     public let point: TilePoint?
     public let path: [FacingDirection]
+    public let movement: ScriptMovementManifest?
     public let flagID: String?
     public let objectID: String?
     public let dialogueID: String?
@@ -329,6 +472,7 @@ public struct ScriptStep: Codable, Equatable, Sendable {
         secondaryStringValue: String? = nil,
         point: TilePoint? = nil,
         path: [FacingDirection] = [],
+        movement: ScriptMovementManifest? = nil,
         flagID: String? = nil,
         objectID: String? = nil,
         dialogueID: String? = nil,
@@ -342,6 +486,7 @@ public struct ScriptStep: Codable, Equatable, Sendable {
         self.secondaryStringValue = secondaryStringValue
         self.point = point
         self.path = path
+        self.movement = movement
         self.flagID = flagID
         self.objectID = objectID
         self.dialogueID = dialogueID
@@ -349,6 +494,61 @@ public struct ScriptStep: Codable, Equatable, Sendable {
         self.trainerClass = trainerClass
         self.trainerNumber = trainerNumber
         self.visible = visible
+    }
+}
+
+public enum ScriptMovementKind: String, Codable, Equatable, Sendable {
+    case fixedPath
+    case pathToPlayerAdjacent
+    case palletEscort
+    case rivalStarterPickup
+}
+
+public struct ScriptMovementActor: Codable, Equatable, Sendable {
+    public let actorID: String
+    public let path: [FacingDirection]
+
+    public init(actorID: String, path: [FacingDirection]) {
+        self.actorID = actorID
+        self.path = path
+    }
+}
+
+public struct ScriptMovementVariant: Codable, Equatable, Sendable {
+    public let id: String
+    public let conditions: [ScriptConditionManifest]
+    public let actors: [ScriptMovementActor]
+    public let point: TilePoint?
+
+    public init(
+        id: String,
+        conditions: [ScriptConditionManifest],
+        actors: [ScriptMovementActor],
+        point: TilePoint? = nil
+    ) {
+        self.id = id
+        self.conditions = conditions
+        self.actors = actors
+        self.point = point
+    }
+}
+
+public struct ScriptMovementManifest: Codable, Equatable, Sendable {
+    public let kind: ScriptMovementKind
+    public let actors: [ScriptMovementActor]
+    public let targetPlayerOffset: TilePoint?
+    public let variants: [ScriptMovementVariant]
+
+    public init(
+        kind: ScriptMovementKind,
+        actors: [ScriptMovementActor] = [],
+        targetPlayerOffset: TilePoint? = nil,
+        variants: [ScriptMovementVariant] = []
+    ) {
+        self.kind = kind
+        self.actors = actors
+        self.targetPlayerOffset = targetPlayerOffset
+        self.variants = variants
     }
 }
 

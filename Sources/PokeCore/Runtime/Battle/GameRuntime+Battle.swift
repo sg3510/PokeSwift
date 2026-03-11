@@ -54,14 +54,10 @@ extension GameRuntime {
         let rivalSpeciesID = rivalStarter(for: speciesID)
         gameplayState.rivalStarterSpeciesID = rivalSpeciesID
         gameplayState.objectStates[selectedBallObjectID(for: speciesID)]?.visible = false
-        gameplayState.objectStates[selectedBallObjectID(for: rivalSpeciesID)]?.visible = false
         self.gameplayState = gameplayState
 
         showDialogue(id: "oaks_lab_received_mon_\(speciesID.lowercased())", completion: .returnToField)
-        queueDeferredActions([
-            .dialogue("oaks_lab_rival_ill_take_this_one"),
-            .dialogue("oaks_lab_rival_received_mon_\(rivalSpeciesID.lowercased())"),
-        ])
+        queueDeferredActions([.script(rivalPickupScriptID(for: speciesID))])
     }
 
     func resolveBattleTurn(battle: inout RuntimeBattleState) {
@@ -433,14 +429,8 @@ extension GameRuntime {
     }
 
     func runPostBattleSequence(won: Bool) {
-        guard var gameplayState else { return }
-        gameplayState.objectStates["oaks_lab_rival"]?.position = TilePoint(x: 4, y: 8)
-        gameplayState.objectStates["oaks_lab_rival"]?.facing = .down
-        self.gameplayState = gameplayState
         let _ = won
-        requestRivalExitMusic()
-        showDialogue(id: "oaks_lab_rival_smell_you_later", completion: .returnToField)
-        queueDeferredActions([.hideObject("oaks_lab_rival"), .restoreMapMusic])
+        beginScript(id: "oaks_lab_rival_exit_after_battle")
     }
 
     func startBattle(id: String) {
@@ -714,6 +704,17 @@ extension GameRuntime {
             return "BULBASAUR"
         default:
             return "CHARMANDER"
+        }
+    }
+
+    func rivalPickupScriptID(for playerStarter: String) -> String {
+        switch playerStarter {
+        case "CHARMANDER":
+            return "oaks_lab_rival_picks_after_charmander"
+        case "SQUIRTLE":
+            return "oaks_lab_rival_picks_after_squirtle"
+        default:
+            return "oaks_lab_rival_picks_after_bulbasaur"
         }
     }
 

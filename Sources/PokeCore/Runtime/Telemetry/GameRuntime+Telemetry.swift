@@ -25,6 +25,7 @@ extension GameRuntime {
 
     func publishSnapshot() {
         advanceDeferredQueueIfNeeded()
+        refreshIdleMovementScheduling()
         guard let telemetryPublisher else { return }
         let snapshot = currentSnapshot()
         Task {
@@ -39,6 +40,14 @@ extension GameRuntime {
             mapName: map.displayName,
             playerPosition: gameplayState.playerPosition,
             facing: gameplayState.facing,
+            objects: currentFieldObjects.map {
+                .init(
+                    id: $0.id,
+                    position: $0.position,
+                    facing: $0.facing,
+                    movementMode: $0.movementMode
+                )
+            },
             activeMapScriptTriggerID: gameplayState.activeMapScriptTriggerID,
             activeScriptID: gameplayState.activeScriptID,
             activeScriptStep: gameplayState.activeScriptStep,

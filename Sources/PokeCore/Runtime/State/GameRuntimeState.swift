@@ -7,6 +7,8 @@ public struct FieldObjectRenderState: Equatable, Sendable {
     public let sprite: String
     public let position: TilePoint
     public let facing: FacingDirection
+    public let movementBehavior: ObjectMovementBehavior
+    public let movementMode: ActorMovementMode?
     public let interactionDialogueID: String?
     public let trainerBattleID: String?
 
@@ -16,6 +18,13 @@ public struct FieldObjectRenderState: Equatable, Sendable {
         sprite: String,
         position: TilePoint,
         facing: FacingDirection,
+        movementBehavior: ObjectMovementBehavior = .init(
+            idleMode: .stay,
+            axis: .none,
+            home: .init(x: 0, y: 0),
+            maxDistanceFromHome: 0
+        ),
+        movementMode: ActorMovementMode? = nil,
         interactionDialogueID: String?,
         trainerBattleID: String?
     ) {
@@ -24,6 +33,8 @@ public struct FieldObjectRenderState: Equatable, Sendable {
         self.sprite = sprite
         self.position = position
         self.facing = facing
+        self.movementBehavior = movementBehavior
+        self.movementMode = movementMode
         self.interactionDialogueID = interactionDialogueID
         self.trainerBattleID = trainerBattleID
     }
@@ -33,6 +44,22 @@ struct RuntimeObjectState {
     var position: TilePoint
     var facing: FacingDirection
     var visible: Bool
+    var movementMode: ActorMovementMode?
+    var idleStepIndex: Int
+
+    init(
+        position: TilePoint,
+        facing: FacingDirection,
+        visible: Bool,
+        movementMode: ActorMovementMode? = nil,
+        idleStepIndex: Int = 0
+    ) {
+        self.position = position
+        self.facing = facing
+        self.visible = visible
+        self.movementMode = movementMode
+        self.idleStepIndex = idleStepIndex
+    }
 }
 
 struct RuntimeMoveState {
@@ -112,6 +139,7 @@ struct DialogueState {
 enum DeferredAction {
     case dialogue(String)
     case battle(String)
+    case script(String)
     case hideObject(String)
     case restoreMapMusic
 }
