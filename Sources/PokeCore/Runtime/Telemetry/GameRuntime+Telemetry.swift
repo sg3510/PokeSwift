@@ -132,6 +132,10 @@ extension GameRuntime {
             level: pokemon.level,
             currentHP: pokemon.currentHP,
             maxHP: pokemon.maxHP,
+            attack: pokemon.attack,
+            defense: pokemon.defense,
+            speed: pokemon.speed,
+            special: pokemon.special,
             moves: pokemon.moves.map(\.id),
             experience: .init(
                 total: pokemon.experience,
@@ -139,7 +143,45 @@ extension GameRuntime {
                 nextLevel: pokemon.level >= 100
                     ? experienceRequired(for: pokemon.level, speciesID: pokemon.speciesID)
                     : experienceRequired(for: pokemon.level + 1, speciesID: pokemon.speciesID)
-            )
+            ),
+            growthOutlook: growthOutlook(for: pokemon)
         )
+    }
+
+    func growthOutlook(for pokemon: RuntimePokemonState) -> PokemonGrowthOutlookTelemetry {
+        let hpScore = hiddenGrowthScore(dv: pokemon.dvs.hp, statExp: pokemon.statExp.hp)
+        let attackScore = hiddenGrowthScore(dv: pokemon.dvs.attack, statExp: pokemon.statExp.attack)
+        let defenseScore = hiddenGrowthScore(dv: pokemon.dvs.defense, statExp: pokemon.statExp.defense)
+        let speedScore = hiddenGrowthScore(dv: pokemon.dvs.speed, statExp: pokemon.statExp.speed)
+        let specialScore = hiddenGrowthScore(dv: pokemon.dvs.special, statExp: pokemon.statExp.special)
+        let allScores = [hpScore, attackScore, defenseScore, speedScore, specialScore]
+
+        guard let minimumScore = allScores.min(),
+              let maximumScore = allScores.max(),
+              minimumScore < maximumScore else {
+            return .neutral
+        }
+
+        func trend(for score: Int) -> PokemonStatGrowthTelemetry {
+            if score == maximumScore {
+                return .favored
+            }
+            if score == minimumScore {
+                return .lagging
+            }
+            return .neutral
+        }
+
+        return PokemonGrowthOutlookTelemetry(
+            hp: trend(for: hpScore),
+            attack: trend(for: attackScore),
+            defense: trend(for: defenseScore),
+            speed: trend(for: speedScore),
+            special: trend(for: specialScore)
+        )
+    }
+
+    func hiddenGrowthScore(dv: Int, statExp: Int) -> Int {
+        (dv * 16) + ceilSquareRoot(of: statExp)
     }
 }

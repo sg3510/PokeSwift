@@ -72,6 +72,8 @@ struct RuntimePokemonState {
     let nickname: String
     let level: Int
     let experience: Int
+    let dvs: PokemonDVs
+    let statExp: PokemonStatExp
     let maxHP: Int
     var currentHP: Int
     let attack: Int

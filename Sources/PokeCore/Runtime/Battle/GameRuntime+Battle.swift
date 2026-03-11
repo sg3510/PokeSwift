@@ -445,7 +445,7 @@ extension GameRuntime {
 
         let playerPokemon = gameplayState.playerParty.first ?? makePokemon(speciesID: chosenStarter, level: 5, nickname: chosenStarter.capitalized)
         let enemyParty = battleManifest.party.map {
-            makePokemon(speciesID: $0.speciesID, level: $0.level, nickname: $0.speciesID.capitalized)
+            makeTrainerBattlePokemon(speciesID: $0.speciesID, level: $0.level, nickname: $0.speciesID.capitalized)
         }
         guard enemyParty.isEmpty == false else { return }
 
@@ -506,43 +506,42 @@ extension GameRuntime {
     }
 
     func makePokemon(speciesID: String, level: Int, nickname: String) -> RuntimePokemonState {
-        guard let species = content.species(id: speciesID) else {
-            return RuntimePokemonState(
-                speciesID: speciesID,
-                nickname: nickname,
-                level: level,
-                experience: 0,
-                maxHP: 20,
-                currentHP: 20,
-                attack: 10,
-                defense: 10,
-                speed: 10,
-                special: 10,
-                attackStage: 0,
-                defenseStage: 0,
-                accuracyStage: 0,
-                evasionStage: 0,
-                moves: []
-            )
-        }
-
-        let moves = species.startingMoves.compactMap { moveID -> RuntimeMoveState? in
-            guard moveID != "NO_MOVE", let move = content.move(id: moveID) else { return nil }
-            return RuntimeMoveState(id: move.id, currentPP: move.maxPP)
-        }
-
+        let dvs = nextAcquisitionDVs()
         return makeConfiguredPokemon(
-            speciesID: species.id,
+            speciesID: speciesID,
             nickname: nickname,
             level: level,
-            experience: experienceRequired(for: level, growthRate: species.growthRate),
+            experience: experienceRequired(for: level, speciesID: speciesID),
+            dvs: dvs,
+            statExp: .zero,
             currentHP: nil,
             attackStage: 0,
             defenseStage: 0,
             accuracyStage: 0,
             evasionStage: 0,
-            moves: moves
+            moves: nil
         )
+    }
+
+    func makeTrainerBattlePokemon(speciesID: String, level: Int, nickname: String) -> RuntimePokemonState {
+        makeConfiguredPokemon(
+            speciesID: speciesID,
+            nickname: nickname,
+            level: level,
+            experience: experienceRequired(for: level, speciesID: speciesID),
+            dvs: trainerBattleDVs,
+            statExp: .zero,
+            currentHP: nil,
+            attackStage: 0,
+            defenseStage: 0,
+            accuracyStage: 0,
+            evasionStage: 0,
+            moves: nil
+        )
+    }
+
+    var trainerBattleDVs: PokemonDVs {
+        PokemonDVs(attack: 9, defense: 8, speed: 8, special: 8)
     }
 
     func makeConfiguredPokemon(
@@ -550,22 +549,25 @@ extension GameRuntime {
         nickname: String,
         level: Int,
         experience: Int,
+        dvs: PokemonDVs,
+        statExp: PokemonStatExp,
         currentHP: Int?,
         attackStage: Int,
         defenseStage: Int,
         accuracyStage: Int,
         evasionStage: Int,
-        moves: [RuntimeMoveState]
+        moves: [RuntimeMoveState]?
     ) -> RuntimePokemonState {
         guard let species = content.species(id: speciesID) else {
-            let maxHP = 20
             return RuntimePokemonState(
                 speciesID: speciesID,
                 nickname: nickname,
                 level: level,
                 experience: experience,
-                maxHP: maxHP,
-                currentHP: min(maxHP, max(0, currentHP ?? maxHP)),
+                dvs: dvs,
+                statExp: statExp,
+                maxHP: 20,
+                currentHP: min(20, max(0, currentHP ?? 20)),
                 attack: 10,
                 defense: 10,
                 speed: 10,
@@ -574,65 +576,97 @@ extension GameRuntime {
                 defenseStage: defenseStage,
                 accuracyStage: accuracyStage,
                 evasionStage: evasionStage,
-                moves: moves
+                moves: moves ?? []
             )
         }
 
-        let maxHP = ((species.baseHP * 2 * level) / 100) + level + 10
-        let attack = ((species.baseAttack * 2 * level) / 100) + 5
-        let defense = ((species.baseDefense * 2 * level) / 100) + 5
-        let speed = ((species.baseSpeed * 2 * level) / 100) + 5
-        let special = ((species.baseSpecial * 2 * level) / 100) + 5
+        let resolvedMoves = moves ?? species.startingMoves.compactMap { moveID -> RuntimeMoveState? in
+            guard moveID != "NO_MOVE", let move = content.move(id: moveID) else { return nil }
+            return RuntimeMoveState(id: move.id, currentPP: move.maxPP)
+        }
+
+        let calculatedStats = calculatedStats(for: species, level: level, dvs: dvs, statExp: statExp)
 
         return RuntimePokemonState(
             speciesID: species.id,
             nickname: nickname,
             level: level,
             experience: experience,
-            maxHP: maxHP,
-            currentHP: min(maxHP, max(0, currentHP ?? maxHP)),
-            attack: attack,
-            defense: defense,
-            speed: speed,
-            special: special,
+            dvs: dvs,
+            statExp: statExp,
+            maxHP: calculatedStats.maxHP,
+            currentHP: min(calculatedStats.maxHP, max(0, currentHP ?? calculatedStats.maxHP)),
+            attack: calculatedStats.attack,
+            defense: calculatedStats.defense,
+            speed: calculatedStats.speed,
+            special: calculatedStats.special,
             attackStage: attackStage,
             defenseStage: defenseStage,
             accuracyStage: accuracyStage,
             evasionStage: evasionStage,
-            moves: moves
+            moves: resolvedMoves
         )
     }
 
     func applyBattleExperienceReward(defeatedPokemon: RuntimePokemonState, to pokemon: inout RuntimePokemonState) -> [String] {
         let gainedExperience = battleExperienceAward(for: defeatedPokemon, isTrainerBattle: true)
-        guard gainedExperience > 0 else { return [] }
+        let updatedStatExp = awardStatExp(from: defeatedPokemon, to: pokemon.statExp)
+        let maximumExperience = maximumExperience(for: pokemon.speciesID)
+        let updatedExperience = min(maximumExperience, pokemon.experience + gainedExperience)
+        let updatedLevel = levelAfterGainingExperience(
+            currentLevel: pokemon.level,
+            updatedExperience: updatedExperience,
+            speciesID: pokemon.speciesID
+        )
+        guard gainedExperience > 0 || updatedStatExp != pokemon.statExp else { return [] }
 
         var messages = ["\(pokemon.nickname) gained \(gainedExperience) EXP!"]
         let previousLevel = pokemon.level
         let previousMaxHP = pokemon.maxHP
-        let updatedExperience = pokemon.experience + gainedExperience
-        let updatedLevel = level(for: updatedExperience, speciesID: pokemon.speciesID)
-        let hpDelta = pokemon.maxHP - pokemon.currentHP
-        let updatedCurrentHP: Int?
 
         if updatedLevel > previousLevel {
-            updatedCurrentHP = max(0, pokemon.maxHP - hpDelta + (maxHP(for: pokemon.speciesID, level: updatedLevel) - previousMaxHP))
+            let recalculatedPokemon = makeConfiguredPokemon(
+                speciesID: pokemon.speciesID,
+                nickname: pokemon.nickname,
+                level: updatedLevel,
+                experience: updatedExperience,
+                dvs: pokemon.dvs,
+                statExp: updatedStatExp,
+                currentHP: nil,
+                attackStage: pokemon.attackStage,
+                defenseStage: pokemon.defenseStage,
+                accuracyStage: pokemon.accuracyStage,
+                evasionStage: pokemon.evasionStage,
+                moves: pokemon.moves
+            )
+            let gainedMaxHP = recalculatedPokemon.maxHP - previousMaxHP
+            var leveledPokemon = recalculatedPokemon
+            leveledPokemon.currentHP = min(
+                recalculatedPokemon.maxHP,
+                max(0, pokemon.currentHP + gainedMaxHP)
+            )
+            pokemon = leveledPokemon
         } else {
-            updatedCurrentHP = pokemon.currentHP
+            pokemon = RuntimePokemonState(
+                speciesID: pokemon.speciesID,
+                nickname: pokemon.nickname,
+                level: pokemon.level,
+                experience: updatedExperience,
+                dvs: pokemon.dvs,
+                statExp: updatedStatExp,
+                maxHP: pokemon.maxHP,
+                currentHP: pokemon.currentHP,
+                attack: pokemon.attack,
+                defense: pokemon.defense,
+                speed: pokemon.speed,
+                special: pokemon.special,
+                attackStage: pokemon.attackStage,
+                defenseStage: pokemon.defenseStage,
+                accuracyStage: pokemon.accuracyStage,
+                evasionStage: pokemon.evasionStage,
+                moves: pokemon.moves
+            )
         }
-
-        pokemon = makeConfiguredPokemon(
-            speciesID: pokemon.speciesID,
-            nickname: pokemon.nickname,
-            level: updatedLevel,
-            experience: updatedExperience,
-            currentHP: updatedCurrentHP,
-            attackStage: pokemon.attackStage,
-            defenseStage: pokemon.defenseStage,
-            accuracyStage: pokemon.accuracyStage,
-            evasionStage: pokemon.evasionStage,
-            moves: pokemon.moves
-        )
 
         if updatedLevel > previousLevel {
             for nextLevel in (previousLevel + 1)...updatedLevel {
@@ -641,6 +675,20 @@ extension GameRuntime {
         }
 
         return messages
+    }
+
+    func awardStatExp(from defeatedPokemon: RuntimePokemonState, to statExp: PokemonStatExp) -> PokemonStatExp {
+        guard let species = content.species(id: defeatedPokemon.speciesID) else {
+            return statExp
+        }
+
+        return PokemonStatExp(
+            hp: statExp.hp + species.baseHP,
+            attack: statExp.attack + species.baseAttack,
+            defense: statExp.defense + species.baseDefense,
+            speed: statExp.speed + species.baseSpeed,
+            special: statExp.special + species.baseSpecial
+        )
     }
 
     func battleExperienceAward(for defeatedPokemon: RuntimePokemonState, isTrainerBattle: Bool) -> Int {
@@ -652,20 +700,72 @@ extension GameRuntime {
         return experience
     }
 
-    func level(for experience: Int, speciesID: String) -> Int {
+    func levelAfterGainingExperience(currentLevel: Int, updatedExperience: Int, speciesID: String) -> Int {
         guard let growthRate = content.species(id: speciesID)?.growthRate else { return 1 }
-        var level = 1
-        while level < 100 && experience >= experienceRequired(for: level + 1, growthRate: growthRate) {
+        var level = currentLevel
+        while level < 100 && updatedExperience >= experienceRequired(for: level + 1, growthRate: growthRate) {
             level += 1
         }
         return level
     }
 
-    func maxHP(for speciesID: String, level: Int) -> Int {
-        guard let species = content.species(id: speciesID) else {
-            return 20
+    func maximumExperience(for speciesID: String) -> Int {
+        experienceRequired(for: 100, speciesID: speciesID)
+    }
+
+    func calculatedStats(for species: SpeciesManifest, level: Int, dvs: PokemonDVs, statExp: PokemonStatExp) -> (maxHP: Int, attack: Int, defense: Int, speed: Int, special: Int) {
+        (
+            maxHP: calculatedStat(baseStat: species.baseHP, level: level, dv: dvs.hp, statExp: statExp.hp, isHP: true),
+            attack: calculatedStat(baseStat: species.baseAttack, level: level, dv: dvs.attack, statExp: statExp.attack, isHP: false),
+            defense: calculatedStat(baseStat: species.baseDefense, level: level, dv: dvs.defense, statExp: statExp.defense, isHP: false),
+            speed: calculatedStat(baseStat: species.baseSpeed, level: level, dv: dvs.speed, statExp: statExp.speed, isHP: false),
+            special: calculatedStat(baseStat: species.baseSpecial, level: level, dv: dvs.special, statExp: statExp.special, isHP: false)
+        )
+    }
+
+    func calculatedStat(baseStat: Int, level: Int, dv: Int, statExp: Int, isHP: Bool) -> Int {
+        let statExpTerm = ceilSquareRoot(of: statExp) / 4
+        let scaledBase = (((baseStat + dv) * 2) + statExpTerm) * level
+        let baseValue = scaledBase / 100
+        return isHP ? baseValue + level + 10 : baseValue + 5
+    }
+
+    func ceilSquareRoot(of value: Int) -> Int {
+        guard value > 0 else { return 0 }
+        var candidate = 1
+        while candidate * candidate < value && candidate < 255 {
+            candidate += 1
         }
-        return ((species.baseHP * 2 * level) / 100) + level + 10
+        return candidate
+    }
+
+    func reseedAcquisitionRNG(for value: String) {
+        var seed: UInt64 = 0x9e3779b97f4a7c15
+        for byte in value.utf8 {
+            seed ^= UInt64(byte)
+            seed &*= 0xbf58476d1ce4e5b9
+        }
+        acquisitionRNGState = seed
+    }
+
+    func nextAcquisitionRandomByte() -> Int {
+        if acquisitionRandomOverrides.isEmpty == false {
+            return min(255, max(0, acquisitionRandomOverrides.removeFirst()))
+        }
+
+        acquisitionRNGState = acquisitionRNGState &* 6364136223846793005 &+ 1
+        return Int((acquisitionRNGState >> 32) & 0xFF)
+    }
+
+    func nextAcquisitionDVs() -> PokemonDVs {
+        let attackDefenseByte = nextAcquisitionRandomByte()
+        let speedSpecialByte = nextAcquisitionRandomByte()
+        return PokemonDVs(
+            attack: (attackDefenseByte >> 4) & 0xF,
+            defense: attackDefenseByte & 0xF,
+            speed: (speedSpecialByte >> 4) & 0xF,
+            special: speedSpecialByte & 0xF
+        )
     }
 
     func experienceRequired(for level: Int, speciesID: String) -> Int {

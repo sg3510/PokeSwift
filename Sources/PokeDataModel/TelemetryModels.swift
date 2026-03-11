@@ -142,6 +142,11 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
     public let level: Int
     public let currentHP: Int
     public let maxHP: Int
+    public let attack: Int
+    public let defense: Int
+    public let speed: Int
+    public let special: Int
+    public let growthOutlook: PokemonGrowthOutlookTelemetry
     public let moves: [String]
 
     public init(
@@ -150,8 +155,13 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         level: Int,
         currentHP: Int,
         maxHP: Int,
+        attack: Int,
+        defense: Int,
+        speed: Int,
+        special: Int,
         moves: [String],
-        experience: ExperienceProgressTelemetry = .init(total: 0, levelStart: 0, nextLevel: 1)
+        experience: ExperienceProgressTelemetry = .init(total: 0, levelStart: 0, nextLevel: 1),
+        growthOutlook: PokemonGrowthOutlookTelemetry = .neutral
     ) {
         self.experience = experience
         self.speciesID = speciesID
@@ -159,6 +169,11 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         self.level = level
         self.currentHP = currentHP
         self.maxHP = maxHP
+        self.attack = attack
+        self.defense = defense
+        self.speed = speed
+        self.special = special
+        self.growthOutlook = growthOutlook
         self.moves = moves
     }
 
@@ -169,6 +184,11 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         case level
         case currentHP
         case maxHP
+        case attack
+        case defense
+        case speed
+        case special
+        case growthOutlook
         case moves
     }
 
@@ -180,6 +200,11 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         level = try container.decode(Int.self, forKey: .level)
         currentHP = try container.decode(Int.self, forKey: .currentHP)
         maxHP = try container.decode(Int.self, forKey: .maxHP)
+        attack = try container.decodeIfPresent(Int.self, forKey: .attack) ?? 0
+        defense = try container.decodeIfPresent(Int.self, forKey: .defense) ?? 0
+        speed = try container.decodeIfPresent(Int.self, forKey: .speed) ?? 0
+        special = try container.decodeIfPresent(Int.self, forKey: .special) ?? 0
+        growthOutlook = try container.decodeIfPresent(PokemonGrowthOutlookTelemetry.self, forKey: .growthOutlook) ?? .neutral
         moves = try container.decode([String].self, forKey: .moves)
     }
 }
@@ -193,6 +218,42 @@ public struct ExperienceProgressTelemetry: Codable, Equatable, Sendable {
         self.total = total
         self.levelStart = levelStart
         self.nextLevel = nextLevel
+    }
+}
+
+public enum PokemonStatGrowthTelemetry: String, Codable, Equatable, Sendable {
+    case favored
+    case neutral
+    case lagging
+}
+
+public struct PokemonGrowthOutlookTelemetry: Codable, Equatable, Sendable {
+    public static let neutral = PokemonGrowthOutlookTelemetry(
+        hp: .neutral,
+        attack: .neutral,
+        defense: .neutral,
+        speed: .neutral,
+        special: .neutral
+    )
+
+    public let hp: PokemonStatGrowthTelemetry
+    public let attack: PokemonStatGrowthTelemetry
+    public let defense: PokemonStatGrowthTelemetry
+    public let speed: PokemonStatGrowthTelemetry
+    public let special: PokemonStatGrowthTelemetry
+
+    public init(
+        hp: PokemonStatGrowthTelemetry,
+        attack: PokemonStatGrowthTelemetry,
+        defense: PokemonStatGrowthTelemetry,
+        speed: PokemonStatGrowthTelemetry,
+        special: PokemonStatGrowthTelemetry
+    ) {
+        self.hp = hp
+        self.attack = attack
+        self.defense = defense
+        self.speed = speed
+        self.special = special
     }
 }
 

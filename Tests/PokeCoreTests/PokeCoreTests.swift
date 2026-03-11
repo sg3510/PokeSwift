@@ -61,12 +61,15 @@ final class PokeCoreTests: XCTestCase {
         runtime.gameplayState?.earnedBadgeIDs = ["BOULDER"]
         runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
         runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+        let savedPokemon = runtime.gameplayState?.playerParty.first
         let savedMoves = runtime.gameplayState?.playerParty.first?.moves ?? []
         runtime.gameplayState?.playerParty[0] = runtime.makeConfiguredPokemon(
             speciesID: "SQUIRTLE",
             nickname: "Squirtle",
             level: 6,
             experience: 202,
+            dvs: savedPokemon?.dvs ?? .zero,
+            statExp: savedPokemon?.statExp ?? .zero,
             currentHP: 19,
             attackStage: 0,
             defenseStage: 0,
@@ -79,6 +82,8 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertTrue(runtime.saveCurrentGame())
         XCTAssertNotNil(saveStore.envelope)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.experience, 202)
+        XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.dvs, savedPokemon?.dvs)
+        XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.statExp, savedPokemon?.statExp)
 
         let resumed = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
         resumed.start()
@@ -96,6 +101,8 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.party?.pokemon.first?.speciesID, "SQUIRTLE")
         XCTAssertEqual(snapshot.party?.pokemon.first?.level, 6)
         XCTAssertEqual(snapshot.party?.pokemon.first?.experience.total, 202)
+        XCTAssertEqual(resumed.gameplayState?.playerParty.first?.dvs, savedPokemon?.dvs)
+        XCTAssertEqual(resumed.gameplayState?.playerParty.first?.statExp, savedPokemon?.statExp)
         XCTAssertEqual(snapshot.eventFlags?.activeFlags, [])
         XCTAssertEqual(resumed.playerMoney, 4242)
         XCTAssertEqual(resumed.earnedBadgeIDs, Set(["BOULDER"]))
@@ -116,7 +123,7 @@ final class PokeCoreTests: XCTestCase {
         let saveStore = InMemorySaveStore()
         saveStore.envelope = GameSaveEnvelope(
             metadata: .init(
-                schemaVersion: 1,
+                schemaVersion: 2,
                 variant: .red,
                 playthroughID: "legacy",
                 playerName: "RED",
@@ -140,6 +147,9 @@ final class PokeCoreTests: XCTestCase {
                         speciesID: "SQUIRTLE",
                         nickname: "Squirtle",
                         level: 5,
+                        experience: 135,
+                        dvs: .zero,
+                        statExp: .zero,
                         maxHP: 20,
                         currentHP: 20,
                         attack: 10,
@@ -173,7 +183,7 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(runtime.scene, .titleMenu)
         XCTAssertEqual(runtime.currentLastSaveResult?.operation, "continue")
         XCTAssertEqual(runtime.currentLastSaveResult?.succeeded, false)
-        XCTAssertEqual(runtime.currentSaveErrorMessage, "Save schema 1 is not supported.")
+        XCTAssertEqual(runtime.currentSaveErrorMessage, "Save schema 2 is not supported.")
     }
 
     func testRepoGeneratedContentPublishesRealAssetFieldTelemetry() async throws {
@@ -707,10 +717,83 @@ final class PokeCoreTests: XCTestCase {
             ),
             telemetryPublisher: nil
         )
+        runtime.acquisitionRandomOverrides = [0xAB, 0xCD]
         let squirtle = runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")
 
         XCTAssertEqual(squirtle.experience, 135)
+        XCTAssertEqual(squirtle.dvs, PokemonDVs(attack: 10, defense: 11, speed: 12, special: 13))
+        XCTAssertEqual(squirtle.dvs.hp, 5)
+        XCTAssertEqual(squirtle.statExp, .zero)
+        XCTAssertEqual(squirtle.maxHP, 19)
+        XCTAssertEqual(squirtle.attack, 10)
+        XCTAssertEqual(squirtle.defense, 12)
+        XCTAssertEqual(squirtle.speed, 10)
+        XCTAssertEqual(squirtle.special, 11)
         XCTAssertEqual(runtime.experienceRequired(for: 6, speciesID: "SQUIRTLE"), 179)
+    }
+
+    func testPartyTelemetryPublishesCurrentStatsAndGrowthOutlook() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "SQUIRTLE", displayName: "Squirtle", primaryType: "WATER", baseExp: 66, growthRate: .mediumSlow, baseHP: 44, baseAttack: 48, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.acquisitionRandomOverrides = [0xAB, 0xCD]
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+
+        let partyPokemon = try! XCTUnwrap(runtime.currentSnapshot().party?.pokemon.first)
+
+        XCTAssertEqual(partyPokemon.maxHP, 19)
+        XCTAssertEqual(partyPokemon.attack, 10)
+        XCTAssertEqual(partyPokemon.defense, 12)
+        XCTAssertEqual(partyPokemon.speed, 10)
+        XCTAssertEqual(partyPokemon.special, 11)
+        XCTAssertEqual(partyPokemon.growthOutlook.hp, .lagging)
+        XCTAssertEqual(partyPokemon.growthOutlook.special, .favored)
+        XCTAssertEqual(partyPokemon.growthOutlook.attack, .neutral)
+    }
+
+    func testDerivedHPDVAndCeilSquareRootMatchGen1Behavior() {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+
+        XCTAssertEqual(PokemonDVs(attack: 10, defense: 11, speed: 12, special: 13).hp, 5)
+        XCTAssertEqual(runtime.ceilSquareRoot(of: 0), 0)
+        XCTAssertEqual(runtime.ceilSquareRoot(of: 1), 1)
+        XCTAssertEqual(runtime.ceilSquareRoot(of: 2), 2)
+        XCTAssertEqual(runtime.ceilSquareRoot(of: 4), 2)
+        XCTAssertEqual(runtime.ceilSquareRoot(of: 65_535), 255)
+    }
+
+    func testTrainerBattlePokemonUsesFixedTrainerDVs() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "SQUIRTLE", displayName: "Squirtle", primaryType: "WATER", baseExp: 66, growthRate: .mediumSlow, baseHP: 44, baseAttack: 48, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 95, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        let squirtle = runtime.makeTrainerBattlePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")
+
+        XCTAssertEqual(squirtle.dvs, PokemonDVs(attack: 9, defense: 8, speed: 8, special: 8))
+        XCTAssertEqual(squirtle.statExp, .zero)
+        XCTAssertEqual(squirtle.maxHP, 20)
+        XCTAssertEqual(squirtle.attack, 10)
+        XCTAssertEqual(squirtle.defense, 12)
+        XCTAssertEqual(squirtle.speed, 10)
+        XCTAssertEqual(squirtle.special, 10)
     }
 
     func testBattleExperienceRewardLevelsUpStarterAndUpdatesTelemetry() async throws {
@@ -780,8 +863,55 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(partyPokemon.experience.total, 202)
         XCTAssertEqual(partyPokemon.experience.levelStart, 179)
         XCTAssertEqual(partyPokemon.experience.nextLevel, 236)
+        XCTAssertEqual(runtime.gameplayState?.playerParty.first?.statExp, PokemonStatExp(hp: 45, attack: 49, defense: 49, speed: 45, special: 65))
         XCTAssertTrue(sawGainMessage)
         XCTAssertTrue(sawLevelMessage)
+    }
+
+    func testBattleRewardAccumulatesStatExpWithoutVisibleStatRecalc() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "CHARMANDER", displayName: "Charmander", primaryType: "FIRE", baseExp: 65, growthRate: .mediumSlow, baseHP: 39, baseAttack: 52, baseDefense: 43, baseSpeed: 65, baseSpecial: 50, startingMoves: ["SCRATCH"]),
+                        .init(id: "PIDGEY", displayName: "Pidgey", primaryType: "NORMAL", secondaryType: "FLYING", baseExp: 50, growthRate: .mediumSlow, baseHP: 40, baseAttack: 45, baseDefense: 40, baseSpeed: 56, baseSpecial: 35, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "SCRATCH", displayName: "SCRATCH", power: 40, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 95, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        var playerPokemon = runtime.makeConfiguredPokemon(
+            speciesID: "CHARMANDER",
+            nickname: "Charmander",
+            level: 5,
+            experience: 135,
+            dvs: PokemonDVs(attack: 10, defense: 11, speed: 12, special: 13),
+            statExp: .zero,
+            currentHP: nil,
+            attackStage: 0,
+            defenseStage: 0,
+            accuracyStage: 0,
+            evasionStage: 0,
+            moves: nil
+        )
+        let defeatedPokemon = runtime.makeTrainerBattlePokemon(speciesID: "PIDGEY", level: 1, nickname: "Pidgey")
+        let previousVisibleStats = (playerPokemon.maxHP, playerPokemon.attack, playerPokemon.defense, playerPokemon.speed, playerPokemon.special)
+
+        let messages = runtime.applyBattleExperienceReward(defeatedPokemon: defeatedPokemon, to: &playerPokemon)
+
+        XCTAssertEqual(playerPokemon.level, 5)
+        XCTAssertEqual(playerPokemon.experience, 145)
+        XCTAssertEqual(playerPokemon.statExp, PokemonStatExp(hp: 40, attack: 45, defense: 40, speed: 56, special: 35))
+        XCTAssertEqual(playerPokemon.maxHP, previousVisibleStats.0)
+        XCTAssertEqual(playerPokemon.attack, previousVisibleStats.1)
+        XCTAssertEqual(playerPokemon.defense, previousVisibleStats.2)
+        XCTAssertEqual(playerPokemon.speed, previousVisibleStats.3)
+        XCTAssertEqual(playerPokemon.special, previousVisibleStats.4)
+        XCTAssertEqual(messages, ["Charmander gained 10 EXP!"])
     }
 
     func testExperienceRewardRaisesCurrentHPByLevelUpDelta() {
@@ -800,18 +930,73 @@ final class PokeCoreTests: XCTestCase {
             ),
             telemetryPublisher: nil
         )
-        var playerPokemon = runtime.makePokemon(speciesID: "CHARMANDER", level: 5, nickname: "Charmander")
+        var playerPokemon = runtime.makeConfiguredPokemon(
+            speciesID: "CHARMANDER",
+            nickname: "Charmander",
+            level: 5,
+            experience: 135,
+            dvs: PokemonDVs(attack: 10, defense: 11, speed: 12, special: 13),
+            statExp: .zero,
+            currentHP: nil,
+            attackStage: 0,
+            defenseStage: 0,
+            accuracyStage: 0,
+            evasionStage: 0,
+            moves: nil
+        )
         playerPokemon.currentHP = max(1, playerPokemon.currentHP - 7)
         let hpBefore = playerPokemon.currentHP
-        let defeatedPokemon = runtime.makePokemon(speciesID: "BULBASAUR", level: 5, nickname: "Bulbasaur")
+        let previousMaxHP = playerPokemon.maxHP
+        let defeatedPokemon = runtime.makeTrainerBattlePokemon(speciesID: "BULBASAUR", level: 5, nickname: "Bulbasaur")
 
         let messages = runtime.applyBattleExperienceReward(defeatedPokemon: defeatedPokemon, to: &playerPokemon)
 
         XCTAssertEqual(playerPokemon.level, 6)
         XCTAssertGreaterThan(playerPokemon.currentHP, hpBefore)
-        XCTAssertEqual(playerPokemon.currentHP, hpBefore + 2)
+        XCTAssertEqual(playerPokemon.currentHP, hpBefore + (playerPokemon.maxHP - previousMaxHP))
+        XCTAssertEqual(playerPokemon.statExp, PokemonStatExp(hp: 45, attack: 49, defense: 49, speed: 45, special: 65))
         XCTAssertTrue(messages.contains("Charmander gained 67 EXP!"))
         XCTAssertTrue(messages.contains("Charmander grew to Lv6!"))
+    }
+
+    func testLevel100PokemonStillGainsStatExpWhileExperienceStaysCapped() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "CHARMANDER", displayName: "Charmander", primaryType: "FIRE", baseExp: 65, growthRate: .mediumSlow, baseHP: 39, baseAttack: 52, baseDefense: 43, baseSpeed: 65, baseSpecial: 50, startingMoves: ["SCRATCH"]),
+                        .init(id: "BULBASAUR", displayName: "Bulbasaur", primaryType: "GRASS", secondaryType: "POISON", baseExp: 64, growthRate: .mediumSlow, baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 45, baseSpecial: 65, startingMoves: ["GROWL"]),
+                    ],
+                    moves: [
+                        .init(id: "SCRATCH", displayName: "SCRATCH", power: 40, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "GROWL", displayName: "GROWL", power: 0, accuracy: 100, maxPP: 40, effect: "ATTACK_DOWN1_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        var playerPokemon = runtime.makeConfiguredPokemon(
+            speciesID: "CHARMANDER",
+            nickname: "Charmander",
+            level: 100,
+            experience: runtime.maximumExperience(for: "CHARMANDER"),
+            dvs: PokemonDVs(attack: 10, defense: 10, speed: 10, special: 10),
+            statExp: .zero,
+            currentHP: nil,
+            attackStage: 0,
+            defenseStage: 0,
+            accuracyStage: 0,
+            evasionStage: 0,
+            moves: nil
+        )
+        let defeatedPokemon = runtime.makeTrainerBattlePokemon(speciesID: "BULBASAUR", level: 5, nickname: "Bulbasaur")
+
+        let messages = runtime.applyBattleExperienceReward(defeatedPokemon: defeatedPokemon, to: &playerPokemon)
+
+        XCTAssertEqual(playerPokemon.level, 100)
+        XCTAssertEqual(playerPokemon.experience, runtime.maximumExperience(for: "CHARMANDER"))
+        XCTAssertEqual(playerPokemon.statExp, PokemonStatExp(hp: 45, attack: 49, defense: 49, speed: 45, special: 65))
+        XCTAssertEqual(messages, ["Charmander gained 67 EXP!"])
     }
 
     func testLosingBattleDoesNotGrantExperience() async throws {

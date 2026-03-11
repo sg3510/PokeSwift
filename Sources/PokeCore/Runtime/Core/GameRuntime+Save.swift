@@ -137,6 +137,8 @@ extension GameRuntime {
                     nickname: pokemon.nickname,
                     level: pokemon.level,
                     experience: pokemon.experience,
+                    dvs: pokemon.dvs,
+                    statExp: pokemon.statExp,
                     maxHP: pokemon.maxHP,
                     currentHP: pokemon.currentHP,
                     attack: pokemon.attack,
@@ -202,6 +204,8 @@ extension GameRuntime {
                     nickname: pokemon.nickname,
                     level: pokemon.level,
                     experience: pokemon.experience,
+                    dvs: pokemon.dvs,
+                    statExp: pokemon.statExp,
                     maxHP: pokemon.maxHP,
                     currentHP: pokemon.currentHP,
                     attack: pokemon.attack,
@@ -224,6 +228,7 @@ extension GameRuntime {
             battle: nil,
             playTimeSeconds: envelope.snapshot.playTimeSeconds
         )
+        reseedAcquisitionRNG(for: playthroughID)
         dialogueState = nil
         deferredActions.removeAll()
         currentAudioState = nil

@@ -172,12 +172,7 @@ private struct GameplaySidebarManifestIndex {
                     PartySidebarSpeciesDetails(
                         spriteURL: species.battleSprite.map { runtime.content.rootURL.appendingPathComponent($0.frontImagePath) },
                         primaryType: species.primaryType,
-                        secondaryType: species.secondaryType,
-                        baseHP: species.baseHP,
-                        baseAttack: species.baseAttack,
-                        baseDefense: species.baseDefense,
-                        baseSpeed: species.baseSpeed,
-                        baseSpecial: species.baseSpecial
+                        secondaryType: species.secondaryType
                     )
                 )
             }

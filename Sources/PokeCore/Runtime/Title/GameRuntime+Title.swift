@@ -44,6 +44,7 @@ extension GameRuntime {
         fieldTransitionState = nil
         gameplayState = makeInitialGameplayState()
         playthroughID = UUID().uuidString
+        reseedAcquisitionRNG(for: playthroughID)
         dialogueState = nil
         placeholderTitle = nil
         starterChoiceFocusedIndex = 0

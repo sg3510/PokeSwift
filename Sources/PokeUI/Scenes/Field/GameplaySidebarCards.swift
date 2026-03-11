@@ -943,18 +943,12 @@ private struct PartyPokemonHoverCard: View {
                 }
             }
 
-            if let baseHP = props.baseHP,
-               let baseAttack = props.baseAttack,
-               let baseDefense = props.baseDefense,
-               let baseSpeed = props.baseSpeed,
-               let baseSpecial = props.baseSpecial {
-                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
-                    PartyPokemonStatPill(label: "HP", value: baseHP)
-                    PartyPokemonStatPill(label: "ATK", value: baseAttack)
-                    PartyPokemonStatPill(label: "DEF", value: baseDefense)
-                    PartyPokemonStatPill(label: "SPD", value: baseSpeed)
-                    PartyPokemonStatPill(label: "SPC", value: baseSpecial)
-                }
+            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
+                PartyPokemonStatPill(label: "HP", value: props.statHP, growthOutlook: props.hpGrowthOutlook)
+                PartyPokemonStatPill(label: "ATK", value: props.attack, growthOutlook: props.attackGrowthOutlook)
+                PartyPokemonStatPill(label: "DEF", value: props.defense, growthOutlook: props.defenseGrowthOutlook)
+                PartyPokemonStatPill(label: "SPD", value: props.speed, growthOutlook: props.speedGrowthOutlook)
+                PartyPokemonStatPill(label: "SPC", value: props.special, growthOutlook: props.specialGrowthOutlook)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -1025,6 +1019,29 @@ private struct PartyPokemonLargeSpriteTile: View {
 private struct PartyPokemonStatPill: View {
     let label: String
     let value: Int
+    let growthOutlook: PokemonStatGrowthTelemetry
+
+    private var fillColor: Color {
+        switch growthOutlook {
+        case .favored:
+            return Color(red: 0.69, green: 0.82, blue: 0.59)
+        case .lagging:
+            return Color(red: 0.86, green: 0.69, blue: 0.64)
+        case .neutral:
+            return FieldRetroPalette.slotFill
+        }
+    }
+
+    private var textColor: Color {
+        switch growthOutlook {
+        case .favored:
+            return Color(red: 0.18, green: 0.34, blue: 0.12)
+        case .lagging:
+            return Color(red: 0.46, green: 0.18, blue: 0.16)
+        case .neutral:
+            return FieldRetroPalette.ink.opacity(0.82)
+        }
+    }
 
     var body: some View {
         HStack {
@@ -1033,10 +1050,10 @@ private struct PartyPokemonStatPill: View {
             Text("\(value)")
         }
         .font(.system(size: 11, weight: .bold, design: .monospaced))
-        .foregroundStyle(FieldRetroPalette.ink.opacity(0.82))
+        .foregroundStyle(textColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(FieldRetroPalette.slotFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(fillColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

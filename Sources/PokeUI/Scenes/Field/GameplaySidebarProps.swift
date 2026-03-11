@@ -84,15 +84,20 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
     public let nextLevelExperience: Int
     public let currentHP: Int
     public let maxHP: Int
+    public let statHP: Int
+    public let attack: Int
+    public let defense: Int
+    public let speed: Int
+    public let special: Int
+    public let hpGrowthOutlook: PokemonStatGrowthTelemetry
+    public let attackGrowthOutlook: PokemonStatGrowthTelemetry
+    public let defenseGrowthOutlook: PokemonStatGrowthTelemetry
+    public let speedGrowthOutlook: PokemonStatGrowthTelemetry
+    public let specialGrowthOutlook: PokemonStatGrowthTelemetry
     public let isLead: Bool
     public let spriteURL: URL?
     public let typeLabels: [String]
     public let moveNames: [String]
-    public let baseHP: Int?
-    public let baseAttack: Int?
-    public let baseDefense: Int?
-    public let baseSpeed: Int?
-    public let baseSpecial: Int?
 
     public init(
         id: String,
@@ -104,15 +109,20 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         nextLevelExperience: Int = 1,
         currentHP: Int,
         maxHP: Int,
+        statHP: Int? = nil,
+        attack: Int = 0,
+        defense: Int = 0,
+        speed: Int = 0,
+        special: Int = 0,
+        hpGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
+        attackGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
+        defenseGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
+        speedGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
+        specialGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
         isLead: Bool,
         spriteURL: URL? = nil,
         typeLabels: [String] = [],
-        moveNames: [String] = [],
-        baseHP: Int? = nil,
-        baseAttack: Int? = nil,
-        baseDefense: Int? = nil,
-        baseSpeed: Int? = nil,
-        baseSpecial: Int? = nil
+        moveNames: [String] = []
     ) {
         self.id = id
         self.speciesID = speciesID
@@ -123,15 +133,20 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         self.nextLevelExperience = nextLevelExperience
         self.currentHP = currentHP
         self.maxHP = maxHP
+        self.statHP = statHP ?? maxHP
+        self.attack = attack
+        self.defense = defense
+        self.speed = speed
+        self.special = special
+        self.hpGrowthOutlook = hpGrowthOutlook
+        self.attackGrowthOutlook = attackGrowthOutlook
+        self.defenseGrowthOutlook = defenseGrowthOutlook
+        self.speedGrowthOutlook = speedGrowthOutlook
+        self.specialGrowthOutlook = specialGrowthOutlook
         self.isLead = isLead
         self.spriteURL = spriteURL
         self.typeLabels = typeLabels
         self.moveNames = moveNames
-        self.baseHP = baseHP
-        self.baseAttack = baseAttack
-        self.baseDefense = baseDefense
-        self.baseSpeed = baseSpeed
-        self.baseSpecial = baseSpecial
     }
 }
 
@@ -139,30 +154,15 @@ public struct PartySidebarSpeciesDetails: Equatable, Sendable {
     public let spriteURL: URL?
     public let primaryType: String
     public let secondaryType: String?
-    public let baseHP: Int
-    public let baseAttack: Int
-    public let baseDefense: Int
-    public let baseSpeed: Int
-    public let baseSpecial: Int
 
     public init(
         spriteURL: URL?,
         primaryType: String,
-        secondaryType: String?,
-        baseHP: Int,
-        baseAttack: Int,
-        baseDefense: Int,
-        baseSpeed: Int,
-        baseSpecial: Int
+        secondaryType: String?
     ) {
         self.spriteURL = spriteURL
         self.primaryType = primaryType
         self.secondaryType = secondaryType
-        self.baseHP = baseHP
-        self.baseAttack = baseAttack
-        self.baseDefense = baseDefense
-        self.baseSpeed = baseSpeed
-        self.baseSpecial = baseSpecial
     }
 }
 
@@ -404,15 +404,20 @@ public enum GameplaySidebarPropsBuilder {
                 nextLevelExperience: pokemon.experience.nextLevel,
                 currentHP: pokemon.currentHP,
                 maxHP: max(1, pokemon.maxHP),
+                statHP: max(1, pokemon.maxHP),
+                attack: pokemon.attack,
+                defense: pokemon.defense,
+                speed: pokemon.speed,
+                special: pokemon.special,
+                hpGrowthOutlook: pokemon.growthOutlook.hp,
+                attackGrowthOutlook: pokemon.growthOutlook.attack,
+                defenseGrowthOutlook: pokemon.growthOutlook.defense,
+                speedGrowthOutlook: pokemon.growthOutlook.speed,
+                specialGrowthOutlook: pokemon.growthOutlook.special,
                 isLead: index == 0,
                 spriteURL: speciesDetails?.spriteURL,
                 typeLabels: [speciesDetails?.primaryType, speciesDetails?.secondaryType].compactMap { $0 },
-                moveNames: moveNames,
-                baseHP: speciesDetails?.baseHP,
-                baseAttack: speciesDetails?.baseAttack,
-                baseDefense: speciesDetails?.baseDefense,
-                baseSpeed: speciesDetails?.baseSpeed,
-                baseSpecial: speciesDetails?.baseSpecial
+                moveNames: moveNames
             )
         } ?? []
 

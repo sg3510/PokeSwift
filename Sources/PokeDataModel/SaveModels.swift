@@ -126,6 +126,8 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
     public let nickname: String
     public let level: Int
     public let experience: Int
+    public let dvs: PokemonDVs
+    public let statExp: PokemonStatExp
     public let maxHP: Int
     public let currentHP: Int
     public let attack: Int
@@ -143,6 +145,8 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         nickname: String,
         level: Int,
         experience: Int = 0,
+        dvs: PokemonDVs = .zero,
+        statExp: PokemonStatExp = .zero,
         maxHP: Int,
         currentHP: Int,
         attack: Int,
@@ -159,6 +163,8 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         self.nickname = nickname
         self.level = level
         self.experience = experience
+        self.dvs = dvs
+        self.statExp = statExp
         self.maxHP = maxHP
         self.currentHP = currentHP
         self.attack = attack
@@ -177,6 +183,8 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         case nickname
         case level
         case experience
+        case dvs
+        case statExp
         case maxHP
         case currentHP
         case attack
@@ -196,6 +204,8 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         nickname = try container.decode(String.self, forKey: .nickname)
         level = try container.decode(Int.self, forKey: .level)
         experience = try container.decodeIfPresent(Int.self, forKey: .experience) ?? 0
+        dvs = try container.decodeIfPresent(PokemonDVs.self, forKey: .dvs) ?? .zero
+        statExp = try container.decodeIfPresent(PokemonStatExp.self, forKey: .statExp) ?? .zero
         maxHP = try container.decode(Int.self, forKey: .maxHP)
         currentHP = try container.decode(Int.self, forKey: .currentHP)
         attack = try container.decode(Int.self, forKey: .attack)

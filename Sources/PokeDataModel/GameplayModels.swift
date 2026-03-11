@@ -662,6 +662,44 @@ public enum PokemonGrowthRate: String, Codable, Equatable, Sendable, CaseIterabl
     case slow = "GROWTH_SLOW"
 }
 
+public struct PokemonDVs: Codable, Equatable, Sendable {
+    public static let zero = PokemonDVs(attack: 0, defense: 0, speed: 0, special: 0)
+
+    public let attack: Int
+    public let defense: Int
+    public let speed: Int
+    public let special: Int
+
+    public var hp: Int {
+        ((attack & 1) << 3) | ((defense & 1) << 2) | ((speed & 1) << 1) | (special & 1)
+    }
+
+    public init(attack: Int, defense: Int, speed: Int, special: Int) {
+        self.attack = min(15, max(0, attack))
+        self.defense = min(15, max(0, defense))
+        self.speed = min(15, max(0, speed))
+        self.special = min(15, max(0, special))
+    }
+}
+
+public struct PokemonStatExp: Codable, Equatable, Sendable {
+    public static let zero = PokemonStatExp(hp: 0, attack: 0, defense: 0, speed: 0, special: 0)
+
+    public let hp: Int
+    public let attack: Int
+    public let defense: Int
+    public let speed: Int
+    public let special: Int
+
+    public init(hp: Int, attack: Int, defense: Int, speed: Int, special: Int) {
+        self.hp = min(65_535, max(0, hp))
+        self.attack = min(65_535, max(0, attack))
+        self.defense = min(65_535, max(0, defense))
+        self.speed = min(65_535, max(0, speed))
+        self.special = min(65_535, max(0, special))
+    }
+}
+
 public struct SpeciesManifest: Codable, Equatable, Sendable {
     public let primaryType: String
     public let secondaryType: String?

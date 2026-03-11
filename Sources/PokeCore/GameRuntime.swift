@@ -6,7 +6,7 @@ import PokeDataModel
 @MainActor
 @Observable
 public final class GameRuntime {
-    nonisolated public static let saveSchemaVersion = 2
+    nonisolated public static let saveSchemaVersion = 3
 
     public let content: LoadedContent
 
@@ -36,6 +36,8 @@ public final class GameRuntime {
     var fieldTransitionState: RuntimeFieldTransitionState?
     var battleRNGState: UInt64 = 0x504f4b4553574946
     var battleRandomOverrides: [Int] = []
+    var acquisitionRNGState: UInt64 = 0x4456535354415445
+    var acquisitionRandomOverrides: [Int] = []
     var saveMetadata: GameSaveMetadata?
     var saveErrorMessage: String?
     var lastSaveResult: RuntimeSaveResult?

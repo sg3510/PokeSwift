@@ -91,6 +91,10 @@ final class PokeUITests: XCTestCase {
                     level: 5,
                     currentHP: 19,
                     maxHP: 19,
+                    attack: 11,
+                    defense: 10,
+                    speed: 9,
+                    special: 12,
                     moves: ["TACKLE", "GROWL"]
                 ),
                 enemyPokemon: .init(
@@ -99,6 +103,10 @@ final class PokeUITests: XCTestCase {
                     level: 5,
                     currentHP: 18,
                     maxHP: 20,
+                    attack: 10,
+                    defense: 9,
+                    speed: 11,
+                    special: 10,
                     moves: ["SCRATCH", "GROWL"]
                 ),
                 moveSlots: [
@@ -270,6 +278,10 @@ final class PokeUITests: XCTestCase {
                 level: 5,
                 currentHP: 19,
                 maxHP: 19,
+                attack: 11,
+                defense: 10,
+                speed: 9,
+                special: 12,
                 moves: ["TACKLE", "GROWL"]
             ),
             enemyPokemon: .init(
@@ -278,6 +290,10 @@ final class PokeUITests: XCTestCase {
                 level: 5,
                 currentHP: 18,
                 maxHP: 20,
+                attack: 10,
+                defense: 9,
+                speed: 11,
+                special: 10,
                 moves: ["SCRATCH", "GROWL"]
             ),
             moveSlots: [
@@ -316,6 +332,10 @@ final class PokeUITests: XCTestCase {
                     level: 5,
                     currentHP: 19,
                     maxHP: 19,
+                    attack: 11,
+                    defense: 10,
+                    speed: 9,
+                    special: 12,
                     moves: ["TACKLE", "GROWL"]
                 ),
                 enemyPokemon: .init(
@@ -324,6 +344,10 @@ final class PokeUITests: XCTestCase {
                     level: 5,
                     currentHP: 18,
                     maxHP: 20,
+                    attack: 10,
+                    defense: 9,
+                    speed: 11,
+                    special: 10,
                     moves: ["SCRATCH", "GROWL"]
                 ),
                 moveSlots: [
@@ -335,10 +359,10 @@ final class PokeUITests: XCTestCase {
         )
 
         XCTAssertEqual(battleMode.defaultExpandedSection, .battleCombat)
-        XCTAssertTrue(battleMode.supports(.battleCombat))
-        XCTAssertTrue(battleMode.supports(.party))
-        XCTAssertFalse(battleMode.supports(.trainer))
-        XCTAssertFalse(battleMode.supports(.bag))
+        XCTAssertTrue(battleMode.supports(GameplaySidebarExpandedSection.battleCombat))
+        XCTAssertTrue(battleMode.supports(GameplaySidebarExpandedSection.party))
+        XCTAssertFalse(battleMode.supports(GameplaySidebarExpandedSection.trainer))
+        XCTAssertFalse(battleMode.supports(GameplaySidebarExpandedSection.bag))
     }
 
     func testSidebarPropBuilderMapsPartyAfterStarterSelection() {
@@ -350,8 +374,19 @@ final class PokeUITests: XCTestCase {
                     level: 5,
                     currentHP: 19,
                     maxHP: 19,
+                    attack: 11,
+                    defense: 10,
+                    speed: 9,
+                    special: 12,
                     moves: ["TACKLE", "GROWL"],
-                    experience: .init(total: 150, levelStart: 135, nextLevel: 179)
+                    experience: .init(total: 150, levelStart: 135, nextLevel: 179),
+                    growthOutlook: .init(
+                        hp: .neutral,
+                        attack: .favored,
+                        defense: .neutral,
+                        speed: .lagging,
+                        special: .neutral
+                    )
                 ),
             ]
         )
@@ -359,12 +394,7 @@ final class PokeUITests: XCTestCase {
             "BULBASAUR": PartySidebarSpeciesDetails(
                 spriteURL: URL(fileURLWithPath: "/tmp/bulbasaur.png"),
                 primaryType: "GRASS",
-                secondaryType: "POISON",
-                baseHP: 45,
-                baseAttack: 49,
-                baseDefense: 49,
-                baseSpeed: 45,
-                baseSpecial: 65
+                secondaryType: "POISON"
             ),
         ]
         let moveDisplayNamesByID = [
@@ -405,6 +435,13 @@ final class PokeUITests: XCTestCase {
         XCTAssertEqual(sidebarParty.pokemon.first?.nextLevelExperience, 179)
         XCTAssertEqual(sidebarParty.pokemon.first?.currentHP, 19)
         XCTAssertEqual(sidebarParty.pokemon.first?.maxHP, 19)
+        XCTAssertEqual(sidebarParty.pokemon.first?.statHP, 19)
+        XCTAssertEqual(sidebarParty.pokemon.first?.attack, 11)
+        XCTAssertEqual(sidebarParty.pokemon.first?.defense, 10)
+        XCTAssertEqual(sidebarParty.pokemon.first?.speed, 9)
+        XCTAssertEqual(sidebarParty.pokemon.first?.special, 12)
+        XCTAssertEqual(sidebarParty.pokemon.first?.attackGrowthOutlook, .favored)
+        XCTAssertEqual(sidebarParty.pokemon.first?.speedGrowthOutlook, .lagging)
         XCTAssertEqual(sidebarParty.pokemon.first?.isLead, true)
         XCTAssertEqual(sidebarParty.pokemon.first?.typeLabels, ["GRASS", "POISON"])
         XCTAssertEqual(sidebarParty.pokemon.first?.moveNames, ["Tackle", "Growl"])
