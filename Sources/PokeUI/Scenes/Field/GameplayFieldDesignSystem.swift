@@ -1,5 +1,9 @@
 import SwiftUI
 
+public enum GameplayFieldStyleTokens {
+    public static let ink = Color(red: 0.16, green: 0.18, blue: 0.12)
+}
+
 enum GameplayFieldMetrics {
     static let sidebarWidth: CGFloat = 320
     static let outerPadding: CGFloat = 24
@@ -68,6 +72,30 @@ enum FieldRetroPalette {
 
     static func pokemonTypeBadgeBackground(for typeLabel: String) -> Color {
         pokemonTypeGlassTint(for: typeLabel).opacity(0.45)
+    }
+}
+
+public struct GameplayHoverCardSurface<Content: View>: View {
+    private let padding: CGFloat
+    private let content: Content
+
+    public init(
+        padding: CGFloat = 18,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    public var body: some View {
+        GameplaySidebarCardSurface(
+            padding: padding,
+            tint: FieldRetroPalette.hoverCardGlassTint,
+            backgroundColor: FieldRetroPalette.hoverCardBackgroundTint,
+            showsOutline: false
+        ) {
+            content
+        }
     }
 }
 

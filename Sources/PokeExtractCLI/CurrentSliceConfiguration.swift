@@ -93,8 +93,28 @@ let currentGameplaySliceMaps: [CurrentGameplaySliceMapDefinition] = [
 let currentGameplaySliceMapIDs = Set(currentGameplaySliceMaps.map(\.mapID))
 
 let currentGameplaySliceItemIDs = [
+    "POKE_BALL",
     "POTION",
+    "ANTIDOTE",
+    "PARLYZ_HEAL",
+    "BURN_HEAL",
     "OAKS_PARCEL",
+]
+
+struct CurrentGameplaySliceMartDefinition {
+    let id: String
+    let mapID: String
+    let clerkObjectID: String
+    let stockLabel: String
+}
+
+let currentGameplaySliceMarts: [CurrentGameplaySliceMartDefinition] = [
+    .init(
+        id: "viridian_mart",
+        mapID: "VIRIDIAN_MART",
+        clerkObjectID: "viridian_mart_clerk",
+        stockLabel: "ViridianMartClerkText"
+    ),
 ]
 
 struct CurrentGameplaySliceWildEncounterDefinition {

@@ -160,11 +160,7 @@ struct PartyPokemonHoverCard: View {
     let props: PartySidebarPokemonProps
 
     var body: some View {
-        GameplaySidebarCardSurface(
-            tint: FieldRetroPalette.hoverCardGlassTint,
-            backgroundColor: FieldRetroPalette.hoverCardBackgroundTint,
-            showsOutline: false
-        ) {
+        GameplayHoverCardSurface {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     PartyPokemonLargeSpriteTile(props: props)

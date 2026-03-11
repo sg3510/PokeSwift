@@ -1,8 +1,23 @@
 import Foundation
 
 extension GameRuntime {
+    static let bagItemCapacity = 20
+    static let maxItemStackQuantity = 99
+    static let storageBoxCount = 12
+    static let storageBoxCapacity = 20
+
+    func canAddItem(_ itemID: String, quantity: Int = 1, to gameplayState: GameplayState) -> Bool {
+        guard quantity > 0 else { return true }
+
+        if let index = gameplayState.inventory.firstIndex(where: { $0.itemID == itemID }) {
+            return gameplayState.inventory[index].quantity + quantity <= Self.maxItemStackQuantity
+        }
+
+        return gameplayState.inventory.count < Self.bagItemCapacity
+    }
+
     func addItem(_ itemID: String, quantity: Int = 1, to gameplayState: inout GameplayState) {
-        guard quantity > 0 else { return }
+        guard quantity > 0, canAddItem(itemID, quantity: quantity, to: gameplayState) else { return }
 
         if let index = gameplayState.inventory.firstIndex(where: { $0.itemID == itemID }) {
             gameplayState.inventory[index].quantity += quantity
@@ -34,6 +49,30 @@ extension GameRuntime {
 
     func hasItem(_ itemID: String) -> Bool {
         itemQuantity(itemID) > 0
+    }
+
+    @discardableResult
+    func spendMoney(_ amount: Int, from gameplayState: inout GameplayState) -> Bool {
+        guard amount >= 0, gameplayState.money >= amount else { return false }
+        gameplayState.money -= amount
+        return true
+    }
+
+    func canAfford(_ amount: Int, gameplayState: GameplayState) -> Bool {
+        amount >= 0 && gameplayState.money >= amount
+    }
+
+    @discardableResult
+    func addPokemonToCurrentBox(_ pokemon: RuntimePokemonState, in gameplayState: inout GameplayState) -> Bool {
+        let boxIndex = max(0, min(Self.storageBoxCount - 1, gameplayState.currentBoxIndex))
+        if gameplayState.boxedPokemon.indices.contains(boxIndex) == false {
+            gameplayState.boxedPokemon = (0..<Self.storageBoxCount).map { RuntimePokemonBoxState(index: $0, pokemon: []) }
+        }
+        guard gameplayState.boxedPokemon[boxIndex].pokemon.count < Self.storageBoxCapacity else {
+            return false
+        }
+        gameplayState.boxedPokemon[boxIndex].pokemon.append(pokemon)
+        return true
     }
 
     @discardableResult
@@ -71,6 +110,32 @@ extension GameRuntime {
                 "itemID": itemID,
                 "quantity": String(quantity),
                 "operation": "remove",
+            ]
+        )
+        return true
+    }
+
+    @discardableResult
+    func purchaseItem(_ itemID: String, quantity: Int) -> Bool {
+        guard quantity > 0,
+              var gameplayState,
+              let item = content.item(id: itemID),
+              canAddItem(itemID, quantity: quantity, to: gameplayState),
+              spendMoney(item.price * quantity, from: &gameplayState) else {
+            return false
+        }
+
+        addItem(itemID, quantity: quantity, to: &gameplayState)
+        self.gameplayState = gameplayState
+        traceEvent(
+            .inventoryChanged,
+            "Purchased \(quantity)x \(itemID).",
+            mapID: gameplayState.mapID,
+            details: [
+                "itemID": itemID,
+                "quantity": String(quantity),
+                "operation": "purchase",
+                "remainingMoney": String(gameplayState.money),
             ]
         )
         return true

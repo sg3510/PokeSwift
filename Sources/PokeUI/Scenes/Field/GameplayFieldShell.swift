@@ -163,13 +163,19 @@ public struct FieldMapStage<MapContent: View, Footer: View, OverlayContent: View
     }
 }
 
-public struct BattleViewportStage<Content: View, Footer: View>: View {
+public struct BattleViewportStage<Content: View, Footer: View, OverlayContent: View>: View {
     private let content: Content
     private let footer: Footer
+    private let overlayContent: OverlayContent
 
-    public init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+    public init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder footer: () -> Footer,
+        @ViewBuilder overlayContent: () -> OverlayContent
+    ) {
         self.content = content()
         self.footer = footer()
+        self.overlayContent = overlayContent()
     }
 
     public var body: some View {
@@ -178,7 +184,7 @@ public struct BattleViewportStage<Content: View, Footer: View>: View {
         } footer: {
             footer
         } overlayContent: {
-            EmptyView()
+            overlayContent
         }
     }
 }

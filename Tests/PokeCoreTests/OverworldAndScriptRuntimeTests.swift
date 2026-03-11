@@ -179,6 +179,72 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.scene, .battle)
         XCTAssertEqual(runtime.currentSnapshot().battle?.kind, .wild)
     }
+
+    func testRepoGeneratedViridianMartClerkOpensShopAfterParcelHandoff() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "VIRIDIAN_MART"
+        runtime.gameplayState?.playerPosition = .init(x: 3, y: 7)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.activeFlags.insert("EVENT_GOT_OAKS_PARCEL")
+        runtime.gameplayState?.activeFlags.insert("EVENT_OAK_GOT_PARCEL")
+
+        let clerk = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "viridian_mart_clerk" })
+        runtime.interact(with: clerk)
+
+        let shop = try XCTUnwrap(runtime.currentSnapshot().shop)
+        XCTAssertEqual(shop.martID, "viridian_mart")
+        XCTAssertEqual(shop.stockItems.map(\.itemID), ["POKE_BALL", "ANTIDOTE", "PARLYZ_HEAL", "BURN_HEAL"])
+        XCTAssertEqual(shop.stockItems.first?.price, 200)
+        XCTAssertEqual(shop.stockItems.first?.battleUse, .ball)
+        XCTAssertEqual(runtime.substate, "shop_viridian_mart")
+    }
+
+    func testViridianMartPurchaseDeductsMoneyAndAddsInventory() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "VIRIDIAN_MART"
+        runtime.gameplayState?.playerPosition = .init(x: 3, y: 7)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.activeFlags.insert("EVENT_GOT_OAKS_PARCEL")
+        runtime.gameplayState?.activeFlags.insert("EVENT_OAK_GOT_PARCEL")
+
+        let clerk = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "viridian_mart_clerk" })
+        runtime.interact(with: clerk)
+        runtime.handle(button: .right)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 2)
+        XCTAssertEqual(runtime.playerMoney, 2600)
+        XCTAssertEqual(runtime.currentSnapshot().inventory?.items.first { $0.itemID == "POKE_BALL" }?.quantity, 2)
+    }
+
+    func testPurchaseItemRejectsNewSlotWhenBagIsFull() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    items: [.init(id: "POKE_BALL", displayName: "POKé BALL", price: 200, battleUse: .ball)]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.inventory = (0..<GameRuntime.bagItemCapacity).map { index in
+            .init(itemID: "ITEM_\(index)", quantity: 1)
+        }
+
+        XCTAssertFalse(runtime.purchaseItem("POKE_BALL", quantity: 1))
+        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 0)
+        XCTAssertEqual(runtime.playerMoney, 3000)
+    }
     func testMissingDialogueDuringScriptFailsCleanlyAndPublishesSessionEvent() async {
         let telemetry = RecordingTelemetryPublisher()
         let runtime = GameRuntime(

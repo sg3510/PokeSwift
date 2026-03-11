@@ -50,4 +50,21 @@ final class RepoContentContractTests: XCTestCase {
             ]
         )
     }
+
+    func testLoaderReadsRepoGeneratedMartAndCaptureContracts() throws {
+        let root = PokeContentTestSupport.repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
+        let loaded = try FileSystemContentLoader(rootURL: root).load()
+
+        let mart = try XCTUnwrap(loaded.mart(id: "viridian_mart"))
+        let pokeBall = try XCTUnwrap(loaded.item(id: "POKE_BALL"))
+        let pidgey = try XCTUnwrap(loaded.species(id: "PIDGEY"))
+
+        XCTAssertEqual(mart.mapID, "VIRIDIAN_MART")
+        XCTAssertEqual(mart.clerkObjectID, "viridian_mart_clerk")
+        XCTAssertEqual(mart.stockItemIDs, ["POKE_BALL", "ANTIDOTE", "PARLYZ_HEAL", "BURN_HEAL"])
+        XCTAssertEqual(loaded.mart(mapID: "VIRIDIAN_MART", clerkObjectID: "viridian_mart_clerk")?.id, mart.id)
+        XCTAssertEqual(pokeBall.price, 200)
+        XCTAssertEqual(pokeBall.battleUse, .ball)
+        XCTAssertEqual(pidgey.catchRate, 255)
+    }
 }

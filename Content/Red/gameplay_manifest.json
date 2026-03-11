@@ -2196,14 +2196,46 @@
   },
   "items" : [
     {
-      "displayName" : "POTION",
-      "id" : "POTION",
-      "isKeyItem" : false
+      "battleUse" : "ball",
+      "displayName" : "POKé BALL",
+      "id" : "POKE_BALL",
+      "isKeyItem" : false,
+      "price" : 200
     },
     {
+      "battleUse" : "none",
+      "displayName" : "POTION",
+      "id" : "POTION",
+      "isKeyItem" : false,
+      "price" : 300
+    },
+    {
+      "battleUse" : "none",
+      "displayName" : "ANTIDOTE",
+      "id" : "ANTIDOTE",
+      "isKeyItem" : false,
+      "price" : 100
+    },
+    {
+      "battleUse" : "none",
+      "displayName" : "PARLYZ HEAL",
+      "id" : "PARLYZ_HEAL",
+      "isKeyItem" : false,
+      "price" : 200
+    },
+    {
+      "battleUse" : "none",
+      "displayName" : "BURN HEAL",
+      "id" : "BURN_HEAL",
+      "isKeyItem" : false,
+      "price" : 250
+    },
+    {
+      "battleUse" : "none",
       "displayName" : "OAK's PARCEL",
       "id" : "OAKS_PARCEL",
-      "isKeyItem" : true
+      "isKeyItem" : true,
+      "price" : 0
     }
   ],
   "mapScripts" : [
@@ -9028,6 +9060,28 @@
                 }
               ],
               "scriptID" : "viridian_mart_oaks_parcel"
+            },
+            {
+              "conditions" : [
+                {
+                  "flagID" : "EVENT_GOT_OAKS_PARCEL",
+                  "kind" : "flagSet"
+                },
+                {
+                  "flagID" : "EVENT_OAK_GOT_PARCEL",
+                  "kind" : "flagUnset"
+                }
+              ],
+              "dialogueID" : "viridian_mart_clerk_after_parcel"
+            },
+            {
+              "conditions" : [
+                {
+                  "flagID" : "EVENT_OAK_GOT_PARCEL",
+                  "kind" : "flagSet"
+                }
+              ],
+              "martID" : "viridian_mart"
             }
           ],
           "movementBehavior" : {
@@ -9813,6 +9867,19 @@
             "y" : 11
           }
         }
+      ]
+    }
+  ],
+  "marts" : [
+    {
+      "clerkObjectID" : "viridian_mart_clerk",
+      "id" : "viridian_mart",
+      "mapID" : "VIRIDIAN_MART",
+      "stockItemIDs" : [
+        "POKE_BALL",
+        "ANTIDOTE",
+        "PARLYZ_HEAL",
+        "BURN_HEAL"
       ]
     }
   ],
@@ -12458,6 +12525,7 @@
         "backImagePath" : "Assets/battle/pokemon/back/charmander.png",
         "frontImagePath" : "Assets/battle/pokemon/front/charmander.png"
       },
+      "catchRate" : 45,
       "cryLength" : 64,
       "cryPitch" : 96,
       "crySoundEffectID" : "SFX_CRY_04",
@@ -12481,6 +12549,7 @@
         "backImagePath" : "Assets/battle/pokemon/back/squirtle.png",
         "frontImagePath" : "Assets/battle/pokemon/front/squirtle.png"
       },
+      "catchRate" : 45,
       "cryLength" : 64,
       "cryPitch" : 96,
       "crySoundEffectID" : "SFX_CRY_1D",
@@ -12504,6 +12573,7 @@
         "backImagePath" : "Assets/battle/pokemon/back/bulbasaur.png",
         "frontImagePath" : "Assets/battle/pokemon/front/bulbasaur.png"
       },
+      "catchRate" : 45,
       "cryLength" : 1,
       "cryPitch" : 128,
       "crySoundEffectID" : "SFX_CRY_0F",
@@ -12528,6 +12598,7 @@
         "backImagePath" : "Assets/battle/pokemon/back/pidgey.png",
         "frontImagePath" : "Assets/battle/pokemon/front/pidgey.png"
       },
+      "catchRate" : 255,
       "cryLength" : 4,
       "cryPitch" : 223,
       "crySoundEffectID" : "SFX_CRY_0E",
@@ -12551,6 +12622,7 @@
         "backImagePath" : "Assets/battle/pokemon/back/rattata.png",
         "frontImagePath" : "Assets/battle/pokemon/front/rattata.png"
       },
+      "catchRate" : 255,
       "cryLength" : 128,
       "cryPitch" : 0,
       "crySoundEffectID" : "SFX_CRY_22",

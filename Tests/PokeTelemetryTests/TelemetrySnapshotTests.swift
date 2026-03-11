@@ -19,6 +19,7 @@ final class TelemetrySnapshotTests: XCTestCase {
             party: nil,
             inventory: nil,
             battle: nil,
+            shop: nil,
             eventFlags: nil,
             audio: nil,
             save: nil,

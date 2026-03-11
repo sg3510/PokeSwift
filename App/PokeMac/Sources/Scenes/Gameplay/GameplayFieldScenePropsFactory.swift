@@ -37,6 +37,7 @@ enum GameplayScenePropsFactory {
                         renderAssets: makeFieldRenderAssets(runtime: runtime),
                         fieldTransition: snapshot.field?.transition,
                         dialogueLines: runtime.currentDialoguePage?.lines,
+                        shop: snapshot.shop,
                         starterChoiceOptions: runtime.scene == .starterChoice ? runtime.starterChoiceOptions : [],
                         starterChoiceFocusedIndex: runtime.starterChoiceFocusedIndex
                     )
@@ -80,11 +81,14 @@ enum GameplayScenePropsFactory {
                     BattleViewportProps(
                         trainerName: battle.trainerName,
                         kind: battle.kind,
+                        phase: battle.phase,
                         textLines: battle.textLines,
                         playerPokemon: battle.playerPokemon,
                         enemyPokemon: battle.enemyPokemon,
                         playerSpriteURL: playerSpriteURL,
                         enemySpriteURL: enemySpriteURL,
+                        bagItems: battle.bagItems,
+                        focusedBagItemIndex: battle.focusedBagItemIndex,
                         presentation: battle.presentation
                     )
                 ),
@@ -99,6 +103,8 @@ enum GameplayScenePropsFactory {
                         moveSlots: battle.moveSlots,
                         focusedMoveIndex: battle.focusedMoveIndex,
                         canRun: battle.canRun,
+                        canUseBag: battle.canUseBag,
+                        bagItemCount: battle.bagItems.count,
                         party: sidebarParty,
                         presentation: battle.presentation
                     )

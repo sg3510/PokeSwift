@@ -15,6 +15,7 @@ extension GameRuntime {
             party: makePartyTelemetry(),
             inventory: makeInventoryTelemetry(),
             battle: makeBattleTelemetry(),
+            shop: makeShopTelemetry(),
             eventFlags: makeFlagTelemetry(),
             audio: makeAudioTelemetry(),
             soundEffects: makeSoundEffectTelemetry(),
@@ -87,7 +88,9 @@ extension GameRuntime {
             enemyPartyCount: battle.enemyParty.count,
             enemyActiveIndex: battle.enemyActiveIndex,
             focusedMoveIndex: battle.focusedMoveIndex,
+            focusedBagItemIndex: battle.focusedBagItemIndex,
             canRun: battle.canRun,
+            canUseBag: battle.kind == .wild && currentBattleBagItems.isEmpty == false,
             phase: battle.phase.rawValue,
             textLines: battle.message.isEmpty ? [] : [battle.message],
             moveSlots: battle.playerPokemon.moves.compactMap { runtimeMove in
@@ -100,6 +103,7 @@ extension GameRuntime {
                     isSelectable: runtimeMove.currentPP > 0
                 )
             },
+            bagItems: currentBattleBagItems.compactMap(makeInventoryItemTelemetry(from:)),
             battleMessage: battle.message,
             presentation: .init(
                 stage: battle.presentation.stage,
@@ -115,14 +119,33 @@ extension GameRuntime {
     func makeInventoryTelemetry() -> InventoryTelemetry? {
         guard gameplayState != nil else { return nil }
         return InventoryTelemetry(
-            items: currentInventoryItems.compactMap { item in
-                guard let manifest = content.item(id: item.itemID) else { return nil }
-                return InventoryItemTelemetry(
-                    itemID: manifest.id,
-                    displayName: manifest.displayName,
-                    quantity: item.quantity
-                )
-            }
+            items: currentInventoryItems.compactMap(makeInventoryItemTelemetry(from:))
+        )
+    }
+
+    func makeShopTelemetry() -> ShopTelemetry? {
+        guard let shopState,
+              let mart = content.mart(id: shopState.martID) else {
+            return nil
+        }
+
+        let stockItems = mart.stockItemIDs.compactMap { itemID -> InventoryItemTelemetry? in
+            guard let item = content.item(id: itemID) else { return nil }
+            return InventoryItemTelemetry(
+                itemID: item.id,
+                displayName: item.displayName,
+                quantity: itemQuantity(item.id),
+                price: item.price,
+                battleUse: item.battleUse
+            )
+        }
+
+        return ShopTelemetry(
+            martID: mart.id,
+            title: currentMapManifest?.displayName ?? "Poke Mart",
+            selectedItemIndex: shopState.selectedItemIndex,
+            selectedQuantity: shopState.selectedQuantity,
+            stockItems: stockItems
         )
     }
 
@@ -174,6 +197,7 @@ extension GameRuntime {
             defense: pokemon.defense,
             speed: pokemon.speed,
             special: pokemon.special,
+            majorStatus: pokemon.majorStatus,
             moves: pokemon.moves.map(\.id),
             experience: .init(
                 total: pokemon.experience,
@@ -183,6 +207,17 @@ extension GameRuntime {
                     : experienceRequired(for: pokemon.level + 1, speciesID: pokemon.speciesID)
             ),
             growthOutlook: growthOutlook(for: pokemon)
+        )
+    }
+
+    func makeInventoryItemTelemetry(from item: RuntimeInventoryItemState) -> InventoryItemTelemetry? {
+        guard let manifest = content.item(id: item.itemID) else { return nil }
+        return InventoryItemTelemetry(
+            itemID: manifest.id,
+            displayName: manifest.displayName,
+            quantity: item.quantity,
+            price: manifest.price,
+            battleUse: manifest.battleUse
         )
     }
 

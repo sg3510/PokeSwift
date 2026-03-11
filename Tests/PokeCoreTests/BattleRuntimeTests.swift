@@ -21,15 +21,144 @@ extension PokeCoreTests {
         drainBattleText(runtime)
 
         runtime.handle(button: .down)
-        runtime.handle(button: .down)
 
-        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedMoveIndex, 2)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedMoveIndex, 1)
 
         runtime.handle(button: .confirm)
         drainBattleUntilComplete(runtime)
 
         XCTAssertEqual(runtime.scene, .field)
         XCTAssertEqual(runtime.currentSnapshot().battle, nil)
+    }
+
+    func testWildBattleBagSelectionConsumesPokeBallOnFailedCapture() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+        runtime.gameplayState?.inventory = [.init(itemID: "POKE_BALL", quantity: 1)]
+
+        runtime.startWildBattle(speciesID: "PIDGEY", level: 3)
+        drainBattleText(runtime)
+
+        runtime.handle(button: .down)
+        runtime.handle(button: .down)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "bagSelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.bagItems.map(\.itemID), ["POKE_BALL"])
+        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedBagItemIndex, 0)
+
+        runtime.setBattleRandomOverrides([255])
+        runtime.handle(button: .confirm)
+        advanceBattleTextUntilMoveSelection(runtime)
+
+        XCTAssertEqual(runtime.scene, .battle)
+        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 0)
+        XCTAssertFalse(runtime.gameplayState?.ownedSpeciesIDs.contains("PIDGEY") ?? true)
+    }
+
+    func testWildBattleCaptureAddsPokemonToPartyAndEndsBattle() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
+        runtime.gameplayState?.inventory = [.init(itemID: "POKE_BALL", quantity: 1)]
+
+        runtime.startWildBattle(speciesID: "PIDGEY", level: 3)
+        drainBattleText(runtime)
+
+        runtime.handle(button: .down)
+        runtime.handle(button: .down)
+        runtime.handle(button: .confirm)
+        runtime.setBattleRandomOverrides([0])
+        runtime.handle(button: .confirm)
+        drainBattleUntilComplete(runtime)
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 0)
+        XCTAssertEqual(runtime.gameplayState?.playerParty.count, 2)
+        XCTAssertEqual(runtime.gameplayState?.playerParty.last?.speciesID, "PIDGEY")
+        XCTAssertTrue(runtime.gameplayState?.ownedSpeciesIDs.contains("PIDGEY") ?? false)
+    }
+
+    func testWildBattleCaptureSendsPokemonToCurrentBoxWhenPartyIsFull() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.currentBoxIndex = 0
+        runtime.gameplayState?.playerParty = (0..<6).map { index in
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle\(index)")
+        }
+        runtime.gameplayState?.inventory = [.init(itemID: "POKE_BALL", quantity: 1)]
+
+        runtime.startWildBattle(speciesID: "PIDGEY", level: 3)
+        drainBattleText(runtime)
+
+        runtime.handle(button: .down)
+        runtime.handle(button: .down)
+        runtime.handle(button: .confirm)
+        runtime.setBattleRandomOverrides([0])
+        runtime.handle(button: .confirm)
+        drainBattleUntilComplete(runtime)
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertEqual(runtime.gameplayState?.playerParty.count, 6)
+        XCTAssertEqual(runtime.gameplayState?.boxedPokemon[0].pokemon.count, 1)
+        XCTAssertEqual(runtime.gameplayState?.boxedPokemon[0].pokemon.first?.speciesID, "PIDGEY")
+    }
+
+    func testWildBattleCaptureIsBlockedWhenCurrentBoxIsFull() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.currentBoxIndex = 0
+        runtime.gameplayState?.playerParty = (0..<6).map { index in
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle\(index)")
+        }
+        runtime.gameplayState?.boxedPokemon[0].pokemon = (0..<GameRuntime.storageBoxCapacity).map { index in
+            runtime.makePokemon(speciesID: "PIDGEY", level: 3, nickname: "BoxMon\(index)")
+        }
+        runtime.gameplayState?.inventory = [.init(itemID: "POKE_BALL", quantity: 1)]
+
+        runtime.startWildBattle(speciesID: "PIDGEY", level: 3)
+        drainBattleText(runtime)
+
+        runtime.handle(button: .down)
+        runtime.handle(button: .down)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 1)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "turnText")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.battleMessage, "The #MON BOX is full! Can't use that item!")
+
+        advanceBattleTextUntilMoveSelection(runtime)
+        XCTAssertEqual(runtime.gameplayState?.boxedPokemon[0].pokemon.count, GameRuntime.storageBoxCapacity)
     }
     func testTrainerBattleCursorDoesNotExposeRunAction() throws {
         let runtime = try makeRepoRuntime()

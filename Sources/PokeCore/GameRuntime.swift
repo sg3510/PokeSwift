@@ -6,7 +6,7 @@ import PokeDataModel
 @MainActor
 @Observable
 public final class GameRuntime {
-    nonisolated public static let saveSchemaVersion = 5
+    nonisolated public static let saveSchemaVersion = 6
 
     public let content: LoadedContent
 
@@ -34,6 +34,7 @@ public final class GameRuntime {
     var hasStarted = false
     var gameplayState: GameplayState?
     var dialogueState: DialogueState?
+    var shopState: RuntimeShopState?
     var deferredActions: [DeferredAction] = []
     var currentAudioState: RuntimeAudioState?
     var recentSoundEffects: [RuntimeSoundEffectState] = []
@@ -134,6 +135,16 @@ public final class GameRuntime {
         gameplayState?.inventory.sorted { $0.itemID < $1.itemID } ?? []
     }
 
+    var currentBoxedPokemon: [RuntimePokemonBoxState] {
+        gameplayState?.boxedPokemon.sorted { $0.index < $1.index } ?? []
+    }
+
+    var currentBattleBagItems: [RuntimeInventoryItemState] {
+        currentInventoryItems.filter { item in
+            content.item(id: item.itemID)?.battleUse == .ball
+        }
+    }
+
     public var chosenStarterSpeciesID: String? {
         gameplayState?.chosenStarterSpeciesID
     }
@@ -164,7 +175,7 @@ public final class GameRuntime {
     }
 
     var isFieldInputLocked: Bool {
-        fieldTransitionState != nil || fieldMovementTask != nil || scriptedMovementTask != nil
+        fieldTransitionState != nil || fieldMovementTask != nil || scriptedMovementTask != nil || shopState != nil
     }
 
     var currentFieldRenderIssues: [String] {

@@ -25,6 +25,7 @@ struct GameplayFieldViewportProps {
     let renderAssets: FieldRenderAssets?
     let fieldTransition: FieldTransitionTelemetry?
     let dialogueLines: [String]?
+    let shop: ShopTelemetry?
     let starterChoiceOptions: [SpeciesManifest]
     let starterChoiceFocusedIndex: Int
 }
@@ -32,11 +33,14 @@ struct GameplayFieldViewportProps {
 struct BattleViewportProps {
     let trainerName: String
     let kind: BattleKind
+    let phase: String
     let textLines: [String]
     let playerPokemon: PartyPokemonTelemetry
     let enemyPokemon: PartyPokemonTelemetry
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
+    let bagItems: [InventoryItemTelemetry]
+    let focusedBagItemIndex: Int
     let presentation: BattlePresentationTelemetry
 
     var showsFooterTextDuringIntro: Bool {
@@ -87,54 +91,63 @@ struct GameplayScene: View {
             Text("This replaces the current in-memory progress with the last saved game.")
         }
     }
+}
 
+// MARK: - GameplayScene Stage Composition
+
+private extension GameplayScene {
     @ViewBuilder
-    private var stage: some View {
-        switch props.viewport {
-        case let .field(fieldProps):
-            FieldMapStage {
-                fieldMapStageContent(fieldProps)
-            } footer: {
-                if let dialogueLines = fieldProps.dialogueLines {
-                    DialogueBoxView(lines: dialogueLines)
-                        .frame(maxWidth: 760)
-                }
-            } overlayContent: {
-                if fieldProps.starterChoiceOptions.isEmpty == false {
-                    StarterChoicePanel(
-                        options: fieldProps.starterChoiceOptions,
-                        focusedIndex: fieldProps.starterChoiceFocusedIndex
-                    )
-                    .frame(width: 420)
-                }
-            }
-        case let .battle(battleProps):
-            BattleViewportStage {
-                BattlePanel(
-                    trainerName: battleProps.trainerName,
-                    playerPokemon: battleProps.playerPokemon,
-                    enemyPokemon: battleProps.enemyPokemon,
-                    playerSpriteURL: battleProps.playerSpriteURL,
-                    enemySpriteURL: battleProps.enemySpriteURL,
-                    presentation: battleProps.presentation
-                )
-            } footer: {
-                DialogueBoxView(
-                    title: "Battle",
-                    lines: battleProps.textLines.isEmpty ? ["Pick the next move."] : battleProps.textLines
-                )
-                .frame(maxWidth: 760)
-                .opacity(
-                    battleProps.presentation.uiVisibility == .visible || battleProps.showsFooterTextDuringIntro
-                        ? 1
-                        : 0
-                )
-            }
+    var stage: some View {
+        ZStack {
+            fieldStageLayer
+            battleStageLayer
         }
     }
 
     @ViewBuilder
-    private func fieldMapStageContent(_ props: GameplayFieldViewportProps) -> some View {
+    var fieldStageLayer: some View {
+        if case let .field(fieldProps) = props.viewport {
+            FieldStageView(
+                props: fieldProps,
+                fieldDisplayStyle: fieldDisplayStyle
+            )
+        }
+    }
+
+    @ViewBuilder
+    var battleStageLayer: some View {
+        if case let .battle(battleProps) = props.viewport {
+            BattleStageView(props: battleProps)
+        }
+    }
+
+    func handleSidebarAction(_ actionID: String) {
+        if actionID == "load" {
+            isLoadConfirmationPresented = true
+            return
+        }
+        props.onSidebarAction?(actionID)
+    }
+}
+
+// MARK: - Stage Views
+
+private struct FieldStageView: View {
+    let props: GameplayFieldViewportProps
+    let fieldDisplayStyle: FieldDisplayStyle
+
+    var body: some View {
+        FieldMapStage {
+            mapContent
+        } footer: {
+            footerContent
+        } overlayContent: {
+            overlayContent
+        }
+    }
+
+    @ViewBuilder
+    private var mapContent: some View {
         if let map = props.map,
            let playerPosition = props.playerPosition {
             FieldMapView(
@@ -161,12 +174,134 @@ struct GameplayScene: View {
         }
     }
 
-    private func handleSidebarAction(_ actionID: String) {
-        if actionID == "load" {
-            isLoadConfirmationPresented = true
-            return
+    @ViewBuilder
+    private var footerContent: some View {
+        if let dialogueLines = props.dialogueLines {
+            DialogueBoxView(lines: dialogueLines)
+                .frame(maxWidth: 760)
         }
-        props.onSidebarAction?(actionID)
+    }
+
+    @ViewBuilder
+    private var overlayContent: some View {
+        if let shop = props.shop {
+            ShopOverlayPanel(shop: shop)
+                .frame(width: 420)
+        } else if props.starterChoiceOptions.isEmpty == false {
+            StarterChoicePanel(
+                options: props.starterChoiceOptions,
+                focusedIndex: props.starterChoiceFocusedIndex
+            )
+            .frame(width: 420)
+        }
+    }
+}
+
+private struct BattleStageView: View {
+    let props: BattleViewportProps
+
+    var body: some View {
+        BattleViewportStage {
+            BattlePanel(
+                trainerName: props.trainerName,
+                playerPokemon: props.playerPokemon,
+                enemyPokemon: props.enemyPokemon,
+                playerSpriteURL: props.playerSpriteURL,
+                enemySpriteURL: props.enemySpriteURL,
+                presentation: props.presentation
+            )
+        } footer: {
+            footerContent
+        } overlayContent: {
+            overlayContent
+        }
+    }
+
+    private var footerContent: some View {
+        DialogueBoxView(
+            title: "Battle",
+            lines: props.textLines.isEmpty ? ["Pick the next move."] : props.textLines
+        )
+        .frame(maxWidth: 760)
+        .opacity(
+            props.presentation.uiVisibility == .visible || props.showsFooterTextDuringIntro
+                ? 1
+                : 0
+        )
+    }
+
+    @ViewBuilder
+    private var overlayContent: some View {
+        if props.phase == "bagSelection" &&
+            props.bagItems.isEmpty == false &&
+            props.presentation.uiVisibility == .visible {
+            BattleBagOverlayPanel(
+                items: props.bagItems,
+                focusedIndex: props.focusedBagItemIndex
+            )
+            .frame(width: 360)
+        }
+    }
+}
+
+// MARK: - Overlay Panels
+
+private struct ShopOverlayPanel: View {
+    let shop: ShopTelemetry
+
+    var body: some View {
+        GameplayHoverCardSurface {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(shop.title.uppercased())
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .foregroundStyle(GameplayFieldStyleTokens.ink)
+                Text("HI THERE! MAY I HELP YOU?")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(GameplayFieldStyleTokens.ink.opacity(0.72))
+                ForEach(Array(shop.stockItems.enumerated()), id: \.element.itemID) { index, item in
+                    HStack(spacing: 10) {
+                        Text(index == shop.selectedItemIndex ? "▶" : " ")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        Text(item.displayName.uppercased())
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        Spacer(minLength: 8)
+                        Text("¥\(item.price)")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(GameplayFieldStyleTokens.ink.opacity(index == shop.selectedItemIndex ? 1 : 0.78))
+                }
+                Text("QTY \(shop.selectedQuantity)")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(GameplayFieldStyleTokens.ink.opacity(0.68))
+            }
+        }
+    }
+}
+
+private struct BattleBagOverlayPanel: View {
+    let items: [InventoryItemTelemetry]
+    let focusedIndex: Int
+
+    var body: some View {
+        GameplayHoverCardSurface {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("BAG")
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .foregroundStyle(GameplayFieldStyleTokens.ink)
+                ForEach(Array(items.enumerated()), id: \.element.itemID) { index, item in
+                    HStack(spacing: 10) {
+                        Text(index == focusedIndex ? "▶" : " ")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        Text(item.displayName.uppercased())
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        Spacer(minLength: 8)
+                        Text("x\(item.quantity)")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(GameplayFieldStyleTokens.ink.opacity(index == focusedIndex ? 1 : 0.78))
+                }
+            }
+        }
     }
 }
 

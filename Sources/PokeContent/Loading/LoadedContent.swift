@@ -68,6 +68,14 @@ public struct LoadedContent: Sendable {
         gameplayManifest.items.first { $0.id == id }
     }
 
+    public func mart(id: String) -> MartManifest? {
+        gameplayManifest.marts.first { $0.id == id }
+    }
+
+    public func mart(mapID: String, clerkObjectID: String) -> MartManifest? {
+        gameplayManifest.marts.first { $0.mapID == mapID && $0.clerkObjectID == clerkObjectID }
+    }
+
     public func move(id: String) -> MoveManifest? {
         gameplayManifest.moves.first { $0.id == id }
     }

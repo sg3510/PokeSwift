@@ -15,6 +15,10 @@ private struct ResolvedFieldStep {
 
 extension GameRuntime {
     func handleField(button: RuntimeButton) {
+        if shopState != nil {
+            handleShop(button: button)
+            return
+        }
         guard isFieldInputLocked == false else { return }
         switch button {
         case .up:
@@ -112,6 +116,10 @@ extension GameRuntime {
         }) {
             if let scriptID = trigger.scriptID {
                 beginScript(id: scriptID)
+                return
+            }
+            if let martID = trigger.martID {
+                openMart(id: martID)
                 return
             }
             if let dialogueID = trigger.dialogueID {

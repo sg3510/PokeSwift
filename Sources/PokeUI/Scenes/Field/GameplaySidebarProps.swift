@@ -275,6 +275,8 @@ public struct BattleSidebarProps: Equatable, Sendable {
     public let moveSlots: [BattleMoveSlotTelemetry]
     public let focusedMoveIndex: Int
     public let canRun: Bool
+    public let canUseBag: Bool
+    public let bagItemCount: Int
     public let party: PartySidebarProps
     public let presentation: BattlePresentationTelemetry
 
@@ -288,6 +290,8 @@ public struct BattleSidebarProps: Equatable, Sendable {
         moveSlots: [BattleMoveSlotTelemetry],
         focusedMoveIndex: Int,
         canRun: Bool,
+        canUseBag: Bool = false,
+        bagItemCount: Int = 0,
         party: PartySidebarProps,
         presentation: BattlePresentationTelemetry = .init(
             stage: .idle,
@@ -304,12 +308,14 @@ public struct BattleSidebarProps: Equatable, Sendable {
         self.moveSlots = moveSlots
         self.focusedMoveIndex = focusedMoveIndex
         self.canRun = canRun
+        self.canUseBag = canUseBag
+        self.bagItemCount = bagItemCount
         self.party = party
         self.presentation = presentation
     }
 
     public var shouldForceCombatSectionOpen: Bool {
-        showsInterface && phase == "moveSelection"
+        showsInterface && (phase == "moveSelection" || phase == "bagSelection")
     }
 
     public var showsInterface: Bool {
@@ -331,26 +337,42 @@ public struct BattleSidebarProps: Equatable, Sendable {
             )
         }
 
-        guard canRun else {
-            return moveRows
+        var rows = moveRows
+
+        if canUseBag {
+            rows.append(
+                BattleSidebarActionRowProps(
+                    id: "bag",
+                    title: "Bag",
+                    detail: "\(bagItemCount)",
+                    isSelectable: shouldForceCombatSectionOpen,
+                    isFocused: shouldForceCombatSectionOpen && focusedMoveIndex == moveSlots.count,
+                    kind: .bag
+                )
+            )
         }
 
-        return moveRows + [
-            BattleSidebarActionRowProps(
-                id: "run",
-                title: "Run",
-                detail: nil,
-                isSelectable: shouldForceCombatSectionOpen,
-                isFocused: shouldForceCombatSectionOpen && focusedMoveIndex == moveSlots.count,
-                kind: .run
-            ),
-        ]
+        if canRun {
+            rows.append(
+                BattleSidebarActionRowProps(
+                    id: "run",
+                    title: "Run",
+                    detail: nil,
+                    isSelectable: shouldForceCombatSectionOpen,
+                    isFocused: shouldForceCombatSectionOpen && focusedMoveIndex == moveSlots.count + (canUseBag ? 1 : 0),
+                    kind: .run
+                )
+            )
+        }
+
+        return rows
     }
 }
 
 public struct BattleSidebarActionRowProps: Identifiable, Equatable, Sendable {
     public enum Kind: String, Equatable, Sendable {
         case move
+        case bag
         case run
     }
 

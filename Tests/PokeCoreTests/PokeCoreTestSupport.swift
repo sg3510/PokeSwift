@@ -36,12 +36,14 @@ func fixtureGameplayManifest(
     dialogues: [DialogueManifest] = [],
     scripts: [ScriptManifest] = [],
     species: [SpeciesManifest] = [],
+    items: [ItemManifest] = [],
     moves: [MoveManifest] = [],
     typeEffectiveness: [TypeEffectivenessManifest] = [],
     wildEncounterTables: [WildEncounterTableManifest] = [],
     maps: [MapManifest]? = nil,
     tilesets: [TilesetManifest]? = nil,
-    trainerBattles: [TrainerBattleManifest] = []
+    trainerBattles: [TrainerBattleManifest] = [],
+    marts: [MartManifest] = []
 ) -> GameplayManifest {
     GameplayManifest(
         maps: maps ?? [
@@ -97,6 +99,8 @@ func fixtureGameplayManifest(
         eventFlags: .init(flags: []),
         mapScripts: [],
         scripts: scripts,
+        items: items,
+        marts: marts,
         species: species,
         moves: moves,
         typeEffectiveness: typeEffectiveness,
@@ -181,6 +185,26 @@ func drainBattleText(_ runtime: GameRuntime, maxTicks: Int = 240) {
         message: "battle text did not drain to move selection",
         maxTicks: maxTicks
     )
+}
+
+@MainActor
+func advanceBattleTextUntilMoveSelection(_ runtime: GameRuntime, maxTicks: Int = 240) {
+    let pollInterval = 0.01
+    let deadline = Date().addingTimeInterval(Double(maxTicks) * pollInterval)
+
+    while Date() < deadline {
+        guard let battle = runtime.currentSnapshot().battle else {
+            XCTFail("battle ended before returning to move selection")
+            return
+        }
+        if battle.phase == "moveSelection" {
+            return
+        }
+        runtime.handle(button: .confirm)
+        RunLoop.current.run(until: Date().addingTimeInterval(pollInterval))
+    }
+
+    XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "moveSelection", "battle text did not resolve to move selection")
 }
 
 @MainActor

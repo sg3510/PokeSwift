@@ -139,6 +139,8 @@ extension PokeUITests {
         Color.black
       } footer: {
         Text("Battle text")
+      } overlayContent: {
+        EmptyView()
       }
     }
 
@@ -474,6 +476,53 @@ extension PokeUITests {
     XCTAssertEqual(wildProps.actionRows.map(\.kind), [.move, .move, .run])
     XCTAssertEqual(wildProps.actionRows.last?.isFocused, true)
     XCTAssertEqual(trainerProps.actionRows.map(\.kind), [.move, .move])
+  }
+  func testBattleSidebarActionRowsInsertBagBeforeRunWhenAvailable() {
+    let props = BattleSidebarProps(
+      trainerName: "PIDGEY",
+      kind: .wild,
+      phase: "moveSelection",
+      promptText: "Pick the next move.",
+      playerPokemon: .init(
+        speciesID: "BULBASAUR",
+        displayName: "Bulbasaur",
+        level: 5,
+        currentHP: 19,
+        maxHP: 19,
+        attack: 11,
+        defense: 10,
+        speed: 9,
+        special: 12,
+        moves: ["TACKLE", "GROWL"]
+      ),
+      enemyPokemon: .init(
+        speciesID: "PIDGEY",
+        displayName: "Pidgey",
+        level: 3,
+        currentHP: 12,
+        maxHP: 12,
+        attack: 8,
+        defense: 8,
+        speed: 10,
+        special: 7,
+        moves: ["TACKLE"]
+      ),
+      moveSlots: [
+        .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true),
+        .init(moveID: "GROWL", displayName: "Growl", currentPP: 40, maxPP: 40, isSelectable: true),
+      ],
+      focusedMoveIndex: 2,
+      canRun: true,
+      canUseBag: true,
+      bagItemCount: 3,
+      party: .init(pokemon: [])
+    )
+
+    XCTAssertEqual(props.actionRows.map(\.kind), [.move, .move, .bag, .run])
+    XCTAssertEqual(props.actionRows[2].title, "Bag")
+    XCTAssertEqual(props.actionRows[2].detail, "3")
+    XCTAssertEqual(props.actionRows[2].isFocused, true)
+    XCTAssertEqual(props.actionRows[3].isFocused, false)
   }
   func testSidebarPropBuilderMapsPartyAfterStarterSelection() {
     let party = PartyTelemetry(

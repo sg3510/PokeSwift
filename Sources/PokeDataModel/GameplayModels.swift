@@ -129,15 +129,18 @@ public struct ObjectInteractionTriggerManifest: Codable, Equatable, Sendable {
     public let conditions: [ScriptConditionManifest]
     public let dialogueID: String?
     public let scriptID: String?
+    public let martID: String?
 
     public init(
         conditions: [ScriptConditionManifest] = [],
         dialogueID: String? = nil,
-        scriptID: String? = nil
+        scriptID: String? = nil,
+        martID: String? = nil
     ) {
         self.conditions = conditions
         self.dialogueID = dialogueID
         self.scriptID = scriptID
+        self.martID = martID
     }
 }
 
@@ -855,6 +858,7 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
     public let battleSprite: BattleSpriteManifest?
     public let id: String
     public let displayName: String
+    public let catchRate: Int
     public let baseExp: Int
     public let growthRate: PokemonGrowthRate
     public let baseHP: Int
@@ -873,6 +877,7 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         primaryType: String = "NORMAL",
         secondaryType: String? = nil,
         battleSprite: BattleSpriteManifest? = nil,
+        catchRate: Int = 0,
         baseExp: Int = 0,
         growthRate: PokemonGrowthRate = .mediumFast,
         baseHP: Int,
@@ -890,6 +895,7 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         self.primaryType = primaryType
         self.secondaryType = secondaryType
         self.battleSprite = battleSprite
+        self.catchRate = catchRate
         self.baseExp = baseExp
         self.growthRate = growthRate
         self.baseHP = baseHP
@@ -909,6 +915,7 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         case battleSprite
         case id
         case displayName
+        case catchRate
         case baseExp
         case growthRate
         case baseHP
@@ -929,6 +936,7 @@ public struct SpeciesManifest: Codable, Equatable, Sendable {
         primaryType = try container.decodeIfPresent(String.self, forKey: .primaryType) ?? "NORMAL"
         secondaryType = try container.decodeIfPresent(String.self, forKey: .secondaryType)
         battleSprite = try container.decodeIfPresent(BattleSpriteManifest.self, forKey: .battleSprite)
+        catchRate = try container.decodeIfPresent(Int.self, forKey: .catchRate) ?? 0
         baseExp = try container.decodeIfPresent(Int.self, forKey: .baseExp) ?? 0
         growthRate = try container.decodeIfPresent(PokemonGrowthRate.self, forKey: .growthRate) ?? .mediumFast
         baseHP = try container.decode(Int.self, forKey: .baseHP)
@@ -966,14 +974,48 @@ public struct TypeEffectivenessManifest: Codable, Equatable, Sendable {
 }
 
 public struct ItemManifest: Codable, Equatable, Sendable {
+    public enum BattleUseKind: String, Codable, Equatable, Sendable {
+        case none
+        case ball
+    }
+
     public let id: String
     public let displayName: String
+    public let price: Int
     public let isKeyItem: Bool
+    public let battleUse: BattleUseKind
 
-    public init(id: String, displayName: String, isKeyItem: Bool = false) {
+    public init(
+        id: String,
+        displayName: String,
+        price: Int = 0,
+        isKeyItem: Bool = false,
+        battleUse: BattleUseKind = .none
+    ) {
         self.id = id
         self.displayName = displayName
+        self.price = price
         self.isKeyItem = isKeyItem
+        self.battleUse = battleUse
+    }
+}
+
+public struct MartManifest: Codable, Equatable, Sendable {
+    public let id: String
+    public let mapID: String
+    public let clerkObjectID: String
+    public let stockItemIDs: [String]
+
+    public init(
+        id: String,
+        mapID: String,
+        clerkObjectID: String,
+        stockItemIDs: [String]
+    ) {
+        self.id = id
+        self.mapID = mapID
+        self.clerkObjectID = clerkObjectID
+        self.stockItemIDs = stockItemIDs
     }
 }
 
@@ -1012,6 +1054,26 @@ public struct WildEncounterTableManifest: Codable, Equatable, Sendable {
 public enum BattleKind: String, Codable, Equatable, Sendable {
     case trainer
     case wild
+}
+
+public enum MajorStatusCondition: String, Codable, Equatable, Sendable {
+    case none
+    case sleep
+    case poison
+    case burn
+    case freeze
+    case paralysis
+
+    public var captureBonus: Int {
+        switch self {
+        case .none:
+            return 0
+        case .poison, .burn, .paralysis:
+            return 12
+        case .sleep, .freeze:
+            return 25
+        }
+    }
 }
 
 public struct TrainerPokemonManifest: Codable, Equatable, Sendable {
@@ -1088,6 +1150,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
     public let mapScripts: [MapScriptManifest]
     public let scripts: [ScriptManifest]
     public let items: [ItemManifest]
+    public let marts: [MartManifest]
     public let species: [SpeciesManifest]
     public let moves: [MoveManifest]
     public let typeEffectiveness: [TypeEffectivenessManifest]
@@ -1104,6 +1167,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
         mapScripts: [MapScriptManifest],
         scripts: [ScriptManifest],
         items: [ItemManifest] = [],
+        marts: [MartManifest] = [],
         species: [SpeciesManifest],
         moves: [MoveManifest],
         typeEffectiveness: [TypeEffectivenessManifest] = [],
@@ -1119,6 +1183,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
         self.mapScripts = mapScripts
         self.scripts = scripts
         self.items = items
+        self.marts = marts
         self.species = species
         self.moves = moves
         self.typeEffectiveness = typeEffectiveness
@@ -1136,6 +1201,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
         case mapScripts
         case scripts
         case items
+        case marts
         case species
         case moves
         case typeEffectiveness
@@ -1154,6 +1220,7 @@ public struct GameplayManifest: Codable, Equatable, Sendable {
         mapScripts = try container.decode([MapScriptManifest].self, forKey: .mapScripts)
         scripts = try container.decode([ScriptManifest].self, forKey: .scripts)
         items = try container.decodeIfPresent([ItemManifest].self, forKey: .items) ?? []
+        marts = try container.decodeIfPresent([MartManifest].self, forKey: .marts) ?? []
         species = try container.decode([SpeciesManifest].self, forKey: .species)
         moves = try container.decode([MoveManifest].self, forKey: .moves)
         typeEffectiveness = try container.decodeIfPresent([TypeEffectivenessManifest].self, forKey: .typeEffectiveness) ?? []

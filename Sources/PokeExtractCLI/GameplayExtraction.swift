@@ -30,6 +30,7 @@ func extractGameplayManifest(source: SourceTree) throws -> GameplayManifest {
         mapScripts: buildMapScripts(),
         scripts: try buildScripts(repoRoot: source.repoRoot),
         items: try buildItems(repoRoot: source.repoRoot),
+        marts: try buildMarts(repoRoot: source.repoRoot),
         species: try buildSpecies(repoRoot: source.repoRoot),
         moves: try buildMoves(repoRoot: source.repoRoot),
         typeEffectiveness: try buildTypeEffectiveness(repoRoot: source.repoRoot),
@@ -1084,6 +1085,17 @@ private func interactionTriggers(for objectID: String) -> [ObjectInteractionTrig
                 conditions: [.init(kind: "flagUnset", flagID: "EVENT_GOT_OAKS_PARCEL")],
                 scriptID: "viridian_mart_oaks_parcel"
             ),
+            .init(
+                conditions: [
+                    .init(kind: "flagSet", flagID: "EVENT_GOT_OAKS_PARCEL"),
+                    .init(kind: "flagUnset", flagID: "EVENT_OAK_GOT_PARCEL"),
+                ],
+                dialogueID: "viridian_mart_clerk_after_parcel"
+            ),
+            .init(
+                conditions: [.init(kind: "flagSet", flagID: "EVENT_OAK_GOT_PARCEL")],
+                martID: "viridian_mart"
+            ),
         ]
     case "oaks_lab_poke_ball_charmander":
         return starterBallInteractionTriggers(speciesID: "CHARMANDER", scriptID: "oaks_lab_choose_charmander")
@@ -2079,6 +2091,7 @@ private func parseSpecies(repoRoot: URL, file: String, id: String, displayName: 
     let cryData = try parseCryData(repoRoot: repoRoot, displayName: displayName)
     guard let statsMatch = contents.firstMatch(of: /db\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\n\s*;\s*hp\s+atk\s+def\s+spd\s+spc/),
           let typeMatch = contents.firstMatch(of: /db\s+([A-Z_]+),\s+([A-Z_]+)\s*;\s*type/),
+          let catchRateMatch = contents.firstMatch(of: /db\s+(\d+)\s*;\s*catch rate/),
           let baseExpMatch = contents.firstMatch(of: /db\s+(\d+)\s*;\s*base exp/),
           let spriteMatch = contents.firstMatch(of: /dw\s+([A-Za-z0-9_]+),\s+([A-Za-z0-9_]+)/),
           let moveMatch = contents.firstMatch(of: /db\s+([A-Z_]+),\s+([A-Z_]+),\s+([A-Z_]+),\s+([A-Z_]+)\s*; level 1 learnset/),
@@ -2102,6 +2115,7 @@ private func parseSpecies(repoRoot: URL, file: String, id: String, displayName: 
     ]
     let primaryType = String(typeMatch.output.1)
     let rawSecondaryType = String(typeMatch.output.2)
+    let catchRate = Int(catchRateMatch.output.1) ?? 0
     let baseExp = Int(baseExpMatch.output.1) ?? 0
     let growthRateRawValue = String(growthRateMatch.output.1)
     guard let growthRate = PokemonGrowthRate(rawValue: growthRateRawValue) else {
@@ -2119,6 +2133,7 @@ private func parseSpecies(repoRoot: URL, file: String, id: String, displayName: 
         primaryType: primaryType,
         secondaryType: primaryType == rawSecondaryType ? nil : rawSecondaryType,
         battleSprite: battleSprite,
+        catchRate: catchRate,
         baseExp: baseExp,
         growthRate: growthRate,
         baseHP: statsValues[safe: 0] ?? 0,
@@ -2297,12 +2312,28 @@ private func parseMoveBattleAudio(repoRoot: URL) throws -> [String: BattleAudioM
 private func buildItems(repoRoot: URL) throws -> [ItemManifest] {
     let namesByID = try parseItemNames(repoRoot: repoRoot)
     let keyItemIDs = try parseKeyItemIDs(repoRoot: repoRoot)
+    let pricesByID = try parseItemPrices(repoRoot: repoRoot)
 
     return currentGameplaySliceItemIDs.map { itemID in
         ItemManifest(
             id: itemID,
             displayName: namesByID[itemID] ?? itemID,
-            isKeyItem: keyItemIDs.contains(itemID)
+            price: pricesByID[itemID] ?? 0,
+            isKeyItem: keyItemIDs.contains(itemID),
+            battleUse: battleUseKind(for: itemID)
+        )
+    }
+}
+
+private func buildMarts(repoRoot: URL) throws -> [MartManifest] {
+    let martsByLabel = try parseMartStocks(repoRoot: repoRoot)
+    return currentGameplaySliceMarts.compactMap { definition in
+        guard let stockItemIDs = martsByLabel[definition.stockLabel] else { return nil }
+        return MartManifest(
+            id: definition.id,
+            mapID: definition.mapID,
+            clerkObjectID: definition.clerkObjectID,
+            stockItemIDs: stockItemIDs
         )
     }
 }
@@ -2358,6 +2389,64 @@ private func parseKeyItemIDs(repoRoot: URL) throws -> Set<String> {
     return Set(zip(itemIDs, keyFlags).compactMap { itemID, isKeyItem in
         isKeyItem ? itemID : nil
     })
+}
+
+private func parseItemPrices(repoRoot: URL) throws -> [String: Int] {
+    let itemIDs = try parseOrderedItemIDs(repoRoot: repoRoot)
+    let contents = try String(contentsOf: repoRoot.appendingPathComponent("data/items/prices.asm"))
+    let prices = contents
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .compactMap { rawLine -> Int? in
+            let line = rawLine.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first?
+                .trimmingCharacters(in: .whitespaces) ?? ""
+            guard line.hasPrefix("bcd3 ") else { return nil }
+            return Int(line.replacingOccurrences(of: "bcd3", with: "").trimmingCharacters(in: .whitespaces))
+        }
+    return Dictionary(uniqueKeysWithValues: zip(itemIDs, prices))
+}
+
+private func parseMartStocks(repoRoot: URL) throws -> [String: [String]] {
+    let contents = try String(contentsOf: repoRoot.appendingPathComponent("data/items/marts.asm"))
+    var result: [String: [String]] = [:]
+    var currentLabel: String?
+
+    for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false) {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        if line.hasSuffix("::") {
+            currentLabel = String(line.dropLast(2))
+            continue
+        }
+        guard let currentLabel, line.hasPrefix("script_mart ") else { continue }
+        let itemIDs = line
+            .replacingOccurrences(of: "script_mart", with: "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        result[currentLabel] = itemIDs
+    }
+
+    return result
+}
+
+private func parseOrderedItemIDs(repoRoot: URL) throws -> [String] {
+    try String(contentsOf: repoRoot.appendingPathComponent("constants/item_constants.asm"))
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .compactMap { rawLine -> String? in
+            let line = rawLine.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first?
+                .trimmingCharacters(in: .whitespaces) ?? ""
+            guard line.hasPrefix("const ") else { return nil }
+            let identifier = line.replacingOccurrences(of: "const", with: "").trimmingCharacters(in: .whitespaces)
+            guard identifier.isEmpty == false, identifier != "NO_ITEM" else { return nil }
+            return identifier.components(separatedBy: .whitespaces).first
+        }
+}
+
+private func battleUseKind(for itemID: String) -> ItemManifest.BattleUseKind {
+    switch itemID {
+    case "MASTER_BALL", "ULTRA_BALL", "GREAT_BALL", "POKE_BALL", "SAFARI_BALL":
+        return .ball
+    default:
+        return .none
+    }
 }
 
 private func buildWildEncounterTables(repoRoot: URL) throws -> [WildEncounterTableManifest] {

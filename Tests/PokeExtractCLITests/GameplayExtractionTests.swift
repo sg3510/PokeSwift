@@ -204,10 +204,15 @@ final class GameplayExtractionTests: XCTestCase {
         XCTAssertEqual(rattata.baseExp, 57)
         XCTAssertEqual(rattata.growthRate, .mediumFast)
         XCTAssertEqual(manifest.moves.map(\.id), ["SCRATCH", "GUST", "TACKLE", "TAIL_WHIP", "GROWL"])
-        XCTAssertEqual(manifest.items.map(\.id), ["POTION", "OAKS_PARCEL"])
-        XCTAssertEqual(manifest.items.first?.displayName, "POTION")
+        XCTAssertEqual(manifest.items.map(\.id), ["POKE_BALL", "POTION", "ANTIDOTE", "PARLYZ_HEAL", "BURN_HEAL", "OAKS_PARCEL"])
+        XCTAssertEqual(manifest.items.first?.displayName, "POKé BALL")
+        XCTAssertEqual(manifest.items.first?.price, 200)
+        XCTAssertEqual(manifest.items.first?.battleUse, .ball)
         XCTAssertEqual(manifest.items.last?.displayName, "OAK's PARCEL")
         XCTAssertEqual(manifest.items.last?.isKeyItem, true)
+        XCTAssertEqual(manifest.items.last?.price, 0)
+        XCTAssertEqual(charmander.catchRate, 45)
+        XCTAssertEqual(pidgey.catchRate, 255)
         XCTAssertFalse(manifest.typeEffectiveness.isEmpty)
         XCTAssertEqual(
             manifest.typeEffectiveness.first { $0.attackingType == "FIRE" && $0.defendingType == "GRASS" }?.multiplier,
@@ -286,11 +291,42 @@ final class GameplayExtractionTests: XCTestCase {
         let viridianMart = try XCTUnwrap(manifest.maps.first { $0.id == "VIRIDIAN_MART" })
         XCTAssertEqual(viridianMart.tileset, "MART")
         XCTAssertEqual(viridianMart.objects.first { $0.id == "viridian_mart_clerk" }?.interactionReach, .overCounter)
+        XCTAssertEqual(
+            viridianMart.objects.first { $0.id == "viridian_mart_clerk" }?.interactionTriggers,
+            [
+                .init(
+                    conditions: [.init(kind: "flagUnset", flagID: "EVENT_GOT_OAKS_PARCEL")],
+                    scriptID: "viridian_mart_oaks_parcel"
+                ),
+                .init(
+                    conditions: [
+                        .init(kind: "flagSet", flagID: "EVENT_GOT_OAKS_PARCEL"),
+                        .init(kind: "flagUnset", flagID: "EVENT_OAK_GOT_PARCEL"),
+                    ],
+                    dialogueID: "viridian_mart_clerk_after_parcel"
+                ),
+                .init(
+                    conditions: [.init(kind: "flagSet", flagID: "EVENT_OAK_GOT_PARCEL")],
+                    martID: "viridian_mart"
+                ),
+            ]
+        )
         XCTAssertEqual(viridianMart.objects.map(\.id), [
             "viridian_mart_clerk",
             "viridian_mart_youngster",
             "viridian_mart_cooltrainer",
         ])
+        XCTAssertEqual(
+            manifest.marts,
+            [
+                .init(
+                    id: "viridian_mart",
+                    mapID: "VIRIDIAN_MART",
+                    clerkObjectID: "viridian_mart_clerk",
+                    stockItemIDs: ["POKE_BALL", "ANTIDOTE", "PARLYZ_HEAL", "BURN_HEAL"]
+                )
+            ]
+        )
 
         let route1Encounters = try XCTUnwrap(manifest.wildEncounterTables.first { $0.mapID == "ROUTE_1" })
         XCTAssertEqual(route1Encounters.grassEncounterRate, 25)
@@ -339,7 +375,8 @@ final class GameplayExtractionTests: XCTestCase {
         XCTAssertEqual(decoded.maps.count, 10)
         XCTAssertEqual(decoded.tilesets.count, 7)
         XCTAssertEqual(decoded.overworldSprites.count, 23)
-        XCTAssertEqual(decoded.items.count, 2)
+        XCTAssertEqual(decoded.items.count, 6)
+        XCTAssertEqual(decoded.marts.count, 1)
         XCTAssertEqual(decoded.wildEncounterTables.count, 1)
         XCTAssertGreaterThan(decoded.dialogues.count, 85)
         XCTAssertNotNil(decoded.dialogues.first { $0.id == "oaks_lab_rival_gramps" })

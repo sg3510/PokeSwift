@@ -49,6 +49,9 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
     public let activeFlags: [String]
     public let money: Int
     public let inventory: [GameSaveInventoryItem]
+    public let currentBoxIndex: Int
+    public let boxedPokemon: [GameSavePokemonBox]
+    public let ownedSpeciesIDs: [String]
     public let earnedBadgeIDs: [String]
     public let playerName: String
     public let rivalName: String
@@ -70,6 +73,9 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
         activeFlags: [String],
         money: Int,
         inventory: [GameSaveInventoryItem],
+        currentBoxIndex: Int = 0,
+        boxedPokemon: [GameSavePokemonBox] = [],
+        ownedSpeciesIDs: [String] = [],
         earnedBadgeIDs: [String],
         playerName: String,
         rivalName: String,
@@ -90,6 +96,9 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
         self.activeFlags = activeFlags
         self.money = money
         self.inventory = inventory
+        self.currentBoxIndex = currentBoxIndex
+        self.boxedPokemon = boxedPokemon
+        self.ownedSpeciesIDs = ownedSpeciesIDs
         self.earnedBadgeIDs = earnedBadgeIDs
         self.playerName = playerName
         self.rivalName = rivalName
@@ -112,6 +121,9 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
         case activeFlags
         case money
         case inventory
+        case currentBoxIndex
+        case boxedPokemon
+        case ownedSpeciesIDs
         case earnedBadgeIDs
         case playerName
         case rivalName
@@ -135,10 +147,13 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
         activeFlags = try container.decode([String].self, forKey: .activeFlags)
         money = try container.decode(Int.self, forKey: .money)
         inventory = try container.decodeIfPresent([GameSaveInventoryItem].self, forKey: .inventory) ?? []
+        currentBoxIndex = try container.decodeIfPresent(Int.self, forKey: .currentBoxIndex) ?? 0
+        boxedPokemon = try container.decodeIfPresent([GameSavePokemonBox].self, forKey: .boxedPokemon) ?? []
         earnedBadgeIDs = try container.decode([String].self, forKey: .earnedBadgeIDs)
         playerName = try container.decode(String.self, forKey: .playerName)
         rivalName = try container.decode(String.self, forKey: .rivalName)
         playerParty = try container.decode([GameSavePokemon].self, forKey: .playerParty)
+        ownedSpeciesIDs = try container.decodeIfPresent([String].self, forKey: .ownedSpeciesIDs) ?? playerParty.map(\.speciesID)
         chosenStarterSpeciesID = try container.decodeIfPresent(String.self, forKey: .chosenStarterSpeciesID)
         rivalStarterSpeciesID = try container.decodeIfPresent(String.self, forKey: .rivalStarterSpeciesID)
         pendingStarterSpeciesID = try container.decodeIfPresent(String.self, forKey: .pendingStarterSpeciesID)
@@ -147,6 +162,16 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
         activeScriptStep = try container.decodeIfPresent(Int.self, forKey: .activeScriptStep)
         encounterStepCounter = try container.decodeIfPresent(Int.self, forKey: .encounterStepCounter) ?? 0
         playTimeSeconds = try container.decode(Int.self, forKey: .playTimeSeconds)
+    }
+}
+
+public struct GameSavePokemonBox: Codable, Equatable, Sendable {
+    public let index: Int
+    public let pokemon: [GameSavePokemon]
+
+    public init(index: Int, pokemon: [GameSavePokemon]) {
+        self.index = index
+        self.pokemon = pokemon
     }
 }
 
@@ -199,6 +224,7 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
     public let defenseStage: Int
     public let accuracyStage: Int
     public let evasionStage: Int
+    public let majorStatus: MajorStatusCondition
     public let moves: [GameSaveMove]
 
     public init(
@@ -218,6 +244,7 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         defenseStage: Int,
         accuracyStage: Int,
         evasionStage: Int,
+        majorStatus: MajorStatusCondition = .none,
         moves: [GameSaveMove]
     ) {
         self.speciesID = speciesID
@@ -236,6 +263,7 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         self.defenseStage = defenseStage
         self.accuracyStage = accuracyStage
         self.evasionStage = evasionStage
+        self.majorStatus = majorStatus
         self.moves = moves
     }
 
@@ -256,6 +284,7 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         case defenseStage
         case accuracyStage
         case evasionStage
+        case majorStatus
         case moves
     }
 
@@ -277,6 +306,7 @@ public struct GameSavePokemon: Codable, Equatable, Sendable {
         defenseStage = try container.decode(Int.self, forKey: .defenseStage)
         accuracyStage = try container.decode(Int.self, forKey: .accuracyStage)
         evasionStage = try container.decode(Int.self, forKey: .evasionStage)
+        majorStatus = try container.decodeIfPresent(MajorStatusCondition.self, forKey: .majorStatus) ?? .none
         moves = try container.decode([GameSaveMove].self, forKey: .moves)
     }
 }

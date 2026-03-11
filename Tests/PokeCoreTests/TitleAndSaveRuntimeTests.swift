@@ -53,6 +53,8 @@ extension PokeCoreTests {
         runtime.gameplayState?.facing = .left
         runtime.gameplayState?.money = 4242
         runtime.gameplayState?.earnedBadgeIDs = ["BOULDER"]
+        runtime.gameplayState?.ownedSpeciesIDs = ["SQUIRTLE", "PIDGEY"]
+        runtime.gameplayState?.currentBoxIndex = 1
         runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
         runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Squirtle")]
         let savedPokemon = runtime.gameplayState?.playerParty.first
@@ -69,16 +71,39 @@ extension PokeCoreTests {
             defenseStage: 0,
             accuracyStage: 0,
             evasionStage: 0,
+            majorStatus: .paralysis,
             moves: savedMoves
         )
+        runtime.gameplayState?.boxedPokemon[1].pokemon = [
+            runtime.makeConfiguredPokemon(
+                speciesID: "SQUIRTLE",
+                nickname: "BoxedMon",
+                level: 4,
+                experience: 100,
+                dvs: .zero,
+                statExp: .zero,
+                currentHP: 17,
+                attackStage: 0,
+                defenseStage: 0,
+                accuracyStage: 0,
+                evasionStage: 0,
+                majorStatus: .sleep,
+                moves: []
+            )
+        ]
         runtime.gameplayState?.objectStates["test_object"] = RuntimeObjectState(position: .init(x: 1, y: 1), facing: .down, visible: false)
 
         XCTAssertTrue(runtime.saveCurrentGame())
         XCTAssertNotNil(saveStore.envelope)
-        XCTAssertEqual(saveStore.envelope?.metadata.schemaVersion, 5)
+        XCTAssertEqual(saveStore.envelope?.metadata.schemaVersion, 6)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.experience, 202)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.dvs, savedPokemon?.dvs)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.statExp, savedPokemon?.statExp)
+        XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.majorStatus, .paralysis)
+        XCTAssertEqual(saveStore.envelope?.snapshot.currentBoxIndex, 1)
+        XCTAssertEqual(saveStore.envelope?.snapshot.boxedPokemon[1].pokemon.first?.nickname, "BoxedMon")
+        XCTAssertEqual(saveStore.envelope?.snapshot.boxedPokemon[1].pokemon.first?.majorStatus, .sleep)
+        XCTAssertEqual(saveStore.envelope?.snapshot.ownedSpeciesIDs.sorted(), ["PIDGEY", "SQUIRTLE"])
         let encodedSave = try XCTUnwrap(try? JSONEncoder().encode(saveStore.envelope))
         XCTAssertFalse(String(decoding: encodedSave, as: UTF8.self).contains("acquisitionRNGState"))
 
@@ -94,12 +119,34 @@ extension PokeCoreTests {
         XCTAssertEqual(snapshot.party?.pokemon.first?.speciesID, "SQUIRTLE")
         XCTAssertEqual(snapshot.party?.pokemon.first?.level, 6)
         XCTAssertEqual(snapshot.party?.pokemon.first?.experience.total, 202)
+        XCTAssertEqual(snapshot.party?.pokemon.first?.majorStatus, .paralysis)
         XCTAssertEqual(resumed.gameplayState?.playerParty.first?.dvs, savedPokemon?.dvs)
         XCTAssertEqual(resumed.gameplayState?.playerParty.first?.statExp, savedPokemon?.statExp)
+        XCTAssertEqual(resumed.gameplayState?.currentBoxIndex, 1)
+        XCTAssertEqual(resumed.gameplayState?.boxedPokemon[1].pokemon.first?.nickname, "BoxedMon")
+        XCTAssertEqual(resumed.gameplayState?.boxedPokemon[1].pokemon.first?.majorStatus, .sleep)
+        XCTAssertEqual(resumed.gameplayState?.ownedSpeciesIDs, Set(["SQUIRTLE", "PIDGEY"]))
         XCTAssertEqual(snapshot.eventFlags?.activeFlags, [])
         XCTAssertEqual(resumed.playerMoney, 4242)
         XCTAssertEqual(resumed.earnedBadgeIDs, Set(["BOULDER"]))
         XCTAssertFalse(resumed.currentFieldObjects.contains(where: { $0.id == "test_object" }))
+    }
+
+    func testLegacySchemaFiveSaveDefaultsStorageOwnershipAndStatusFields() throws {
+        let saveStore = InMemorySaveStore()
+        saveStore.envelope = try decodeLegacySaveEnvelope(
+            schemaVersion: 5,
+            acquisitionRNGState: 1
+        )
+
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
+
+        XCTAssertTrue(runtime.continueFromTitleMenu())
+        XCTAssertEqual(runtime.gameplayState?.currentBoxIndex, 0)
+        XCTAssertEqual(runtime.gameplayState?.boxedPokemon.count, GameRuntime.storageBoxCount)
+        XCTAssertTrue(runtime.gameplayState?.boxedPokemon.allSatisfy { $0.pokemon.isEmpty } ?? false)
+        XCTAssertEqual(runtime.gameplayState?.ownedSpeciesIDs, Set(["SQUIRTLE"]))
+        XCTAssertEqual(runtime.gameplayState?.playerParty.first?.majorStatus, MajorStatusCondition.none)
     }
     func testUnreadableSaveDisablesContinueAndSurfacesError() {
         let saveStore = InMemorySaveStore()

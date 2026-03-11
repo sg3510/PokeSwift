@@ -89,12 +89,14 @@ struct RuntimePokemonState {
     var defenseStage: Int
     var accuracyStage: Int
     var evasionStage: Int
+    var majorStatus: MajorStatusCondition
     var moves: [RuntimeMoveState]
 }
 
 enum RuntimeBattlePhase: String {
     case introText
     case moveSelection
+    case bagSelection
     case resolvingTurn
     case turnText
     case battleComplete
@@ -104,6 +106,18 @@ enum RuntimeBattlePendingAction {
     case moveSelection
     case finish(won: Bool)
     case escape
+    case captured
+}
+
+struct RuntimePokemonBoxState {
+    var index: Int
+    var pokemon: [RuntimePokemonState]
+}
+
+struct RuntimeShopState {
+    let martID: String
+    var selectedItemIndex: Int
+    var selectedQuantity: Int
 }
 
 struct RuntimeBattlePresentationState {
@@ -204,6 +218,7 @@ struct RuntimeBattleState {
     var enemyActiveIndex: Int
     var phase: RuntimeBattlePhase
     var focusedMoveIndex: Int
+    var focusedBagItemIndex: Int
     var message: String
     var queuedMessages: [String]
     var pendingAction: RuntimeBattlePendingAction?
@@ -278,6 +293,9 @@ struct GameplayState {
     var activeFlags: Set<String>
     var money: Int
     var inventory: [RuntimeInventoryItemState]
+    var currentBoxIndex: Int
+    var boxedPokemon: [RuntimePokemonBoxState]
+    var ownedSpeciesIDs: Set<String>
     var earnedBadgeIDs: Set<String>
     var gotStarterBit: Bool
     var playerName: String
