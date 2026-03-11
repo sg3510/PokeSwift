@@ -103,8 +103,7 @@ struct GameplayScene: View {
                     playerPokemon: battleProps.playerPokemon,
                     enemyPokemon: battleProps.enemyPokemon,
                     playerSpriteURL: battleProps.playerSpriteURL,
-                    enemySpriteURL: battleProps.enemySpriteURL,
-                    displayStyle: fieldDisplayStyle
+                    enemySpriteURL: battleProps.enemySpriteURL
                 )
             } footer: {
                 DialogueBoxView(
