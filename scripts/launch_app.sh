@@ -8,6 +8,8 @@ EXTRACTOR="$PRODUCTS_DIR/PokeExtractCLI"
 HARNESS="$PRODUCTS_DIR/PokeHarness"
 APP_BUNDLE="$PRODUCTS_DIR/PokeMac.app"
 CONTENT_ROOT="$ROOT/Content"
+CONTENT_VARIANT_ROOT="$CONTENT_ROOT/Red"
+CONTENT_MANIFEST="$CONTENT_VARIANT_ROOT/game_manifest.json"
 TRACE_DIR="$ROOT/.runtime-traces/pokemac"
 
 timestamp() {
@@ -31,6 +33,46 @@ require_executable() {
   fi
 }
 
+manifest_source_commit() {
+  sed -n 's/.*"sourceCommit" : "\(.*\)",/\1/p' "$CONTENT_MANIFEST" | head -n 1
+}
+
+should_refresh_content() {
+  if [[ ! -f "$CONTENT_MANIFEST" ]]; then
+    return 0
+  fi
+
+  local source_commit
+  source_commit="$(manifest_source_commit)"
+  if [[ -z "$source_commit" ]]; then
+    return 0
+  fi
+
+  if ! git rev-parse -q --verify "${source_commit}^{commit}" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local -a source_paths
+  source_paths=("${(@f)$(sed -n 's/.*"path" : "\(.*\)",/\1/p' "$CONTENT_MANIFEST")}")
+  if (( ${#source_paths[@]} == 0 )); then
+    return 0
+  fi
+
+  if ! git diff --quiet "${source_commit}..HEAD" -- "${source_paths[@]}"; then
+    return 0
+  fi
+
+  if ! git diff --quiet -- "${source_paths[@]}"; then
+    return 0
+  fi
+
+  if ! git diff --cached --quiet -- "${source_paths[@]}"; then
+    return 0
+  fi
+
+  return 1
+}
+
 trap 'printf "\n[%s] Launch pipeline failed.\n" "$(timestamp)" >&2' ERR
 
 cd "$ROOT"
@@ -39,7 +81,7 @@ section "PokeSwift launch pipeline"
 detail "Repo root: $ROOT"
 detail "Derived data: $DERIVED_DATA"
 detail "App bundle: $APP_BUNDLE"
-detail "Content root: $CONTENT_ROOT/Red"
+detail "Content root: $CONTENT_VARIANT_ROOT"
 detail "Trace directory: $TRACE_DIR"
 
 section "1/4 Generate workspace and build debug targets"
@@ -50,8 +92,12 @@ require_executable "$EXTRACTOR" "PokeExtractCLI"
 require_executable "$HARNESS" "PokeHarness"
 
 section "2/4 Extract Red content"
-detail "Refreshing extracted runtime assets under $CONTENT_ROOT/Red"
-"$EXTRACTOR" extract --game red --repo-root "$ROOT" --output-root "$CONTENT_ROOT"
+if should_refresh_content; then
+  detail "Refreshing extracted runtime assets under $CONTENT_VARIANT_ROOT"
+  "$EXTRACTOR" extract --game red --repo-root "$ROOT" --output-root "$CONTENT_ROOT"
+else
+  detail "Skipping extract; tracked content source inputs are unchanged"
+fi
 
 section "3/4 Verify extracted Red content"
 detail "Checking extracted manifests and asset availability"
