@@ -2,6 +2,28 @@ import Foundation
 import PokeDataModel
 
 extension GameRuntime {
+    public func toggleMusicEnabled() {
+        setMusicEnabled(isMusicEnabled == false)
+    }
+
+    public func setMusicEnabled(_ enabled: Bool) {
+        guard isMusicEnabled != enabled else { return }
+        isMusicEnabled = enabled
+
+        if enabled {
+            if let currentAudioState {
+                audioPlayer?.playMusic(
+                    request: .init(trackID: currentAudioState.trackID, entryID: currentAudioState.entryID),
+                    completion: nil
+                )
+            }
+        } else {
+            audioPlayer?.stopAllMusic()
+        }
+
+        publishSnapshot()
+    }
+
     func requestTitleMusic() {
         requestMusic(trackID: content.audioManifest.titleTrackID, entryID: "default", reason: "title")
     }
@@ -193,6 +215,7 @@ extension GameRuntime {
             reason: reason,
             playbackRevision: nextRevision
         )
+        guard isMusicEnabled else { return }
         audioPlayer?.playMusic(request: .init(trackID: trackID, entryID: entryID), completion: nil)
     }
 
@@ -204,6 +227,11 @@ extension GameRuntime {
             reason: reason,
             playbackRevision: nextRevision
         )
+
+        guard isMusicEnabled else {
+            completion?()
+            return
+        }
 
         guard let audioPlayer else {
             completion?()

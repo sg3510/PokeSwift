@@ -59,13 +59,18 @@ struct SaveSidebarContent: View {
 struct OptionsSidebarContent: View {
     let props: OptionsSidebarProps
     @Binding var fieldDisplayStyle: FieldDisplayStyle
+    let onAction: ((String) -> Void)?
 
     var body: some View {
         VStack(spacing: 8) {
             FieldDisplayStyleOptionsRow(selectedStyle: $fieldDisplayStyle)
 
             ForEach(props.rows) { row in
-                SidebarActionRow(props: row, rendersAsButton: false, onAction: nil)
+                SidebarActionRow(
+                    props: row,
+                    rendersAsButton: row.isEnabled,
+                    onAction: row.isEnabled ? onAction : nil
+                )
             }
         }
     }

@@ -37,6 +37,7 @@ public final class GameRuntime {
     var deferredActions: [DeferredAction] = []
     var currentAudioState: RuntimeAudioState?
     var recentSoundEffects: [RuntimeSoundEffectState] = []
+    public internal(set) var isMusicEnabled = true
     var fieldTransitionState: RuntimeFieldTransitionState?
     var dialogueAudioRevision = 0
     var isDialogueAudioBlockingInput = false

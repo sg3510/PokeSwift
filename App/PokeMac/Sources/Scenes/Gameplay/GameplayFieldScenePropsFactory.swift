@@ -47,7 +47,7 @@ enum GameplayScenePropsFactory {
                         party: sidebarParty,
                         inventory: sidebarInventory,
                         save: saveSidebar,
-                        options: GameplaySidebarPropsBuilder.makeOptionsSection()
+                        options: GameplaySidebarPropsBuilder.makeOptionsSection(isMusicEnabled: runtime.isMusicEnabled)
                     )
                 ),
                 onSidebarAction: { actionID in
@@ -56,6 +56,8 @@ enum GameplayScenePropsFactory {
                         _ = runtime.saveCurrentGame()
                     case "load":
                         _ = runtime.loadSavedGameFromSidebar()
+                    case "music":
+                        runtime.toggleMusicEnabled()
                     default:
                         break
                     }

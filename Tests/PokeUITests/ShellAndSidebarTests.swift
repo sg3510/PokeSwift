@@ -59,7 +59,7 @@ extension PokeUITests {
         ),
         inventory: GameplaySidebarPropsBuilder.makeInventory(),
         save: GameplaySidebarPropsBuilder.makeSaveSection(),
-        options: GameplaySidebarPropsBuilder.makeOptionsSection()
+        options: GameplaySidebarPropsBuilder.makeOptionsSection(isMusicEnabled: true)
       )
     )
     let view = GameplayShell(
@@ -582,12 +582,13 @@ extension PokeUITests {
   }
   func testSaveAndOptionsBuildersProduceDisabledRows() {
     let save = GameplaySidebarPropsBuilder.makeSaveSection()
-    let options = GameplaySidebarPropsBuilder.makeOptionsSection()
+    let options = GameplaySidebarPropsBuilder.makeOptionsSection(isMusicEnabled: true)
 
     XCTAssertEqual(save.actions.map(\.title), ["Save Game", "Load Save"])
     XCTAssertTrue(save.actions.allSatisfy { $0.isEnabled == false })
     XCTAssertEqual(
-      options.rows.map(\.title), ["Text Speed", "Battle Scene", "Battle Style", "Sound"])
-    XCTAssertTrue(options.rows.allSatisfy { $0.isEnabled == false })
+      options.rows.map(\.title), ["Text Speed", "Battle Scene", "Battle Style", "Music"])
+    XCTAssertEqual(options.rows.map(\.isEnabled), [false, false, false, true])
+    XCTAssertEqual(options.rows.last?.detail, "On")
   }
 }

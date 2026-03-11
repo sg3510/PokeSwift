@@ -381,4 +381,47 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.currentSnapshot().audio?.reason, "mapDefault")
         XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "reds_house_1f_mom_looking_great")
     }
+
+    func testMusicToggleStopsPlaybackAndResumesCurrentTrack() {
+        let audioPlayer = RecordingAudioPlayer()
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, audioPlayer: audioPlayer)
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.requestDefaultMapMusic()
+
+        XCTAssertEqual(audioPlayer.musicRequests.last, .init(trackID: "MUSIC_PALLET_TOWN", entryID: "default"))
+        XCTAssertTrue(runtime.isMusicEnabled)
+
+        runtime.toggleMusicEnabled()
+
+        XCTAssertFalse(runtime.isMusicEnabled)
+        XCTAssertEqual(audioPlayer.stopAllMusicCount, 1)
+        XCTAssertEqual(runtime.currentSnapshot().audio?.trackID, "MUSIC_PALLET_TOWN")
+
+        runtime.toggleMusicEnabled()
+
+        XCTAssertTrue(runtime.isMusicEnabled)
+        XCTAssertEqual(audioPlayer.musicRequests.last, .init(trackID: "MUSIC_PALLET_TOWN", entryID: "default"))
+    }
+
+    func testDisabledMusicDefersPlaybackUntilReenabled() {
+        let audioPlayer = RecordingAudioPlayer()
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, audioPlayer: audioPlayer)
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.toggleMusicEnabled()
+
+        runtime.requestDefaultMapMusic()
+
+        XCTAssertEqual(audioPlayer.musicRequests, [])
+        XCTAssertEqual(runtime.currentSnapshot().audio?.trackID, "MUSIC_PALLET_TOWN")
+
+        runtime.toggleMusicEnabled()
+
+        XCTAssertEqual(audioPlayer.musicRequests, [.init(trackID: "MUSIC_PALLET_TOWN", entryID: "default")])
+    }
 }

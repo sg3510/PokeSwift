@@ -542,14 +542,14 @@ public enum GameplaySidebarPropsBuilder {
         )
     }
 
-    public static func makeOptionsSection() -> OptionsSidebarProps {
+    public static func makeOptionsSection(isMusicEnabled: Bool) -> OptionsSidebarProps {
         OptionsSidebarProps(
             title: "Options",
             rows: [
                 .init(id: "textSpeed", title: "Text Speed", detail: "Medium", isEnabled: false),
                 .init(id: "battleScene", title: "Battle Scene", detail: "On", isEnabled: false),
                 .init(id: "battleStyle", title: "Battle Style", detail: "Shift", isEnabled: false),
-                .init(id: "sound", title: "Sound", detail: "Mono", isEnabled: false),
+                .init(id: "music", title: "Music", detail: isMusicEnabled ? "On" : "Off", isEnabled: true),
             ]
         )
     }

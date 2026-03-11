@@ -123,7 +123,8 @@ private struct FieldModeSidebarContent: View {
             } content: {
                 OptionsSidebarContent(
                     props: props.options,
-                    fieldDisplayStyle: $fieldDisplayStyle
+                    fieldDisplayStyle: $fieldDisplayStyle,
+                    onAction: onSidebarAction
                 )
             }
 
