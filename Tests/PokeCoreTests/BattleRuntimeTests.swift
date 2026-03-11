@@ -83,7 +83,7 @@ extension PokeCoreTests {
         runtime.handle(button: .down)
         runtime.handle(button: .down)
         runtime.handle(button: .confirm)
-        runtime.setBattleRandomOverrides([0])
+        runtime.setBattleRandomOverrides([0, 0])
         runtime.handle(button: .confirm)
         drainBattleUntilComplete(runtime)
 
@@ -116,7 +116,7 @@ extension PokeCoreTests {
         runtime.handle(button: .down)
         runtime.handle(button: .down)
         runtime.handle(button: .confirm)
-        runtime.setBattleRandomOverrides([0])
+        runtime.setBattleRandomOverrides([0, 0])
         runtime.handle(button: .confirm)
         drainBattleUntilComplete(runtime)
 
@@ -160,6 +160,207 @@ extension PokeCoreTests {
         advanceBattleTextUntilMoveSelection(runtime)
         XCTAssertEqual(runtime.gameplayState?.boxedPokemon[0].pokemon.count, GameRuntime.storageBoxCapacity)
     }
+
+    func testResolveCaptureResultProducesSourceStyleShakeBuckets() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "HARD", displayName: "Hard", catchRate: 45, baseHP: 40, baseAttack: 40, baseDefense: 40, baseSpeed: 40, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                        .init(id: "MID", displayName: "Mid", catchRate: 100, baseHP: 40, baseAttack: 40, baseDefense: 40, baseSpeed: 40, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                        .init(id: "SOFT", displayName: "Soft", catchRate: 200, baseHP: 40, baseAttack: 40, baseDefense: 40, baseSpeed: 40, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                    ],
+                    items: [
+                        .init(id: "POKE_BALL", displayName: "POKE BALL", price: 200, battleUse: .ball),
+                    ],
+                    moves: [
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        let pokeBall = runtime.content.item(id: "POKE_BALL")!
+
+        var zeroShake = runtime.makePokemon(speciesID: "HARD", level: 5, nickname: "Hard")
+        zeroShake.currentHP = zeroShake.maxHP
+        runtime.setBattleRandomOverrides([255])
+        XCTAssertEqual(runtime.resolveCaptureResult(for: zeroShake, item: pokeBall), .failed(shakes: 0))
+
+        var oneShake = runtime.makePokemon(speciesID: "MID", level: 5, nickname: "Mid")
+        oneShake.currentHP = oneShake.maxHP
+        runtime.setBattleRandomOverrides([255])
+        XCTAssertEqual(runtime.resolveCaptureResult(for: oneShake, item: pokeBall), .failed(shakes: 1))
+
+        var twoShake = runtime.makePokemon(speciesID: "MID", level: 5, nickname: "Mid")
+        twoShake.currentHP = max(1, twoShake.maxHP / 4)
+        runtime.setBattleRandomOverrides([255])
+        XCTAssertEqual(runtime.resolveCaptureResult(for: twoShake, item: pokeBall), .failed(shakes: 2))
+
+        var threeShake = runtime.makePokemon(speciesID: "SOFT", level: 5, nickname: "Soft")
+        threeShake.currentHP = max(1, threeShake.maxHP / 4)
+        runtime.setBattleRandomOverrides([255])
+        XCTAssertEqual(runtime.resolveCaptureResult(for: threeShake, item: pokeBall), .failed(shakes: 3))
+    }
+
+    func testBattleSwitchSelectsReservePokemonAndReturnsToMoveSelection() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Lead"),
+            runtime.makePokemon(speciesID: "PIDGEY", level: 3, nickname: "Wing"),
+        ]
+
+        runtime.startWildBattle(speciesID: "RATTATA", level: 3)
+        drainBattleText(runtime)
+
+        let switchIndex = runtime.gameplayState.map { runtime.switchActionIndex(for: $0.battle!) } ?? 0
+        for _ in 0..<switchIndex {
+            runtime.handle(button: .down)
+        }
+
+        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedMoveIndex, switchIndex)
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "partySelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedPartyIndex, 1)
+
+        runtime.handle(button: .confirm)
+        advanceBattleTextUntilMoveSelection(runtime)
+
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "moveSelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.playerPokemon.displayName, "Wing")
+        XCTAssertEqual(runtime.gameplayState?.playerParty.first?.speciesID, "PIDGEY")
+    }
+
+    func testBattleSwitchRejectsActiveAndFaintedPokemon() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Lead"),
+            runtime.makePokemon(speciesID: "PIDGEY", level: 3, nickname: "Wing"),
+            runtime.makePokemon(speciesID: "RATTATA", level: 4, nickname: "Fang"),
+        ]
+        runtime.gameplayState?.playerParty[2].currentHP = 0
+
+        runtime.startWildBattle(speciesID: "RATTATA", level: 3)
+        drainBattleText(runtime)
+
+        let switchIndex = runtime.gameplayState.map { runtime.switchActionIndex(for: $0.battle!) } ?? 0
+        for _ in 0..<switchIndex {
+            runtime.handle(button: .down)
+        }
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "partySelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedPartyIndex, 1)
+
+        runtime.handlePartySidebarSelection(0)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "partySelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.battleMessage, "Lead is already out!")
+
+        runtime.handlePartySidebarSelection(2)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "partySelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.battleMessage, "There's no will to battle!")
+    }
+
+    func testBattleSwitchKnockoutWithHealthyReserveRequiresReplacementWithoutExtraEnemyTurn() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "LEAD", displayName: "Lead", baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 45, baseSpecial: 65, startingMoves: ["TACKLE"]),
+                        .init(id: "SWAP", displayName: "Swap", baseHP: 35, baseAttack: 30, baseDefense: 30, baseSpeed: 45, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                        .init(id: "BACKUP", displayName: "Backup", baseHP: 50, baseAttack: 40, baseDefense: 40, baseSpeed: 40, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                        .init(id: "ENEMY", displayName: "Enemy", baseHP: 50, baseAttack: 200, baseDefense: 40, baseSpeed: 30, baseSpecial: 40, startingMoves: ["SLAM"]),
+                    ],
+                    moves: [
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "SLAM", displayName: "SLAM", power: 500, accuracy: 100, maxPP: 20, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.playerParty = [
+            runtime.makePokemon(speciesID: "LEAD", level: 5, nickname: "Lead"),
+            runtime.makePokemon(speciesID: "SWAP", level: 5, nickname: "Swap"),
+            runtime.makePokemon(speciesID: "BACKUP", level: 5, nickname: "Backup"),
+        ]
+        runtime.gameplayState?.playerParty[1].currentHP = 1
+
+        runtime.startWildBattle(speciesID: "ENEMY", level: 5)
+        drainBattleText(runtime)
+
+        let switchIndex = runtime.gameplayState.map { runtime.switchActionIndex(for: $0.battle!) } ?? 0
+        for _ in 0..<switchIndex {
+            runtime.handle(button: .down)
+        }
+
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+        advanceBattleUntilPhase(runtime, phase: "partySelection")
+
+        XCTAssertEqual(runtime.scene, .battle)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "partySelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.focusedPartyIndex, 1)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.playerPokemon.currentHP, 0)
+
+        runtime.handle(button: .cancel)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "partySelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.battleMessage, "Bring out which #MON?")
+
+        let replacementHP = runtime.gameplayState?.playerParty[1].currentHP
+        runtime.handle(button: .confirm)
+        advanceBattleTextUntilMoveSelection(runtime)
+
+        XCTAssertEqual(runtime.currentSnapshot().battle?.phase, "moveSelection")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.playerPokemon.displayName, "Lead")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.playerPokemon.currentHP, replacementHP)
+    }
+
+    func testBattleTelemetryHidesSwitchWhenNoReservePokemonCanBattle() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_1"
+        runtime.gameplayState?.playerPosition = .init(x: 5, y: 5)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Lead"),
+            runtime.makePokemon(speciesID: "PIDGEY", level: 3, nickname: "Wing"),
+        ]
+        runtime.gameplayState?.playerParty[1].currentHP = 0
+
+        runtime.startWildBattle(speciesID: "RATTATA", level: 3)
+        drainBattleText(runtime)
+
+        let snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertFalse(snapshot.canSwitch)
+        XCTAssertTrue(snapshot.canRun)
+    }
+
     func testTrainerBattleCursorDoesNotExposeRunAction() throws {
         let runtime = try makeRepoRuntime()
 

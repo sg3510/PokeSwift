@@ -35,6 +35,7 @@ public final class GameRuntime {
     var gameplayState: GameplayState?
     var dialogueState: DialogueState?
     var shopState: RuntimeShopState?
+    var fieldPartyReorderState: RuntimeFieldPartyReorderState?
     var deferredActions: [DeferredAction] = []
     var currentAudioState: RuntimeAudioState?
     var recentSoundEffects: [RuntimeSoundEffectState] = []
@@ -117,6 +118,10 @@ public final class GameRuntime {
 
     public var playerFacing: FacingDirection {
         gameplayState?.facing ?? .down
+    }
+
+    public var fieldPartyReorderSelectionIndex: Int? {
+        fieldPartyReorderState?.selectedIndex
     }
 
     public var playerName: String {

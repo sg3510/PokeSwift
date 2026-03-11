@@ -3,6 +3,7 @@ import SwiftUI
 struct GameplaySidebar: View {
     let mode: GameplaySidebarMode
     let onSidebarAction: ((String) -> Void)?
+    let onPartyRowSelected: ((Int) -> Void)?
     @Binding var fieldDisplayStyle: FieldDisplayStyle
 
     @State private var expansionState: GameplaySidebarExpansionState
@@ -10,10 +11,12 @@ struct GameplaySidebar: View {
     init(
         mode: GameplaySidebarMode,
         onSidebarAction: ((String) -> Void)? = nil,
+        onPartyRowSelected: ((Int) -> Void)? = nil,
         fieldDisplayStyle: Binding<FieldDisplayStyle>
     ) {
         self.mode = mode
         self.onSidebarAction = onSidebarAction
+        self.onPartyRowSelected = onPartyRowSelected
         _fieldDisplayStyle = fieldDisplayStyle
         _expansionState = State(
             initialValue: GameplaySidebarExpansionState(
@@ -41,6 +44,7 @@ struct GameplaySidebar: View {
                 props: props,
                 expansionState: expansionState,
                 onSidebarAction: onSidebarAction,
+                onPartyRowSelected: onPartyRowSelected,
                 fieldDisplayStyle: $fieldDisplayStyle
             ) { section in
                 expansionState.activate(section)
@@ -48,7 +52,8 @@ struct GameplaySidebar: View {
         case let .battle(props):
             BattleModeSidebarContent(
                 props: props,
-                expansionState: expansionState
+                expansionState: expansionState,
+                onPartyRowSelected: onPartyRowSelected
             ) { section in
                 expansionState.activate(mode.resolvedExpandedSection(afterRequesting: section))
             }
@@ -66,6 +71,7 @@ private struct FieldModeSidebarContent: View {
     let props: GameplayFieldSidebarProps
     let expansionState: GameplaySidebarExpansionState
     let onSidebarAction: ((String) -> Void)?
+    let onPartyRowSelected: ((Int) -> Void)?
     @Binding var fieldDisplayStyle: FieldDisplayStyle
     let onActivateSection: (GameplaySidebarExpandedSection) -> Void
 
@@ -88,7 +94,7 @@ private struct FieldModeSidebarContent: View {
             ) {
                 onActivateSection(.party)
             } content: {
-                PartySidebarContent(props: props.party)
+                PartySidebarContent(props: props.party, onRowSelected: onPartyRowSelected)
             }
 
             AccordionSidebarCard(
@@ -136,6 +142,7 @@ private struct FieldModeSidebarContent: View {
 private struct BattleModeSidebarContent: View {
     let props: BattleSidebarProps
     let expansionState: GameplaySidebarExpansionState
+    let onPartyRowSelected: ((Int) -> Void)?
     let onActivateSection: (GameplaySidebarExpandedSection) -> Void
 
     var body: some View {
@@ -160,7 +167,7 @@ private struct BattleModeSidebarContent: View {
             ) {
                 onActivateSection(.party)
             } content: {
-                PartySidebarContent(props: props.party)
+                PartySidebarContent(props: props.party, onRowSelected: onPartyRowSelected)
             }
 
             Spacer(minLength: 0)
@@ -174,6 +181,8 @@ private struct BattleModeSidebarContent: View {
         switch props.phase {
         case "moveSelection":
             return "Moves"
+        case "partySelection":
+            return "Party"
         case "resolvingTurn":
             return "Resolving"
         case "turnText":

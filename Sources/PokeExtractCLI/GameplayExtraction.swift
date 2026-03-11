@@ -1242,6 +1242,8 @@ private func buildDialogues(repoRoot: URL) throws -> [DialogueManifest] {
     let viridianMart = try String(contentsOf: repoRoot.appendingPathComponent("text/ViridianMart.asm"))
     let viridianPokecenter = try String(contentsOf: repoRoot.appendingPathComponent("text/ViridianPokecenter.asm"))
     let text2 = try String(contentsOf: repoRoot.appendingPathComponent("data/text/text_2.asm"))
+    let text4 = try String(contentsOf: repoRoot.appendingPathComponent("data/text/text_4.asm"))
+    let text6 = try String(contentsOf: repoRoot.appendingPathComponent("data/text/text_6.asm"))
 
     return [
         try extractDialogue(id: "pallet_town_oak_hey_wait", label: "_PalletTownOakHeyWaitDontGoOutText", from: pallet, extraEvents: scriptDialogueEvents["_PalletTownOakHeyWaitDontGoOutText"] ?? []),
@@ -1291,6 +1293,21 @@ private func buildDialogues(repoRoot: URL) throws -> [DialogueManifest] {
         try extractDialogue(id: "viridian_mart_clerk_after_parcel", label: "_ViridianMartClerkSayHiToOakText", from: viridianMart, extraEvents: scriptDialogueEvents["_ViridianMartClerkSayHiToOakText"] ?? []),
         try extractDialogue(id: "viridian_mart_youngster", label: "_ViridianMartYoungsterText", from: viridianMart, extraEvents: scriptDialogueEvents["_ViridianMartYoungsterText"] ?? []),
         try extractDialogue(id: "viridian_mart_cooltrainer", label: "_ViridianMartCooltrainerMText", from: viridianMart, extraEvents: scriptDialogueEvents["_ViridianMartCooltrainerMText"] ?? []),
+        try extractDialogue(id: "pokemart_greeting", label: "_PokemartGreetingText", from: text4),
+        try extractDialogue(id: "pokemart_buying_greeting", label: "_PokemartBuyingGreetingText", from: text4),
+        try extractDialogue(id: "pokemart_bought_item", label: "_PokemartBoughtItemText", from: text4),
+        try extractDialogue(id: "pokemart_not_enough_money", label: "_PokemartNotEnoughMoneyText", from: text4),
+        try extractDialogue(id: "pokemart_item_bag_full", label: "_PokemartItemBagFullText", from: text4),
+        try extractDialogue(id: "pokemart_selling_greeting", label: "_PokemonSellingGreetingText", from: text4),
+        try extractDialogue(id: "pokemart_item_bag_empty", label: "_PokemartItemBagEmptyText", from: text4),
+        try extractDialogue(id: "pokemart_unsellable_item", label: "_PokemartUnsellableItemText", from: text4),
+        try extractDialogue(id: "pokemart_thank_you", label: "_PokemartThankYouText", from: text4),
+        try extractDialogue(id: "pokemart_anything_else", label: "_PokemartAnythingElseText", from: text4),
+        try extractDialogue(id: "capture_uncatchable", label: "_ItemUseBallText00", from: text6),
+        try extractDialogue(id: "capture_missed", label: "_ItemUseBallText01", from: text6),
+        try extractDialogue(id: "capture_broke_free", label: "_ItemUseBallText02", from: text6),
+        try extractDialogue(id: "capture_almost", label: "_ItemUseBallText03", from: text6),
+        try extractDialogue(id: "capture_so_close", label: "_ItemUseBallText04", from: text6),
         DialogueManifest(
             id: "viridian_pokecenter_nurse_heal",
             pages: [

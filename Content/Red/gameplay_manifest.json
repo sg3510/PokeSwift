@@ -1044,6 +1044,238 @@
       ]
     },
     {
+      "id" : "pokemart_greeting",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Hi there!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_buying_greeting",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Take your time."
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_bought_item",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Here you are!",
+            "Thank you!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_not_enough_money",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "You don't have",
+            "enough money."
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_item_bag_full",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "You can't carry",
+            "any more items."
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_selling_greeting",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "What would you",
+            "like to sell?"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_item_bag_empty",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "You don't have",
+            "anything to sell."
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_unsellable_item",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "I can't put a",
+            "price on that."
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_thank_you",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Thank you!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "pokemart_anything_else",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Is there anything",
+            "else I can do?"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "capture_uncatchable",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "It dodged the",
+            "thrown BALL!"
+          ],
+          "waitsForPrompt" : true
+        },
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "This POKéMON",
+            "can't be caught!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "capture_missed",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "You missed the",
+            "POKéMON!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "capture_broke_free",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Darn! The POKéMON",
+            "broke free!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "capture_almost",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Aww! It appeared",
+            "to be caught!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
+      "id" : "capture_so_close",
+      "pages" : [
+        {
+          "events" : [
+
+          ],
+          "lines" : [
+            "Shoot! It was so",
+            "close too!"
+          ],
+          "waitsForPrompt" : true
+        }
+      ]
+    },
+    {
       "id" : "viridian_pokecenter_nurse_heal",
       "pages" : [
         {

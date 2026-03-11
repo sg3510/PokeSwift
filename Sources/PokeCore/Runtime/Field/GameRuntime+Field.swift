@@ -20,6 +20,7 @@ extension GameRuntime {
             return
         }
         guard isFieldInputLocked == false else { return }
+        clearFieldPartyReorderState()
         switch button {
         case .up:
             movePlayer(in: .up)

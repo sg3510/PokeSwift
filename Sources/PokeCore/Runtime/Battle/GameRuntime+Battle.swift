@@ -29,6 +29,11 @@ struct LevelUpMoveProcessingResult {
     let pendingLearnMove: RuntimeBattleLearnMoveState?
 }
 
+enum WildCaptureResolution {
+    case handled
+    case continueEnemyTurn
+}
+
 extension GameRuntime {
     func handleBattle(button: RuntimeButton) {
         guard var gameplayState, var battle = gameplayState.battle else { return }
@@ -40,6 +45,8 @@ extension GameRuntime {
                 battle.focusedMoveIndex = max(0, battle.focusedMoveIndex - 1)
             case .bagSelection:
                 battle.focusedBagItemIndex = max(0, battle.focusedBagItemIndex - 1)
+            case .partySelection:
+                battle.focusedPartyIndex = max(0, battle.focusedPartyIndex - 1)
             case .learnMoveDecision, .learnMoveSelection:
                 battle.focusedMoveIndex = max(0, battle.focusedMoveIndex - 1)
             default:
@@ -51,6 +58,8 @@ extension GameRuntime {
                 battle.focusedMoveIndex = min(maxBattleActionIndex(for: battle), battle.focusedMoveIndex + 1)
             case .bagSelection:
                 battle.focusedBagItemIndex = min(max(0, currentBattleBagItems.count - 1), battle.focusedBagItemIndex + 1)
+            case .partySelection:
+                battle.focusedPartyIndex = min(max(0, gameplayState.playerParty.count - 1), battle.focusedPartyIndex + 1)
             case .learnMoveDecision:
                 battle.focusedMoveIndex = min(1, battle.focusedMoveIndex + 1)
             case .learnMoveSelection:
@@ -73,6 +82,11 @@ extension GameRuntime {
                 playUIConfirmSound()
                 attemptBattleEscape(battle: &battle)
             case .bagSelection:
+                playUIConfirmSound()
+                battle.phase = .moveSelection
+                battle.message = "Pick the next move."
+            case .partySelection:
+                guard battle.partySelectionMode == .optionalSwitch else { break }
                 playUIConfirmSound()
                 battle.phase = .moveSelection
                 battle.message = "Pick the next move."
@@ -100,6 +114,9 @@ extension GameRuntime {
             case .bagSelection:
                 playUIConfirmSound()
                 resolveBattleBagSelection(battle: &battle, gameplayState: &gameplayState)
+            case .partySelection:
+                playUIConfirmSound()
+                resolveBattlePartySelection(battle: &battle, gameplayState: &gameplayState)
             case .learnMoveDecision:
                 playUIConfirmSound()
                 resolveLearnMoveDecision(battle: &battle)
@@ -119,6 +136,7 @@ extension GameRuntime {
         gameplayState.playerParty = syncedPlayerParty(from: battle, gameplayState: gameplayState)
         gameplayState.battle = battle
         self.gameplayState = gameplayState
+        fieldPartyReorderState = nil
         scene = .battle
         substate = "battle"
     }
@@ -588,6 +606,15 @@ extension GameRuntime {
             return
         }
 
+        if canUseBattleSwitch(for: battle, gameplayState: gameplayState),
+           battle.focusedMoveIndex == switchActionIndex(for: battle) {
+            battle.phase = .partySelection
+            battle.partySelectionMode = .optionalSwitch
+            battle.focusedPartyIndex = firstSwitchablePartyIndex(gameplayState: gameplayState) ?? 0
+            battle.message = "Bring out which #MON?"
+            return
+        }
+
         if battle.canRun, battle.focusedMoveIndex == runActionIndex(for: battle) {
             attemptBattleEscape(battle: &battle)
             return
@@ -638,31 +665,14 @@ extension GameRuntime {
             return
         }
 
-        if battle.kind != .wild {
-            presentBattleMessages(
-                ["Items can't be used here yet."],
-                battle: &battle,
-                pendingAction: .moveSelection
-            )
-            return
-        }
-
-        if gameplayState.playerParty.count >= 6,
-           canSendCapturedPokemonToCurrentBox(gameplayState) == false {
-            addItem(item.id, quantity: 1, to: &gameplayState)
-            presentBattleMessages(
-                ["The #MON BOX is full! Can't use that item!"],
-                battle: &battle,
-                pendingAction: .moveSelection
-            )
-            return
-        }
-
         battle.phase = .resolvingTurn
         battle.pendingAction = nil
 
-        if attemptWildCapture(battle: &battle, gameplayState: &gameplayState, item: item) {
+        switch attemptWildCapture(battle: &battle, gameplayState: &gameplayState, item: item) {
+        case .handled:
             return
+        case .continueEnemyTurn:
+            break
         }
 
         var enemyPokemon = battle.enemyPokemon
@@ -672,12 +682,107 @@ extension GameRuntime {
         battle.enemyPokemon = enemyPokemon
         battle.playerPokemon = playerPokemon
 
-        var messages = ["Aww! It appeared to be caught!"]
+        let failureMessage = captureFailureMessage(from: battle.lastCaptureResult)
+        var messages = [failureMessage]
         messages.append(contentsOf: enemyMove.messages)
         if playerPokemon.currentHP == 0 {
             presentBattleMessages(messages, battle: &battle, pendingAction: .finish(won: false))
         } else {
             presentBattleMessages(messages, battle: &battle, pendingAction: .moveSelection)
+        }
+    }
+
+    func resolveBattlePartySelection(battle: inout RuntimeBattleState, gameplayState: inout GameplayState) {
+        guard battle.phase == .partySelection,
+              gameplayState.playerParty.indices.contains(battle.focusedPartyIndex) else {
+            battle.phase = .moveSelection
+            battle.message = "Pick the next move."
+            return
+        }
+
+        let selectedIndex = battle.focusedPartyIndex
+        let selectionMode = battle.partySelectionMode
+        guard selectedIndex != 0 else {
+            playCollisionSoundIfNeeded()
+            battle.message = "\(battle.playerPokemon.nickname) is already out!"
+            return
+        }
+
+        guard gameplayState.playerParty[selectedIndex].currentHP > 0 else {
+            playCollisionSoundIfNeeded()
+            battle.message = "There's no will to battle!"
+            return
+        }
+
+        let recalledPokemon = battle.playerPokemon
+        gameplayState.playerParty[0] = recalledPokemon
+        gameplayState.playerParty.swapAt(0, selectedIndex)
+        battle.playerPokemon = gameplayState.playerParty[0]
+        battle.phase = .resolvingTurn
+        battle.pendingAction = selectionMode == .forcedReplacement ? .moveSelection : .continueSwitchTurn
+        battle.queuedMessages = []
+        battle.pendingPresentationBatches = []
+        battle.message = "Go! \(battle.playerPokemon.nickname)!"
+        battle.lastCaptureResult = nil
+        battle.partySelectionMode = .optionalSwitch
+
+        let replacementBeats: [RuntimeBattlePresentationBeat]
+        if selectionMode == .forcedReplacement {
+            replacementBeats = [
+                .init(
+                    delay: battlePresentationDelay(base: 0),
+                    stage: .enemySendOut,
+                    uiVisibility: .visible,
+                    activeSide: .player,
+                    message: "Go! \(battle.playerPokemon.nickname)!",
+                    phase: .turnText,
+                    pendingAction: .moveSelection,
+                    playerPokemon: battle.playerPokemon
+                ),
+            ]
+        } else {
+            replacementBeats = [
+                .init(
+                    delay: battlePresentationDelay(base: 0),
+                    stage: .resultText,
+                    uiVisibility: .visible,
+                    activeSide: .player,
+                    message: "Come back, \(recalledPokemon.nickname)!",
+                    phase: .turnText
+                ),
+                .init(
+                    delay: battlePresentationDelay(base: 0.26),
+                    stage: .enemySendOut,
+                    uiVisibility: .visible,
+                    activeSide: .player,
+                    message: "Go! \(battle.playerPokemon.nickname)!",
+                    phase: .turnText,
+                    pendingAction: .continueSwitchTurn,
+                    playerPokemon: battle.playerPokemon
+                ),
+            ]
+        }
+
+        scheduleBattlePresentation(replacementBeats, battleID: battle.battleID)
+    }
+
+    func continueSwitchTurnAfterPlayerSwap(battle: inout RuntimeBattleState) {
+        var enemyPokemon = battle.enemyPokemon
+        var playerPokemon = battle.playerPokemon
+        let enemyMoveIndex = selectEnemyMoveIndex(enemyPokemon: enemyPokemon, playerPokemon: playerPokemon)
+        let enemyMove = applyMove(attacker: &enemyPokemon, defender: &playerPokemon, moveIndex: enemyMoveIndex)
+        battle.enemyPokemon = enemyPokemon
+        battle.playerPokemon = playerPokemon
+
+        if playerPokemon.currentHP == 0 {
+            let hasReplacement = gameplayState.map { firstSwitchablePartyIndex(gameplayState: $0) != nil } ?? false
+            presentBattleMessages(
+                enemyMove.messages,
+                battle: &battle,
+                pendingAction: hasReplacement ? .continueForcedSwitch : .finish(won: false)
+            )
+        } else {
+            presentBattleMessages(enemyMove.messages, battle: &battle, pendingAction: .moveSelection)
         }
     }
 
@@ -969,6 +1074,19 @@ extension GameRuntime {
             finishWildBattleEscape()
         case .captured:
             finishWildBattleCapture(battle: battle)
+        case .continueSwitchTurn:
+            continueSwitchTurnAfterPlayerSwap(battle: &battle)
+        case .continueForcedSwitch:
+            guard let gameplayState,
+                  let firstSwitchableIndex = firstSwitchablePartyIndex(gameplayState: gameplayState) else {
+                battle.phase = .battleComplete
+                finishBattle(battle: battle, won: false)
+                return
+            }
+            battle.phase = .partySelection
+            battle.partySelectionMode = .forcedReplacement
+            battle.focusedPartyIndex = firstSwitchableIndex
+            battle.message = "Bring out which #MON?"
         case .continueLevelUpResolution:
             continueLevelUpResolution(battle: &battle)
         }
@@ -1047,6 +1165,9 @@ extension GameRuntime {
         if canUseBattleBag(for: battle) {
             count += 1
         }
+        if let gameplayState, canUseBattleSwitch(for: battle, gameplayState: gameplayState) {
+            count += 1
+        }
         if battle.canRun {
             count += 1
         }
@@ -1057,12 +1178,27 @@ extension GameRuntime {
         battle.kind == .wild && currentBattleBagItems.isEmpty == false
     }
 
+    func canUseBattleSwitch(for battle: RuntimeBattleState, gameplayState: GameplayState) -> Bool {
+        let _ = battle
+        return gameplayState.playerParty.dropFirst().contains(where: { $0.currentHP > 0 })
+    }
+
+    func firstSwitchablePartyIndex(gameplayState: GameplayState) -> Int? {
+        gameplayState.playerParty.indices.first(where: { $0 != 0 && gameplayState.playerParty[$0].currentHP > 0 })
+    }
+
     func bagActionIndex(for battle: RuntimeBattleState) -> Int {
         battle.playerPokemon.moves.count
     }
 
-    func runActionIndex(for battle: RuntimeBattleState) -> Int {
+    func switchActionIndex(for battle: RuntimeBattleState) -> Int {
         battle.playerPokemon.moves.count + (canUseBattleBag(for: battle) ? 1 : 0)
+    }
+
+    func runActionIndex(for battle: RuntimeBattleState) -> Int {
+        battle.playerPokemon.moves.count
+            + (canUseBattleBag(for: battle) ? 1 : 0)
+            + ((gameplayState.map { canUseBattleSwitch(for: battle, gameplayState: $0) } ?? false) ? 1 : 0)
     }
 
     func canSendCapturedPokemonToCurrentBox(_ gameplayState: GameplayState) -> Bool {
@@ -1072,16 +1208,39 @@ extension GameRuntime {
         return gameplayState.boxedPokemon[gameplayState.currentBoxIndex].pokemon.count < Self.storageBoxCapacity
     }
 
-    @discardableResult
     func attemptWildCapture(
         battle: inout RuntimeBattleState,
         gameplayState: inout GameplayState,
         item: ItemManifest
-    ) -> Bool {
-        let captureScore = captureScore(for: battle.enemyPokemon, item: item)
+    ) -> WildCaptureResolution {
+        if battle.kind != .wild {
+            battle.lastCaptureResult = .uncatchable
+            addItem(item.id, quantity: 1, to: &gameplayState)
+            presentBattleMessages(
+                [captureFailureMessage(from: battle.lastCaptureResult)],
+                battle: &battle,
+                pendingAction: .moveSelection
+            )
+            return .handled
+        }
 
-        guard nextBattleRandomByte() < captureScore else {
-            return false
+        if gameplayState.playerParty.count >= 6,
+           canSendCapturedPokemonToCurrentBox(gameplayState) == false {
+            battle.lastCaptureResult = .boxFull
+            addItem(item.id, quantity: 1, to: &gameplayState)
+            presentBattleMessages(
+                ["The #MON BOX is full! Can't use that item!"],
+                battle: &battle,
+                pendingAction: .moveSelection
+            )
+            return .handled
+        }
+
+        let captureResult = resolveCaptureResult(for: battle.enemyPokemon, item: item)
+        battle.lastCaptureResult = captureResult
+
+        guard captureResult == .success else {
+            return .continueEnemyTurn
         }
 
         let capturedPokemon = battle.enemyPokemon
@@ -1093,33 +1252,157 @@ extension GameRuntime {
         } else if addPokemonToCurrentBox(capturedPokemon, in: &gameplayState) {
             messages.append("\(capturedPokemon.nickname) was transferred to BOX \(gameplayState.currentBoxIndex + 1).")
         } else {
+            battle.lastCaptureResult = .boxFull
             addItem(item.id, quantity: 1, to: &gameplayState)
             messages = ["The #MON BOX is full! Can't use that item!"]
             presentBattleMessages(messages, battle: &battle, pendingAction: .moveSelection)
-            return true
+            return .handled
         }
 
         presentBattleMessages(messages, battle: &battle, pendingAction: .captured)
-        return true
+        return .handled
     }
 
-    func captureScore(for pokemon: RuntimePokemonState, item: ItemManifest) -> Int {
-        let baseCatchRate = content.species(id: pokemon.speciesID)?.catchRate ?? 0
-        let maxHP = max(1, pokemon.maxHP)
-        let currentHP = max(1, pokemon.currentHP)
-        let hpFactor = ((3 * maxHP) - (2 * currentHP)) * baseCatchRate / (3 * maxHP)
-        let ballBonus: Int
-        switch item.id {
-        case "MASTER_BALL":
-            return 255
-        case "ULTRA_BALL", "SAFARI_BALL":
-            ballBonus = 25
-        case "GREAT_BALL":
-            ballBonus = 15
-        default:
-            ballBonus = 0
+    func resolveCaptureResult(for pokemon: RuntimePokemonState, item: ItemManifest) -> RuntimeBattleCaptureResult {
+        let catchRate = max(0, content.species(id: pokemon.speciesID)?.catchRate ?? 0)
+        guard catchRate > 0 else {
+            return .uncatchable
         }
-        return min(255, hpFactor + ballBonus + pokemon.majorStatus.captureBonus)
+
+        if item.id == "MASTER_BALL" {
+            return .success
+        }
+
+        var rand1 = nextBattleRandomByte()
+        switch item.id {
+        case "GREAT_BALL":
+            while rand1 > 200 {
+                rand1 = nextBattleRandomByte()
+            }
+        case "ULTRA_BALL", "SAFARI_BALL":
+            while rand1 > 150 {
+                rand1 = nextBattleRandomByte()
+            }
+        default:
+            break
+        }
+
+        let statusValue = captureStatusBonus(for: pokemon.majorStatus)
+        if statusValue > rand1 {
+            return .success
+        }
+
+        let randMinusStatus = rand1 - statusValue
+        let w = captureWValue(for: pokemon, item: item)
+        let x = min(w, 255)
+
+        if randMinusStatus <= catchRate {
+            if w > 255 {
+                return .success
+            }
+
+            let rand2 = nextBattleRandomByte()
+            if rand2 <= x {
+                return .success
+            }
+        }
+
+        return .failed(shakes: captureFailureShakeCount(catchRate: catchRate, x: x, status: pokemon.majorStatus, item: item))
+    }
+
+    func captureWValue(for pokemon: RuntimePokemonState, item: ItemManifest) -> Int {
+        let ballFactor = item.id == "GREAT_BALL" ? 8 : 12
+        let maxHP = max(1, pokemon.maxHP)
+        let hpDivisor = max(1, pokemon.currentHP / 4)
+        let scaledHP = (maxHP * 255) / ballFactor
+        return scaledHP / hpDivisor
+    }
+
+    func captureFailureShakeCount(
+        catchRate: Int,
+        x: Int,
+        status: MajorStatusCondition,
+        item: ItemManifest
+    ) -> Int {
+        let ballFactor2: Int
+        switch item.id {
+        case "GREAT_BALL":
+            ballFactor2 = 200
+        case "ULTRA_BALL", "SAFARI_BALL":
+            ballFactor2 = 150
+        default:
+            ballFactor2 = 255
+        }
+
+        let y = (catchRate * 100) / ballFactor2
+        let z = ((x * y) / 255) + captureShakeStatusBonus(for: status)
+
+        switch z {
+        case ..<10:
+            return 0
+        case ..<30:
+            return 1
+        case ..<70:
+            return 2
+        default:
+            return 3
+        }
+    }
+
+    func captureStatusBonus(for status: MajorStatusCondition) -> Int {
+        switch status {
+        case .sleep, .freeze:
+            return 25
+        case .burn, .paralysis, .poison:
+            return 12
+        case .none:
+            return 0
+        }
+    }
+
+    func captureShakeStatusBonus(for status: MajorStatusCondition) -> Int {
+        switch status {
+        case .sleep, .freeze:
+            return 10
+        case .burn, .paralysis, .poison:
+            return 5
+        case .none:
+            return 0
+        }
+    }
+
+    func captureFailureMessage(from result: RuntimeBattleCaptureResult?) -> String {
+        switch result {
+        case .uncatchable:
+            return battleDialogueText(id: "capture_uncatchable", fallback: "It dodged the thrown BALL! This #MON can't be caught!")
+        case .boxFull:
+            return "The #MON BOX is full! Can't use that item!"
+        case let .failed(shakes):
+            switch shakes {
+            case 0:
+                return battleDialogueText(id: "capture_missed", fallback: "You missed the #MON!")
+            case 1:
+                return battleDialogueText(id: "capture_broke_free", fallback: "Darn! The #MON broke free!")
+            case 2:
+                return battleDialogueText(id: "capture_almost", fallback: "Aww! It appeared to be caught!")
+            default:
+                return battleDialogueText(id: "capture_so_close", fallback: "Shoot! It was so close too!")
+            }
+        case .success, nil:
+            return "Aww! It appeared to be caught!"
+        }
+    }
+
+    func battleDialogueText(id: String, fallback: String) -> String {
+        guard let dialogue = content.dialogue(id: id) else {
+            return fallback
+        }
+
+        let lines = dialogue.pages.flatMap(\.lines)
+        guard lines.isEmpty == false else {
+            return fallback
+        }
+        return lines.joined(separator: " ")
     }
 
     func finishWildBattleEscape() {
@@ -1229,9 +1512,12 @@ extension GameRuntime {
             phase: .introText,
             focusedMoveIndex: 0,
             focusedBagItemIndex: 0,
+            focusedPartyIndex: 0,
+            partySelectionMode: .optionalSwitch,
             message: "",
             queuedMessages: [],
             pendingAction: .moveSelection,
+            lastCaptureResult: nil,
             pendingPresentationBatches: [],
             learnMoveState: nil,
             rewardContinuation: nil,
@@ -1247,6 +1533,7 @@ extension GameRuntime {
         gameplayState.playerParty = syncedPlayerParty(from: battle, gameplayState: gameplayState)
         gameplayState.battle = battle
         self.gameplayState = gameplayState
+        fieldPartyReorderState = nil
         scene = .battle
         substate = "battle"
         traceEvent(
@@ -1301,9 +1588,12 @@ extension GameRuntime {
             phase: .introText,
             focusedMoveIndex: 0,
             focusedBagItemIndex: 0,
+            focusedPartyIndex: 0,
+            partySelectionMode: .optionalSwitch,
             message: "",
             queuedMessages: [],
             pendingAction: .moveSelection,
+            lastCaptureResult: nil,
             pendingPresentationBatches: [],
             learnMoveState: nil,
             rewardContinuation: nil,

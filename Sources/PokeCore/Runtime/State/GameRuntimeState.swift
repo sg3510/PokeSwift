@@ -97,6 +97,7 @@ enum RuntimeBattlePhase: String {
     case introText
     case moveSelection
     case bagSelection
+    case partySelection
     case learnMoveDecision
     case learnMoveSelection
     case resolvingTurn
@@ -104,12 +105,26 @@ enum RuntimeBattlePhase: String {
     case battleComplete
 }
 
+enum RuntimeBattleCaptureResult: Equatable {
+    case uncatchable
+    case boxFull
+    case failed(shakes: Int)
+    case success
+}
+
 enum RuntimeBattlePendingAction {
     case moveSelection
     case finish(won: Bool)
     case escape
     case captured
+    case continueSwitchTurn
+    case continueForcedSwitch
     case continueLevelUpResolution
+}
+
+enum RuntimeBattlePartySelectionMode {
+    case optionalSwitch
+    case forcedReplacement
 }
 
 struct RuntimeBattleLearnMoveState {
@@ -127,10 +142,39 @@ struct RuntimePokemonBoxState {
     var pokemon: [RuntimePokemonState]
 }
 
+enum RuntimeShopPhase: String {
+    case mainMenu
+    case buyList
+    case sellList
+    case quantity
+    case confirmation
+    case result
+}
+
+enum RuntimeShopTransactionKind: String {
+    case buy
+    case sell
+}
+
+struct RuntimeShopTransactionState {
+    let kind: RuntimeShopTransactionKind
+    let itemID: String
+}
+
 struct RuntimeShopState {
     let martID: String
-    var selectedItemIndex: Int
+    var phase: RuntimeShopPhase
+    var focusedMainMenuIndex: Int
+    var focusedItemIndex: Int
+    var focusedConfirmationIndex: Int
     var selectedQuantity: Int
+    var transaction: RuntimeShopTransactionState?
+    var message: String
+    var nextPhaseAfterResult: RuntimeShopPhase?
+}
+
+struct RuntimeFieldPartyReorderState {
+    var selectedIndex: Int
 }
 
 struct RuntimeBattlePresentationState {
@@ -238,9 +282,12 @@ struct RuntimeBattleState {
     var phase: RuntimeBattlePhase
     var focusedMoveIndex: Int
     var focusedBagItemIndex: Int
+    var focusedPartyIndex: Int
+    var partySelectionMode: RuntimeBattlePartySelectionMode
     var message: String
     var queuedMessages: [String]
     var pendingAction: RuntimeBattlePendingAction?
+    var lastCaptureResult: RuntimeBattleCaptureResult?
     var pendingPresentationBatches: [[RuntimeBattlePresentationBeat]]
     var learnMoveState: RuntimeBattleLearnMoveState?
     var rewardContinuation: RuntimeBattleRewardContinuation?

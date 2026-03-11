@@ -78,7 +78,7 @@ extension GameRuntime {
     }
 
     func makeBattleTelemetry() -> BattleTelemetry? {
-        guard let battle = gameplayState?.battle else { return nil }
+        guard let gameplayState, let battle = gameplayState.battle else { return nil }
         return BattleTelemetry(
             battleID: battle.battleID,
             kind: battle.kind,
@@ -89,8 +89,10 @@ extension GameRuntime {
             enemyActiveIndex: battle.enemyActiveIndex,
             focusedMoveIndex: battle.focusedMoveIndex,
             focusedBagItemIndex: battle.focusedBagItemIndex,
+            focusedPartyIndex: battle.focusedPartyIndex,
             canRun: battle.canRun,
             canUseBag: battle.kind == .wild && currentBattleBagItems.isEmpty == false,
+            canSwitch: canUseBattleSwitch(for: battle, gameplayState: gameplayState),
             phase: battle.phase.rawValue,
             textLines: battle.message.isEmpty ? [] : [battle.message],
             learnMovePrompt: makeBattleLearnMovePromptTelemetry(from: battle),
@@ -106,6 +108,7 @@ extension GameRuntime {
             },
             bagItems: currentBattleBagItems.compactMap(makeInventoryItemTelemetry(from:)),
             battleMessage: battle.message,
+            capture: makeBattleCaptureTelemetry(from: battle.lastCaptureResult),
             presentation: .init(
                 stage: battle.presentation.stage,
                 revision: battle.presentation.revision,
@@ -154,24 +157,59 @@ extension GameRuntime {
             return nil
         }
 
-        let stockItems = mart.stockItemIDs.compactMap { itemID -> InventoryItemTelemetry? in
+        let buyItems = mart.stockItemIDs.compactMap { itemID -> ShopRowTelemetry? in
             guard let item = content.item(id: itemID) else { return nil }
-            return InventoryItemTelemetry(
+            return ShopRowTelemetry(
                 itemID: item.id,
                 displayName: item.displayName,
-                quantity: itemQuantity(item.id),
-                price: item.price,
-                battleUse: item.battleUse
+                ownedQuantity: itemQuantity(item.id),
+                unitPrice: item.price,
+                transactionPrice: item.price,
+                isSelectable: maxPurchasableQuantity(for: item) > 0
+            )
+        }
+
+        let sellItems = currentInventoryItems.compactMap { itemState -> ShopRowTelemetry? in
+            guard let item = content.item(id: itemState.itemID) else { return nil }
+            return ShopRowTelemetry(
+                itemID: item.id,
+                displayName: item.displayName,
+                ownedQuantity: itemState.quantity,
+                unitPrice: item.price,
+                transactionPrice: sellPrice(for: item),
+                isSelectable: canSell(item: item)
             )
         }
 
         return ShopTelemetry(
             martID: mart.id,
             title: currentMapManifest?.displayName ?? "Poke Mart",
-            selectedItemIndex: shopState.selectedItemIndex,
+            phase: shopState.phase.rawValue,
+            promptText: shopState.message,
+            focusedMainMenuIndex: shopState.focusedMainMenuIndex,
+            focusedItemIndex: shopState.focusedItemIndex,
+            focusedConfirmationIndex: shopState.focusedConfirmationIndex,
             selectedQuantity: shopState.selectedQuantity,
-            stockItems: stockItems
+            selectedTransactionKind: shopState.transaction?.kind.rawValue,
+            menuOptions: ["BUY", "SELL", "QUIT"],
+            buyItems: buyItems,
+            sellItems: sellItems
         )
+    }
+
+    func makeBattleCaptureTelemetry(from result: RuntimeBattleCaptureResult?) -> BattleCaptureTelemetry? {
+        guard let result else { return nil }
+
+        switch result {
+        case .uncatchable:
+            return BattleCaptureTelemetry(result: "uncatchable", shakes: 0)
+        case .boxFull:
+            return BattleCaptureTelemetry(result: "boxFull", shakes: 0)
+        case let .failed(shakes):
+            return BattleCaptureTelemetry(result: "failure", shakes: shakes)
+        case .success:
+            return BattleCaptureTelemetry(result: "success", shakes: 4)
+        }
     }
 
     func makeFlagTelemetry() -> EventFlagTelemetry? {

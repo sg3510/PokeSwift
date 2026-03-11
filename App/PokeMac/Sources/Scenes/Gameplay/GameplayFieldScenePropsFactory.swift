@@ -8,11 +8,6 @@ enum GameplayScenePropsFactory {
         let snapshot = runtime.currentSnapshot()
         let manifestIndex = GameplaySidebarManifestIndex(runtime: runtime)
         let saveSidebar = makeSaveSidebar(runtime: runtime)
-        let sidebarParty = GameplaySidebarPropsBuilder.makeParty(
-            from: snapshot.party,
-            speciesDetailsByID: manifestIndex.speciesDetailsByID,
-            moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID
-        )
         let sidebarInventory = GameplaySidebarPropsBuilder.makeInventory(
             items: snapshot.inventory?.items.map {
                 InventorySidebarItemProps(
@@ -45,7 +40,7 @@ enum GameplayScenePropsFactory {
                 sidebarMode: .fieldLike(
                     GameplayFieldSidebarProps(
                         profile: makeTrainerProfile(runtime: runtime),
-                        party: sidebarParty,
+                        party: makeFieldPartySidebar(runtime: runtime, snapshot: snapshot, manifestIndex: manifestIndex),
                         inventory: sidebarInventory,
                         save: saveSidebar,
                         options: GameplaySidebarPropsBuilder.makeOptionsSection(isMusicEnabled: runtime.isMusicEnabled)
@@ -62,6 +57,9 @@ enum GameplayScenePropsFactory {
                     default:
                         break
                     }
+                },
+                onPartyRowSelected: { index in
+                    runtime.handlePartySidebarSelection(index)
                 },
                 initialFieldDisplayStyle: .defaultGameplayStyle
             )
@@ -105,15 +103,94 @@ enum GameplayScenePropsFactory {
                         focusedMoveIndex: battle.focusedMoveIndex,
                         canRun: battle.canRun,
                         canUseBag: battle.canUseBag,
+                        canSwitch: battle.canSwitch,
                         bagItemCount: battle.bagItems.count,
-                        party: sidebarParty,
+                        party: makeBattlePartySidebar(runtime: runtime, snapshot: snapshot, manifestIndex: manifestIndex, battle: battle),
+                        capture: battle.capture,
                         presentation: battle.presentation
                     )
                 ),
                 onSidebarAction: nil,
+                onPartyRowSelected: { index in
+                    runtime.handlePartySidebarSelection(index)
+                },
                 initialFieldDisplayStyle: .defaultGameplayStyle
             )
         }
+    }
+
+    private static func makeFieldPartySidebar(
+        runtime: GameRuntime,
+        snapshot: RuntimeTelemetrySnapshot,
+        manifestIndex: GameplaySidebarManifestIndex
+    ) -> PartySidebarProps {
+        let hasInteractiveParty = runtime.scene == .field && (snapshot.party?.pokemon.count ?? 0) > 1
+        let reorderSelectionIndex = runtime.fieldPartyReorderSelectionIndex
+        let mode: PartySidebarInteractionMode
+        let promptText: String?
+        let selectedIndex: Int?
+
+        if hasInteractiveParty == false {
+            mode = .passive
+            promptText = nil
+            selectedIndex = nil
+        } else if let reorderSelectionIndex {
+            mode = .fieldReorderDestination
+            promptText = "Move #MON where?"
+            selectedIndex = reorderSelectionIndex
+        } else {
+            mode = .fieldReorderSource
+            promptText = "Choose a #MON."
+            selectedIndex = nil
+        }
+
+        let selectableIndices = hasInteractiveParty
+            ? Set(snapshot.party?.pokemon.indices.map { $0 } ?? [])
+            : []
+        let annotationByIndex = reorderSelectionIndex.map { [$0: "MOVING"] } ?? [:]
+
+        return GameplaySidebarPropsBuilder.makeParty(
+            from: snapshot.party,
+            speciesDetailsByID: manifestIndex.speciesDetailsByID,
+            moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID,
+            mode: mode,
+            focusedIndex: reorderSelectionIndex,
+            selectedIndex: selectedIndex,
+            selectableIndices: selectableIndices,
+            annotationByIndex: annotationByIndex,
+            promptText: promptText
+        )
+    }
+
+    private static func makeBattlePartySidebar(
+        runtime: GameRuntime,
+        snapshot: RuntimeTelemetrySnapshot,
+        manifestIndex: GameplaySidebarManifestIndex,
+        battle: BattleTelemetry
+    ) -> PartySidebarProps {
+        let isSelecting = battle.phase == "partySelection"
+        let partyPokemon = snapshot.party?.pokemon ?? []
+        let selectableIndices = Set(
+            partyPokemon.indices.filter { index in
+                index != 0 && partyPokemon[index].currentHP > 0
+            }
+        )
+
+        var annotationByIndex: [Int: String] = [0: "ACTIVE"]
+        for index in partyPokemon.indices where partyPokemon[index].currentHP == 0 {
+            annotationByIndex[index] = "FAINTED"
+        }
+
+        return GameplaySidebarPropsBuilder.makeParty(
+            from: snapshot.party,
+            speciesDetailsByID: manifestIndex.speciesDetailsByID,
+            moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID,
+            mode: isSelecting ? .battleSwitch : .passive,
+            focusedIndex: isSelecting ? battle.focusedPartyIndex : nil,
+            selectableIndices: selectableIndices,
+            annotationByIndex: annotationByIndex,
+            promptText: isSelecting ? "Bring out which #MON?" : nil
+        )
     }
 
     private static func makeTrainerProfile(runtime: GameRuntime) -> TrainerProfileProps {

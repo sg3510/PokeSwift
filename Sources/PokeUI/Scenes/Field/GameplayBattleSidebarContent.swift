@@ -13,6 +13,8 @@ struct BattleSummaryContent: View {
             return "Intro"
         case "moveSelection":
             return "Move Select"
+        case "partySelection":
+            return "Party"
         case "resolvingTurn":
             return "Resolving"
         case "turnText":

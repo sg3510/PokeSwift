@@ -197,9 +197,11 @@ extension PokeCoreTests {
 
         let shop = try XCTUnwrap(runtime.currentSnapshot().shop)
         XCTAssertEqual(shop.martID, "viridian_mart")
-        XCTAssertEqual(shop.stockItems.map(\.itemID), ["POKE_BALL", "ANTIDOTE", "PARLYZ_HEAL", "BURN_HEAL"])
-        XCTAssertEqual(shop.stockItems.first?.price, 200)
-        XCTAssertEqual(shop.stockItems.first?.battleUse, .ball)
+        XCTAssertEqual(shop.phase, "mainMenu")
+        XCTAssertEqual(shop.menuOptions, ["BUY", "SELL", "QUIT"])
+        XCTAssertEqual(shop.buyItems.map(\.itemID), ["POKE_BALL", "ANTIDOTE", "PARLYZ_HEAL", "BURN_HEAL"])
+        XCTAssertEqual(shop.buyItems.first?.unitPrice, 200)
+        XCTAssertEqual(runtime.content.item(id: "POKE_BALL")?.battleUse, .ball)
         XCTAssertEqual(runtime.substate, "shop_viridian_mart")
     }
 
@@ -217,12 +219,153 @@ extension PokeCoreTests {
 
         let clerk = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "viridian_mart_clerk" })
         runtime.interact(with: clerk)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.currentSnapshot().shop?.phase, "result")
+        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 1)
+        XCTAssertEqual(runtime.playerMoney, 2800)
+        XCTAssertEqual(runtime.currentSnapshot().inventory?.items.first { $0.itemID == "POKE_BALL" }?.quantity, 1)
+    }
+
+    func testViridianMartQuitClosesShopUI() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "VIRIDIAN_MART"
+        runtime.gameplayState?.playerPosition = .init(x: 3, y: 7)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.activeFlags.insert("EVENT_GOT_OAKS_PARCEL")
+        runtime.gameplayState?.activeFlags.insert("EVENT_OAK_GOT_PARCEL")
+
+        let clerk = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "viridian_mart_clerk" })
+        runtime.interact(with: clerk)
+        runtime.handle(button: .right)
         runtime.handle(button: .right)
         runtime.handle(button: .confirm)
 
-        XCTAssertEqual(runtime.itemQuantity("POKE_BALL"), 2)
-        XCTAssertEqual(runtime.playerMoney, 2600)
-        XCTAssertEqual(runtime.currentSnapshot().inventory?.items.first { $0.itemID == "POKE_BALL" }?.quantity, 2)
+        XCTAssertNil(runtime.currentSnapshot().shop)
+        XCTAssertNil(runtime.shopState)
+        XCTAssertEqual(runtime.substate, "field")
+    }
+
+    func testViridianMartSellFlowRemovesItemAndAddsHalfPrice() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "VIRIDIAN_MART"
+        runtime.gameplayState?.playerPosition = .init(x: 3, y: 7)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.activeFlags.insert("EVENT_GOT_OAKS_PARCEL")
+        runtime.gameplayState?.activeFlags.insert("EVENT_OAK_GOT_PARCEL")
+        runtime.gameplayState?.inventory = [.init(itemID: "ANTIDOTE", quantity: 2)]
+
+        let clerk = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "viridian_mart_clerk" })
+        runtime.interact(with: clerk)
+        runtime.handle(button: .right)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.currentSnapshot().shop?.phase, "result")
+        XCTAssertEqual(runtime.itemQuantity("ANTIDOTE"), 1)
+        XCTAssertEqual(runtime.playerMoney, 3050)
+    }
+
+    func testSellFlowRejectsUnsellableItemsAndReturnsToMartLoop() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    dialogues: [
+                        .init(id: "pokemart_greeting", pages: [.init(lines: ["Hi there! May I help you?"], waitsForPrompt: true)]),
+                        .init(id: "pokemart_selling_greeting", pages: [.init(lines: ["What would you like to sell?"], waitsForPrompt: true)]),
+                        .init(id: "pokemart_unsellable_item", pages: [.init(lines: ["I can't put a price on that."], waitsForPrompt: true)]),
+                        .init(id: "pokemart_anything_else", pages: [.init(lines: ["Is there anything else I can do?"], waitsForPrompt: true)]),
+                    ],
+                    items: [
+                        .init(id: "HM_CUT", displayName: "HM01"),
+                    ],
+                    marts: [
+                        .init(
+                            id: "test_mart",
+                            mapID: "REDS_HOUSE_2F",
+                            clerkObjectID: "clerk",
+                            stockItemIDs: []
+                        ),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.inventory = [.init(itemID: "HM_CUT", quantity: 1)]
+
+        runtime.openMart(id: "test_mart")
+        runtime.handle(button: .right)
+        runtime.handle(button: .confirm)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.itemQuantity("HM_CUT"), 1)
+        XCTAssertEqual(runtime.playerMoney, 3000)
+        XCTAssertEqual(runtime.currentSnapshot().shop?.phase, "result")
+        XCTAssertEqual(runtime.currentSnapshot().shop?.promptText, "I can't put a price on that.")
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().shop?.phase, "mainMenu")
+    }
+
+    func testFieldPartyReorderSwapsSelectedPokemon() {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.playerParty = [
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Lead"),
+            runtime.makePokemon(speciesID: "PIDGEY", level: 3, nickname: "Wing"),
+            runtime.makePokemon(speciesID: "RATTATA", level: 4, nickname: "Fang"),
+        ]
+
+        runtime.handlePartySidebarSelection(0)
+        XCTAssertEqual(runtime.fieldPartyReorderState?.selectedIndex, 0)
+
+        runtime.handlePartySidebarSelection(2)
+
+        XCTAssertNil(runtime.fieldPartyReorderState)
+        XCTAssertEqual(runtime.gameplayState?.playerParty[0].nickname, "Fang")
+        XCTAssertEqual(runtime.gameplayState?.playerParty[2].nickname, "Lead")
+    }
+
+    func testFieldPartyReorderSelectionClearsAfterFieldInput() {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.playerPosition = .init(x: 1, y: 1)
+        runtime.gameplayState?.playerParty = [
+            runtime.makePokemon(speciesID: "SQUIRTLE", level: 5, nickname: "Lead"),
+            runtime.makePokemon(speciesID: "PIDGEY", level: 3, nickname: "Wing"),
+            runtime.makePokemon(speciesID: "RATTATA", level: 4, nickname: "Fang"),
+        ]
+
+        runtime.handlePartySidebarSelection(0)
+        XCTAssertEqual(runtime.fieldPartyReorderState?.selectedIndex, 0)
+
+        runtime.handle(button: .right)
+        XCTAssertNil(runtime.fieldPartyReorderState)
+
+        runtime.handlePartySidebarSelection(2)
+        XCTAssertEqual(runtime.fieldPartyReorderState?.selectedIndex, 2)
+        XCTAssertEqual(runtime.gameplayState?.playerParty[0].nickname, "Lead")
+        XCTAssertEqual(runtime.gameplayState?.playerParty[2].nickname, "Fang")
     }
 
     func testPurchaseItemRejectsNewSlotWhenBagIsFull() {

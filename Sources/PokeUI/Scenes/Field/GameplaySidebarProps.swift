@@ -95,6 +95,10 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
     public let speedGrowthOutlook: PokemonStatGrowthTelemetry
     public let specialGrowthOutlook: PokemonStatGrowthTelemetry
     public let isLead: Bool
+    public let isSelectable: Bool
+    public let isFocused: Bool
+    public let isSelected: Bool
+    public let selectionAnnotation: String?
     public let spriteURL: URL?
     public let typeLabels: [String]
     public let moveNames: [String]
@@ -120,6 +124,10 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         speedGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
         specialGrowthOutlook: PokemonStatGrowthTelemetry = .neutral,
         isLead: Bool,
+        isSelectable: Bool = false,
+        isFocused: Bool = false,
+        isSelected: Bool = false,
+        selectionAnnotation: String? = nil,
         spriteURL: URL? = nil,
         typeLabels: [String] = [],
         moveNames: [String] = []
@@ -144,6 +152,10 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         self.speedGrowthOutlook = speedGrowthOutlook
         self.specialGrowthOutlook = specialGrowthOutlook
         self.isLead = isLead
+        self.isSelectable = isSelectable
+        self.isFocused = isFocused
+        self.isSelected = isSelected
+        self.selectionAnnotation = selectionAnnotation
         self.spriteURL = spriteURL
         self.typeLabels = typeLabels
         self.moveNames = moveNames
@@ -166,13 +178,29 @@ public struct PartySidebarSpeciesDetails: Equatable, Sendable {
     }
 }
 
+public enum PartySidebarInteractionMode: String, Equatable, Sendable {
+    case passive
+    case fieldReorderSource
+    case fieldReorderDestination
+    case battleSwitch
+}
+
 public struct PartySidebarProps: Equatable, Sendable {
     public let pokemon: [PartySidebarPokemonProps]
     public let totalSlots: Int
+    public let mode: PartySidebarInteractionMode
+    public let promptText: String?
 
-    public init(pokemon: [PartySidebarPokemonProps], totalSlots: Int = 6) {
+    public init(
+        pokemon: [PartySidebarPokemonProps],
+        totalSlots: Int = 6,
+        mode: PartySidebarInteractionMode = .passive,
+        promptText: String? = nil
+    ) {
         self.pokemon = pokemon
         self.totalSlots = totalSlots
+        self.mode = mode
+        self.promptText = promptText
     }
 }
 
@@ -277,8 +305,10 @@ public struct BattleSidebarProps: Equatable, Sendable {
     public let focusedMoveIndex: Int
     public let canRun: Bool
     public let canUseBag: Bool
+    public let canSwitch: Bool
     public let bagItemCount: Int
     public let party: PartySidebarProps
+    public let capture: BattleCaptureTelemetry?
     public let presentation: BattlePresentationTelemetry
 
     public init(
@@ -293,8 +323,10 @@ public struct BattleSidebarProps: Equatable, Sendable {
         focusedMoveIndex: Int,
         canRun: Bool,
         canUseBag: Bool = false,
+        canSwitch: Bool = false,
         bagItemCount: Int = 0,
         party: PartySidebarProps,
+        capture: BattleCaptureTelemetry? = nil,
         presentation: BattlePresentationTelemetry = .init(
             stage: .idle,
             revision: 0,
@@ -312,13 +344,23 @@ public struct BattleSidebarProps: Equatable, Sendable {
         self.focusedMoveIndex = focusedMoveIndex
         self.canRun = canRun
         self.canUseBag = canUseBag
+        self.canSwitch = canSwitch
         self.bagItemCount = bagItemCount
         self.party = party
+        self.capture = capture
         self.presentation = presentation
     }
 
     public var shouldForceCombatSectionOpen: Bool {
-        showsInterface && (
+        guard showsInterface else {
+            return false
+        }
+
+        if party.mode == .battleSwitch {
+            return false
+        }
+
+        return (
             phase == "moveSelection" ||
             phase == "bagSelection" ||
             phase == "learnMoveDecision" ||
@@ -395,6 +437,19 @@ public struct BattleSidebarProps: Equatable, Sendable {
             )
         }
 
+        if canSwitch {
+            rows.append(
+                BattleSidebarActionRowProps(
+                    id: "switch",
+                    title: "Switch",
+                    detail: nil,
+                    isSelectable: shouldForceCombatSectionOpen,
+                    isFocused: shouldForceCombatSectionOpen && focusedMoveIndex == moveSlots.count + (canUseBag ? 1 : 0),
+                    kind: .partySwitch
+                )
+            )
+        }
+
         if canRun {
             rows.append(
                 BattleSidebarActionRowProps(
@@ -402,7 +457,7 @@ public struct BattleSidebarProps: Equatable, Sendable {
                     title: "Run",
                     detail: nil,
                     isSelectable: shouldForceCombatSectionOpen,
-                    isFocused: shouldForceCombatSectionOpen && focusedMoveIndex == moveSlots.count + (canUseBag ? 1 : 0),
+                    isFocused: shouldForceCombatSectionOpen && focusedMoveIndex == moveSlots.count + (canUseBag ? 1 : 0) + (canSwitch ? 1 : 0),
                     kind: .run
                 )
             )
@@ -416,6 +471,7 @@ public struct BattleSidebarActionRowProps: Identifiable, Equatable, Sendable {
     public enum Kind: String, Equatable, Sendable {
         case move
         case bag
+        case partySwitch
         case run
         case learn
         case skip
@@ -487,6 +543,9 @@ public enum GameplaySidebarMode: Equatable, Sendable {
         case .fieldLike:
             return nil
         case let .battle(props):
+            if props.party.mode == .battleSwitch {
+                return .party
+            }
             return props.shouldForceCombatSectionOpen ? .battleCombat : nil
         }
     }
@@ -554,6 +613,12 @@ public enum GameplaySidebarPropsBuilder {
         from party: PartyTelemetry?,
         speciesDetailsByID: [String: PartySidebarSpeciesDetails] = [:],
         moveDisplayNamesByID: [String: String] = [:],
+        mode: PartySidebarInteractionMode = .passive,
+        focusedIndex: Int? = nil,
+        selectedIndex: Int? = nil,
+        selectableIndices: Set<Int> = [],
+        annotationByIndex: [Int: String] = [:],
+        promptText: String? = nil,
         totalSlots: Int = 6
     ) -> PartySidebarProps {
         let mappedPokemon: [PartySidebarPokemonProps] = party?.pokemon.enumerated().map { index, pokemon in
@@ -581,13 +646,22 @@ public enum GameplaySidebarPropsBuilder {
                 speedGrowthOutlook: pokemon.growthOutlook.speed,
                 specialGrowthOutlook: pokemon.growthOutlook.special,
                 isLead: index == 0,
+                isSelectable: selectableIndices.contains(index),
+                isFocused: focusedIndex == index,
+                isSelected: selectedIndex == index,
+                selectionAnnotation: annotationByIndex[index],
                 spriteURL: speciesDetails?.spriteURL,
                 typeLabels: [speciesDetails?.primaryType, speciesDetails?.secondaryType].compactMap { $0 },
                 moveNames: moveNames
             )
         } ?? []
 
-        return PartySidebarProps(pokemon: mappedPokemon, totalSlots: totalSlots)
+        return PartySidebarProps(
+            pokemon: mappedPokemon,
+            totalSlots: totalSlots,
+            mode: mode,
+            promptText: promptText
+        )
     }
 
     public static func makeInventory(items: [InventorySidebarItemProps] = []) -> InventorySidebarProps {

@@ -8,9 +8,10 @@ extension PokeCoreTests {
     func testTitleFlowTransitionsFromAttractToMenuAndOptionsPlaceholder() async {
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
         runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
+        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
         XCTAssertEqual(runtime.scene, .titleAttract)
         runtime.handle(button: .start)
+        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
         XCTAssertEqual(runtime.scene, .titleMenu)
 
         runtime.handle(button: .down)
@@ -23,8 +24,9 @@ extension PokeCoreTests {
     func testMenuInteractionWithDisabledContinue() async {
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
         runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
+        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
         runtime.handle(button: .start)
+        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
         runtime.handle(button: .down)
         runtime.handle(button: .confirm)
         XCTAssertEqual(runtime.currentSnapshot().substate, "continue_disabled")
@@ -32,8 +34,9 @@ extension PokeCoreTests {
     func testNewGameEntersFieldAndPublishesFieldTelemetry() async {
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
         runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
+        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
         runtime.handle(button: .start)
+        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
         runtime.handle(button: .confirm)
 
         let snapshot = runtime.currentSnapshot()
@@ -394,6 +397,23 @@ extension PokeCoreTests {
         XCTAssertNotEqual(firstEncounter.speciesID, secondEncounter.speciesID)
         XCTAssertNotEqual(firstEncounter.level, secondEncounter.level)
     }
+}
+
+@MainActor
+private func waitForScene(
+    _ scene: RuntimeScene,
+    in runtime: GameRuntime,
+    message: String,
+    attempts: Int = 60
+) async {
+    for _ in 0..<attempts {
+        if runtime.scene == scene {
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+
+    XCTAssertEqual(runtime.scene, scene, message)
 }
 
 private func decodeLegacySaveEnvelope(

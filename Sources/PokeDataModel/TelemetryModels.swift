@@ -377,6 +377,43 @@ public struct PartyTelemetry: Codable, Equatable, Sendable {
     }
 }
 
+public struct ShopRowTelemetry: Codable, Equatable, Sendable {
+    public let itemID: String
+    public let displayName: String
+    public let ownedQuantity: Int
+    public let unitPrice: Int
+    public let transactionPrice: Int
+    public let isSelectable: Bool
+
+    public init(
+        itemID: String,
+        displayName: String,
+        ownedQuantity: Int,
+        unitPrice: Int,
+        transactionPrice: Int,
+        isSelectable: Bool = true
+    ) {
+        self.itemID = itemID
+        self.displayName = displayName
+        self.ownedQuantity = ownedQuantity
+        self.unitPrice = unitPrice
+        self.transactionPrice = transactionPrice
+        self.isSelectable = isSelectable
+    }
+}
+
+public struct BattleCaptureTelemetry: Codable, Equatable, Sendable {
+    public let result: String
+    public let shakes: Int
+    public let itemID: String?
+
+    public init(result: String, shakes: Int, itemID: String? = nil) {
+        self.result = result
+        self.shakes = shakes
+        self.itemID = itemID
+    }
+}
+
 public struct InventoryItemTelemetry: Codable, Equatable, Sendable {
     public let itemID: String
     public let displayName: String
@@ -417,14 +454,17 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
     public let enemyActiveIndex: Int
     public let focusedMoveIndex: Int
     public let focusedBagItemIndex: Int
+    public let focusedPartyIndex: Int
     public let canRun: Bool
     public let canUseBag: Bool
+    public let canSwitch: Bool
     public let phase: String
     public let textLines: [String]
     public let learnMovePrompt: BattleLearnMovePromptTelemetry?
     public let moveSlots: [BattleMoveSlotTelemetry]
     public let bagItems: [InventoryItemTelemetry]
     public let battleMessage: String
+    public let capture: BattleCaptureTelemetry?
     public let presentation: BattlePresentationTelemetry
 
     public init(
@@ -437,14 +477,17 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         enemyActiveIndex: Int,
         focusedMoveIndex: Int,
         focusedBagItemIndex: Int = 0,
+        focusedPartyIndex: Int = 0,
         canRun: Bool = false,
         canUseBag: Bool = false,
+        canSwitch: Bool = false,
         phase: String = "moveSelection",
         textLines: [String] = [],
         learnMovePrompt: BattleLearnMovePromptTelemetry? = nil,
         moveSlots: [BattleMoveSlotTelemetry] = [],
         bagItems: [InventoryItemTelemetry] = [],
         battleMessage: String,
+        capture: BattleCaptureTelemetry? = nil,
         presentation: BattlePresentationTelemetry = .init(
             stage: .idle,
             revision: 0,
@@ -460,14 +503,17 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         self.enemyActiveIndex = enemyActiveIndex
         self.focusedMoveIndex = focusedMoveIndex
         self.focusedBagItemIndex = focusedBagItemIndex
+        self.focusedPartyIndex = focusedPartyIndex
         self.canRun = canRun
         self.canUseBag = canUseBag
+        self.canSwitch = canSwitch
         self.phase = phase
         self.textLines = textLines
         self.learnMovePrompt = learnMovePrompt
         self.moveSlots = moveSlots
         self.bagItems = bagItems
         self.battleMessage = battleMessage
+        self.capture = capture
         self.presentation = presentation
     }
 
@@ -481,14 +527,17 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         case enemyActiveIndex
         case focusedMoveIndex
         case focusedBagItemIndex
+        case focusedPartyIndex
         case canRun
         case canUseBag
+        case canSwitch
         case phase
         case textLines
         case learnMovePrompt
         case moveSlots
         case bagItems
         case battleMessage
+        case capture
         case presentation
     }
 
@@ -503,14 +552,17 @@ public struct BattleTelemetry: Codable, Equatable, Sendable {
         enemyActiveIndex = try container.decodeIfPresent(Int.self, forKey: .enemyActiveIndex) ?? 0
         focusedMoveIndex = try container.decode(Int.self, forKey: .focusedMoveIndex)
         focusedBagItemIndex = try container.decodeIfPresent(Int.self, forKey: .focusedBagItemIndex) ?? 0
+        focusedPartyIndex = try container.decodeIfPresent(Int.self, forKey: .focusedPartyIndex) ?? 0
         canRun = try container.decodeIfPresent(Bool.self, forKey: .canRun) ?? false
         canUseBag = try container.decodeIfPresent(Bool.self, forKey: .canUseBag) ?? false
+        canSwitch = try container.decodeIfPresent(Bool.self, forKey: .canSwitch) ?? false
         phase = try container.decodeIfPresent(String.self, forKey: .phase) ?? "moveSelection"
         textLines = try container.decodeIfPresent([String].self, forKey: .textLines) ?? []
         learnMovePrompt = try container.decodeIfPresent(BattleLearnMovePromptTelemetry.self, forKey: .learnMovePrompt)
         moveSlots = try container.decodeIfPresent([BattleMoveSlotTelemetry].self, forKey: .moveSlots) ?? []
         bagItems = try container.decodeIfPresent([InventoryItemTelemetry].self, forKey: .bagItems) ?? []
         battleMessage = try container.decode(String.self, forKey: .battleMessage)
+        capture = try container.decodeIfPresent(BattleCaptureTelemetry.self, forKey: .capture)
         presentation = try container.decodeIfPresent(BattlePresentationTelemetry.self, forKey: .presentation) ?? .init(
             stage: .idle,
             revision: 0,
@@ -568,22 +620,43 @@ public struct BattleMoveSlotTelemetry: Codable, Equatable, Sendable {
 public struct ShopTelemetry: Codable, Equatable, Sendable {
     public let martID: String
     public let title: String
-    public let selectedItemIndex: Int
+    public let phase: String
+    public let promptText: String
+    public let focusedMainMenuIndex: Int
+    public let focusedItemIndex: Int
+    public let focusedConfirmationIndex: Int
     public let selectedQuantity: Int
-    public let stockItems: [InventoryItemTelemetry]
+    public let selectedTransactionKind: String?
+    public let menuOptions: [String]
+    public let buyItems: [ShopRowTelemetry]
+    public let sellItems: [ShopRowTelemetry]
 
     public init(
         martID: String,
         title: String,
-        selectedItemIndex: Int,
+        phase: String,
+        promptText: String,
+        focusedMainMenuIndex: Int,
+        focusedItemIndex: Int,
+        focusedConfirmationIndex: Int,
         selectedQuantity: Int,
-        stockItems: [InventoryItemTelemetry]
+        selectedTransactionKind: String?,
+        menuOptions: [String],
+        buyItems: [ShopRowTelemetry],
+        sellItems: [ShopRowTelemetry]
     ) {
         self.martID = martID
         self.title = title
-        self.selectedItemIndex = selectedItemIndex
+        self.phase = phase
+        self.promptText = promptText
+        self.focusedMainMenuIndex = focusedMainMenuIndex
+        self.focusedItemIndex = focusedItemIndex
+        self.focusedConfirmationIndex = focusedConfirmationIndex
         self.selectedQuantity = selectedQuantity
-        self.stockItems = stockItems
+        self.selectedTransactionKind = selectedTransactionKind
+        self.menuOptions = menuOptions
+        self.buyItems = buyItems
+        self.sellItems = sellItems
     }
 }
 

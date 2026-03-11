@@ -269,6 +269,7 @@ extension GameRuntime {
         reseedRuntimeRNG()
         dialogueState = nil
         shopState = nil
+        fieldPartyReorderState = nil
         deferredActions.removeAll()
         currentAudioState = nil
         fieldTransitionState = nil

@@ -3,14 +3,24 @@ import PokeDataModel
 
 struct PartySidebarContent: View {
     let props: PartySidebarProps
+    let onRowSelected: ((Int) -> Void)?
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            if let promptText = props.promptText {
+                Text(promptText.uppercased())
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             ForEach(0..<props.totalSlots, id: \.self) { index in
                 if props.pokemon.indices.contains(index) {
                     PartySidebarRow(
                         props: props.pokemon[index],
-                        slotNumber: index + 1
+                        slotNumber: index + 1,
+                        rowIndex: index,
+                        onSelect: onRowSelected
                     )
                 } else {
                     EmptyPartySidebarRow(slotNumber: index + 1)
@@ -23,6 +33,8 @@ struct PartySidebarContent: View {
 struct PartySidebarRow: View {
     let props: PartySidebarPokemonProps
     let slotNumber: Int
+    let rowIndex: Int
+    let onSelect: ((Int) -> Void)?
 
     @State private var isHovered = false
 
@@ -34,7 +46,7 @@ struct PartySidebarRow: View {
             spacing: GameplayFieldMetrics.hoverCardSpacing
         ) {
             GameplaySidebarInsetSurface(
-                tint: props.isLead ? FieldRetroPalette.accentGlassTint : FieldRetroPalette.interactiveGlassTint
+                tint: surfaceTint
             ) {
                 HStack(alignment: .top, spacing: 12) {
                     PartyPokemonSpriteTile(props: props)
@@ -49,6 +61,12 @@ struct PartySidebarRow: View {
                             Text(props.displayName.uppercased())
                                 .font(.system(size: 15, weight: .bold, design: .monospaced))
                                 .foregroundStyle(FieldRetroPalette.ink)
+
+                            if let selectionAnnotation = props.selectionAnnotation {
+                                Text(selectionAnnotation.uppercased())
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(annotationColor)
+                            }
 
                             Spacer(minLength: 8)
 
@@ -83,9 +101,13 @@ struct PartySidebarRow: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(props.isLead ? FieldRetroPalette.outline.opacity(0.16) : FieldRetroPalette.outline.opacity(0.08), lineWidth: 1)
+                    .stroke(borderColor, lineWidth: props.isFocused || props.isSelected ? 1.5 : 1)
             }
             .contentShape(.rect(cornerRadius: 16))
+            .onTapGesture {
+                guard props.isSelectable else { return }
+                onSelect?(rowIndex)
+            }
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.14)) {
                     isHovered = hovering
@@ -94,6 +116,7 @@ struct PartySidebarRow: View {
         } hoverCard: {
             PartyPokemonHoverCard(props: props)
         }
+        .opacity(props.isSelectable || props.selectionAnnotation != nil || props.isLead ? 1 : 0.92)
         .zIndex(isHovered ? 1 : 0)
     }
 
@@ -101,6 +124,27 @@ struct PartySidebarRow: View {
         let progress = max(0, props.totalExperience - props.levelStartExperience)
         let needed = max(1, props.nextLevelExperience - props.levelStartExperience)
         return "EXP \(progress)/\(needed)"
+    }
+
+    private var surfaceTint: Color {
+        if props.isFocused || props.isSelected {
+            return FieldRetroPalette.accentGlassTint
+        }
+        return props.isLead ? FieldRetroPalette.accentGlassTint : FieldRetroPalette.interactiveGlassTint
+    }
+
+    private var annotationColor: Color {
+        if props.isSelectable {
+            return FieldRetroPalette.ink.opacity(0.56)
+        }
+        return Color(red: 0.53, green: 0.24, blue: 0.19)
+    }
+
+    private var borderColor: Color {
+        if props.isFocused || props.isSelected {
+            return FieldRetroPalette.outline.opacity(0.2)
+        }
+        return props.isLead ? FieldRetroPalette.outline.opacity(0.16) : FieldRetroPalette.outline.opacity(0.08)
     }
 }
 
