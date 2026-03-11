@@ -990,6 +990,44 @@ final class PokeCoreTests: XCTestCase {
         XCTAssertEqual(partyPokemon.growthOutlook.attack, .neutral)
     }
 
+    func testPartyTelemetryGrowthOutlookStaysBoundToDVsWhenStatExpChanges() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "CHARMANDER", displayName: "Charmander", primaryType: "FIRE", baseExp: 65, growthRate: .mediumSlow, baseHP: 39, baseAttack: 52, baseDefense: 43, baseSpeed: 65, baseSpecial: 50, startingMoves: ["SCRATCH"]),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.gameplayState?.playerParty = [
+            runtime.makeConfiguredPokemon(
+                speciesID: "CHARMANDER",
+                nickname: "Charmander",
+                level: 6,
+                experience: 205,
+                dvs: .init(attack: 15, defense: 2, speed: 11, special: 2),
+                statExp: .init(hp: 44, attack: 48, defense: 65, speed: 43, special: 50),
+                currentHP: 21,
+                attackStage: 0,
+                defenseStage: 0,
+                accuracyStage: 0,
+                evasionStage: 0,
+                moves: nil
+            )
+        ]
+
+        let partyPokemon = try! XCTUnwrap(runtime.currentSnapshot().party?.pokemon.first)
+
+        XCTAssertEqual(partyPokemon.growthOutlook.attack, .favored)
+        XCTAssertEqual(partyPokemon.growthOutlook.defense, .lagging)
+        XCTAssertEqual(partyPokemon.growthOutlook.special, .lagging)
+        XCTAssertEqual(partyPokemon.growthOutlook.hp, .neutral)
+        XCTAssertEqual(partyPokemon.growthOutlook.speed, .neutral)
+    }
+
     func testDerivedHPDVAndCeilSquareRootMatchGen1Behavior() {
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
 

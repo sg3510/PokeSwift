@@ -166,11 +166,11 @@ extension GameRuntime {
     }
 
     func growthOutlook(for pokemon: RuntimePokemonState) -> PokemonGrowthOutlookTelemetry {
-        let hpScore = hiddenGrowthScore(dv: pokemon.dvs.hp, statExp: pokemon.statExp.hp)
-        let attackScore = hiddenGrowthScore(dv: pokemon.dvs.attack, statExp: pokemon.statExp.attack)
-        let defenseScore = hiddenGrowthScore(dv: pokemon.dvs.defense, statExp: pokemon.statExp.defense)
-        let speedScore = hiddenGrowthScore(dv: pokemon.dvs.speed, statExp: pokemon.statExp.speed)
-        let specialScore = hiddenGrowthScore(dv: pokemon.dvs.special, statExp: pokemon.statExp.special)
+        let hpScore = hiddenPotentialScore(dv: pokemon.dvs.hp)
+        let attackScore = hiddenPotentialScore(dv: pokemon.dvs.attack)
+        let defenseScore = hiddenPotentialScore(dv: pokemon.dvs.defense)
+        let speedScore = hiddenPotentialScore(dv: pokemon.dvs.speed)
+        let specialScore = hiddenPotentialScore(dv: pokemon.dvs.special)
         let allScores = [hpScore, attackScore, defenseScore, speedScore, specialScore]
 
         guard let minimumScore = allScores.min(),
@@ -198,7 +198,7 @@ extension GameRuntime {
         )
     }
 
-    func hiddenGrowthScore(dv: Int, statExp: Int) -> Int {
-        (dv * 16) + ceilSquareRoot(of: statExp)
+    func hiddenPotentialScore(dv: Int) -> Int {
+        dv
     }
 }
