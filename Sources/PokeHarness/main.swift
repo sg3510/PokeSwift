@@ -40,14 +40,18 @@ private struct HarnessCLI {
     let repoRoot: URL
     let derivedData: URL
     let traceDirectory: URL
-    let saveRoot: URL
+    let legacyHarnessSaveRoot: URL
+    let validationSaveRoot: URL
+    let defaultSaveRoot: URL
     let port: Int
 
     init() {
         repoRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         derivedData = repoRoot.appendingPathComponent(".build/DerivedData", isDirectory: true)
         traceDirectory = repoRoot.appendingPathComponent(".runtime-traces/pokemac", isDirectory: true)
-        saveRoot = traceDirectory.appendingPathComponent("saves", isDirectory: true)
+        legacyHarnessSaveRoot = traceDirectory.appendingPathComponent("saves", isDirectory: true)
+        validationSaveRoot = traceDirectory.appendingPathComponent("validation-saves", isDirectory: true)
+        defaultSaveRoot = Self.resolveDefaultSaveRoot(traceDirectory: traceDirectory)
         port = Int(ProcessInfo.processInfo.environment["POKESWIFT_TELEMETRY_PORT"] ?? "9777") ?? 9777
     }
 
@@ -117,7 +121,7 @@ private struct HarnessCLI {
         ])
     }
 
-    private func launchApp(validationMode: Bool = false) throws {
+    private func launchApp(validationMode: Bool = false, saveRootOverride: URL? = nil) throws {
         let appBinary = derivedData
             .appendingPathComponent("Build/Products/Debug/PokeMac.app/Contents/MacOS/PokeMac")
 
@@ -133,10 +137,17 @@ private struct HarnessCLI {
         process.currentDirectoryURL = repoRoot
         process.executableURL = appBinary
         var environment = ProcessInfo.processInfo.environment
+        if saveRootOverride == nil {
+            try migrateLegacyHarnessSaveIfNeeded()
+        }
         environment["POKESWIFT_CONTENT_ROOT"] = repoRoot.appendingPathComponent("Content/Red", isDirectory: true).path
         environment["POKESWIFT_TRACE_DIR"] = traceDirectory.path
-        environment["POKESWIFT_SAVE_ROOT"] = saveRoot.path
         environment["POKESWIFT_TELEMETRY_PORT"] = String(port)
+        if let saveRootOverride {
+            environment["POKESWIFT_SAVE_ROOT"] = saveRootOverride.path
+        } else {
+            environment.removeValue(forKey: "POKESWIFT_SAVE_ROOT")
+        }
         if validationMode {
             environment["POKESWIFT_VALIDATION_MODE"] = "1"
         }
@@ -167,8 +178,38 @@ private struct HarnessCLI {
     private func resetValidationState() throws {
         try? post(path: "/quit", body: [:])
         Thread.sleep(forTimeInterval: 0.5)
-        try? FileManager.default.removeItem(at: saveRoot)
-        try launchApp(validationMode: true)
+        try? FileManager.default.removeItem(at: validationSaveRoot)
+        try launchApp(validationMode: true, saveRootOverride: validationSaveRoot)
+    }
+
+    private func migrateLegacyHarnessSaveIfNeeded() throws {
+        let legacySaveURL = legacyHarnessSaveRoot
+            .appendingPathComponent("red-main", isDirectory: false)
+            .appendingPathExtension("json")
+        let defaultSaveURL = defaultSaveRoot
+            .appendingPathComponent("red-main", isDirectory: false)
+            .appendingPathExtension("json")
+
+        guard FileManager.default.fileExists(atPath: legacySaveURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: defaultSaveURL.path) == false else { return }
+
+        try FileManager.default.createDirectory(at: defaultSaveRoot, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: legacySaveURL, to: defaultSaveURL)
+    }
+
+    private static func resolveDefaultSaveRoot(traceDirectory: URL) -> URL {
+        if let applicationSupport = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            return applicationSupport
+                .appendingPathComponent("PokeSwift", isDirectory: true)
+                .appendingPathComponent("Saves", isDirectory: true)
+        }
+
+        return traceDirectory.appendingPathComponent("saves", isDirectory: true)
     }
 
     private func runNewGameToPostRivalBattle() throws -> RuntimeTelemetrySnapshot {

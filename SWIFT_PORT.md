@@ -73,6 +73,7 @@ The repo now contains:
 - bounded native M3 music playback driven from extracted ASM-backed audio manifests, including title, map-default, scripted override, battle, rival-exit, and Mom-heal routing
 - hardened native M3 audio startup/transition behavior so title music is primed before first attract playback, trainer battle music no longer bleeds into the immediate post-battle result dialogue, and extracted pitch slides now carry frame-count timing metadata instead of gliding across the entire note
 - a native-first single-slot save/load foundation using schema-versioned JSON save envelopes, title-menu `Continue` gating from readable save metadata, in-session sidebar save/load actions, XP-preserving party snapshots with hidden-growth persistence in save schema `4`, and save telemetry/control endpoints for the harness
+- isolated validation save storage under `.runtime-traces/pokemac/validation-saves` so milestone harness resets never delete the user-facing Application Support save slot
 - battle telemetry that now exposes phase, queued/current text, and move-slot state so the UI, focused tests, and manual sessions can consume turn sequencing directly
 - field telemetry that now exposes visible object id, tile position, facing, and idle-vs-scripted movement mode so tests and manual sessions can assert NPC choreography and no-overlap behavior directly
 - audio telemetry that now exposes current track, entry, playback reason, and revision so smoke validation and manual sessions can validate music transitions during the slice
