@@ -24,7 +24,7 @@ extension PokeUITests {
       ]
     )
 
-    guard let maskedImage = PixelAssetView.applyWhiteTransparencyMask(to: image) else {
+    guard let maskedImage = PixelAssetMasking.applyWhiteTransparencyMask(to: image) else {
       return XCTFail("Expected white background masking to succeed")
     }
 
