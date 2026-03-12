@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import PokeRender
 
 public enum AppAppearanceMode: String, CaseIterable, Codable, Sendable {
     case system
@@ -301,6 +302,29 @@ public enum PokeThemePalette {
                 contentHeadroom: 1.8,
                 fieldShaderBoost: 0.42,
                 battleShaderBoost: 0.34
+            )
+        }
+    }
+
+    public static func gameplayScreenGlowPalette(
+        displayStyle: FieldDisplayStyle,
+        appearanceMode: AppAppearanceMode,
+        colorScheme: ColorScheme
+    ) -> (outer: ThemeRGBA, inner: ThemeRGBA) {
+        let resolvedPalette = resolve(for: appearanceMode.resolved(for: colorScheme))
+
+        switch displayStyle {
+        case .dmgTinted:
+            return (resolvedPalette.screenGlow, resolvedPalette.screenGlowInner)
+        case .dmgAuthentic:
+            return (
+                ThemeRGBA(red: 0.58, green: 0.74, blue: 0.18, alpha: resolvedPalette.screenGlow.alpha),
+                ThemeRGBA(red: 0.86, green: 0.94, blue: 0.52, alpha: resolvedPalette.screenGlowInner.alpha)
+            )
+        case .rawGrayscale:
+            return (
+                ThemeRGBA(red: 0.78, green: 0.78, blue: 0.78, alpha: resolvedPalette.screenGlow.alpha),
+                ThemeRGBA(red: 0.96, green: 0.96, blue: 0.96, alpha: resolvedPalette.screenGlowInner.alpha)
             )
         }
     }

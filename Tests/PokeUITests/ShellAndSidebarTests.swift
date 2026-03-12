@@ -945,6 +945,33 @@ extension PokeUITests {
     XCTAssertGreaterThan(light.screenGlow.alpha, 0)
     XCTAssertGreaterThan(dark.screenGlow.alpha, 0)
   }
+  func testGameplayScreenGlowPaletteTracksDisplayStyle() {
+    let tinted = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .dmgTinted,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+    let raw = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .rawGrayscale,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+    let authentic = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .dmgAuthentic,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+    let dark = PokeThemePalette.resolve(for: .retroDark)
+
+    XCTAssertEqual(tinted.outer, dark.screenGlow)
+    XCTAssertEqual(tinted.inner, dark.screenGlowInner)
+    XCTAssertEqual(raw.outer.red, raw.outer.green)
+    XCTAssertEqual(raw.outer.green, raw.outer.blue)
+    XCTAssertEqual(raw.inner.red, raw.inner.green)
+    XCTAssertEqual(raw.inner.green, raw.inner.blue)
+    XCTAssertNotEqual(raw.outer, tinted.outer)
+    XCTAssertNotEqual(authentic.outer, tinted.outer)
+  }
   func testOptionsBuilderReflectsAppearanceWithoutChangingMusicState() {
     let systemOptions = GameplaySidebarPropsBuilder.makeOptionsSection(
       isMusicEnabled: true,

@@ -50,13 +50,16 @@ public struct GameplayShellStage<ScreenContent: View, Footer: View, OverlayConte
     private let footer: Footer
     private let overlayContent: OverlayContent
     private let footerPlacement: GameplayFooterPlacement
+    private let screenDisplayStyle: FieldDisplayStyle
 
     public init(
+        screenDisplayStyle: FieldDisplayStyle = .defaultGameplayStyle,
         footerPlacement: GameplayFooterPlacement = .insideScreen,
         @ViewBuilder screenContent: () -> ScreenContent,
         @ViewBuilder footer: () -> Footer,
         @ViewBuilder overlayContent: () -> OverlayContent
     ) {
+        self.screenDisplayStyle = screenDisplayStyle
         self.footerPlacement = footerPlacement
         self.screenContent = screenContent()
         self.footer = footer()
@@ -65,7 +68,7 @@ public struct GameplayShellStage<ScreenContent: View, Footer: View, OverlayConte
 
     public var body: some View {
         ZStack(alignment: .topTrailing) {
-            GameplayDisplayShell {
+            GameplayDisplayShell(screenDisplayStyle: screenDisplayStyle) {
                 screenContent
             } footer: {
                 footer
@@ -109,19 +112,22 @@ public struct FieldMapStage<MapContent: View, Footer: View, OverlayContent: View
     private let mapContent: MapContent
     private let footer: Footer
     private let overlayContent: OverlayContent
+    private let screenDisplayStyle: FieldDisplayStyle
 
     public init(
+        screenDisplayStyle: FieldDisplayStyle = .defaultGameplayStyle,
         @ViewBuilder mapContent: () -> MapContent,
         @ViewBuilder footer: () -> Footer,
         @ViewBuilder overlayContent: () -> OverlayContent
     ) {
+        self.screenDisplayStyle = screenDisplayStyle
         self.mapContent = mapContent()
         self.footer = footer()
         self.overlayContent = overlayContent()
     }
 
     public var body: some View {
-        GameplayShellStage {
+        GameplayShellStage(screenDisplayStyle: screenDisplayStyle) {
             mapContent
         } footer: {
             footer
@@ -135,19 +141,22 @@ public struct BattleViewportStage<Content: View, Footer: View, OverlayContent: V
     private let content: Content
     private let footer: Footer
     private let overlayContent: OverlayContent
+    private let screenDisplayStyle: FieldDisplayStyle
 
     public init(
+        screenDisplayStyle: FieldDisplayStyle = .defaultGameplayStyle,
         @ViewBuilder content: () -> Content,
         @ViewBuilder footer: () -> Footer,
         @ViewBuilder overlayContent: () -> OverlayContent
     ) {
+        self.screenDisplayStyle = screenDisplayStyle
         self.content = content()
         self.footer = footer()
         self.overlayContent = overlayContent()
     }
 
     public var body: some View {
-        GameplayShellStage {
+        GameplayShellStage(screenDisplayStyle: screenDisplayStyle) {
             content
         } footer: {
             footer
@@ -158,15 +167,18 @@ public struct BattleViewportStage<Content: View, Footer: View, OverlayContent: V
 }
 
 private struct GameplayDisplayShell<Content: View, Footer: View>: View {
+    private let screenDisplayStyle: FieldDisplayStyle
     private let content: Content
     private let footer: Footer
     private let footerPlacement: GameplayFooterPlacement
 
     init(
+        screenDisplayStyle: FieldDisplayStyle,
         @ViewBuilder content: () -> Content,
         @ViewBuilder footer: () -> Footer,
         footerPlacement: @escaping () -> GameplayFooterPlacement
     ) {
+        self.screenDisplayStyle = screenDisplayStyle
         self.content = content()
         self.footer = footer()
         self.footerPlacement = footerPlacement()
@@ -174,7 +186,7 @@ private struct GameplayDisplayShell<Content: View, Footer: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GameplayScreenWell {
+            GameplayScreenWell(displayStyle: screenDisplayStyle) {
                 content
             } footer: {
                 footer
@@ -208,15 +220,18 @@ private struct GameplayScreenWell<Content: View, Footer: View>: View {
     @Environment(\.pokeGameplayHDREnabled) private var gameplayHDREnabled
     @Environment(\.colorScheme) private var colorScheme
 
+    private let displayStyle: FieldDisplayStyle
     private let content: Content
     private let footer: Footer
     private let footerPlacement: GameplayFooterPlacement
 
     init(
+        displayStyle: FieldDisplayStyle,
         @ViewBuilder content: () -> Content,
         @ViewBuilder footer: () -> Footer,
         footerPlacement: @escaping () -> GameplayFooterPlacement
     ) {
+        self.displayStyle = displayStyle
         self.content = content()
         self.footer = footer()
         self.footerPlacement = footerPlacement()
@@ -226,6 +241,11 @@ private struct GameplayScreenWell<Content: View, Footer: View>: View {
         GeometryReader { proxy in
             let size = proxy.size
             let resolvedPalette = PokeThemePalette.resolve(for: appearanceMode.resolved(for: colorScheme))
+            let glowPalette = PokeThemePalette.gameplayScreenGlowPalette(
+                displayStyle: displayStyle,
+                appearanceMode: appearanceMode,
+                colorScheme: colorScheme
+            )
             let hdrProfile = PokeThemePalette.gameplayHDRProfile(
                 appearanceMode: appearanceMode,
                 colorScheme: colorScheme,
@@ -276,7 +296,7 @@ private struct GameplayScreenWell<Content: View, Footer: View>: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: max(14, lcdScale * 3), style: .continuous)
                             .fill(
-                                resolvedPalette.screenGlow.hdrColor(
+                                glowPalette.outer.hdrColor(
                                     linearExposure: hdrProfile.outerGlowExposure
                                 )
                             )
@@ -289,7 +309,7 @@ private struct GameplayScreenWell<Content: View, Footer: View>: View {
 
                         RoundedRectangle(cornerRadius: max(10, lcdScale * 2.4), style: .continuous)
                             .fill(
-                                resolvedPalette.screenGlowInner.hdrColor(
+                                glowPalette.inner.hdrColor(
                                     linearExposure: hdrProfile.innerGlowExposure
                                 )
                             )

@@ -111,7 +111,10 @@ private extension GameplayScene {
     @ViewBuilder
     var battleStageLayer: some View {
         if case let .battle(battleProps) = props.viewport {
-            BattleStageView(props: battleProps)
+            BattleStageView(
+                props: battleProps,
+                fieldDisplayStyle: fieldDisplayStyle
+            )
         }
     }
 
@@ -146,7 +149,7 @@ private struct FieldStageView: View {
     let fieldDisplayStyle: FieldDisplayStyle
 
     var body: some View {
-        FieldMapStage {
+        FieldMapStage(screenDisplayStyle: fieldDisplayStyle) {
             mapContent
         } footer: {
             footerContent
@@ -208,9 +211,10 @@ private struct FieldStageView: View {
 
 private struct BattleStageView: View {
     let props: BattleViewportProps
+    let fieldDisplayStyle: FieldDisplayStyle
 
     var body: some View {
-        BattleViewportStage {
+        BattleViewportStage(screenDisplayStyle: fieldDisplayStyle) {
             BattlePanel(
                 trainerName: props.trainerName,
                 playerPokemon: props.playerPokemon,
