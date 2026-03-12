@@ -14,7 +14,10 @@ SAVE_ROOT="${POKESWIFT_SAVE_ROOT:-$HOME/Library/Application Support/PokeSwift/Sa
 TELEMETRY_PORT="${POKESWIFT_TELEMETRY_PORT:-9777}"
 APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/PokeMac"
 WATCHER_HELPER="$ROOT/scripts/watch_live_session.py"
+WATCHER_REQUIREMENTS="$ROOT/scripts/watch_live_session_requirements.txt"
 WATCH_MODE="${POKESWIFT_WATCH_MODE:-auto}"
+WATCHER_VENV_DIR="${POKESWIFT_WATCHER_VENV_DIR:-$ROOT/.build/live-watch-venv}"
+WATCHER_PYTHON="$WATCHER_VENV_DIR/bin/python3"
 READINESS_TIMEOUT_SECONDS=15
 APP_PID=0
 APP_EXIT_STATUS=0
@@ -51,6 +54,29 @@ require_command() {
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf '[%s] Missing required command: %s\n' "$(timestamp)" "$command_name" >&2
     exit 1
+  fi
+}
+
+ensure_live_watch_runtime() {
+  require_command "python3"
+  require_command "curl"
+  if [[ ! -f "$WATCHER_HELPER" ]]; then
+    printf '[%s] Missing live watcher helper at %s\n' "$(timestamp)" "$WATCHER_HELPER" >&2
+    exit 1
+  fi
+  if [[ ! -f "$WATCHER_REQUIREMENTS" ]]; then
+    printf '[%s] Missing live watcher requirements at %s\n' "$(timestamp)" "$WATCHER_REQUIREMENTS" >&2
+    exit 1
+  fi
+
+  if [[ ! -x "$WATCHER_PYTHON" ]]; then
+    detail "Creating live-watch Python environment"
+    python3 -m venv "$WATCHER_VENV_DIR"
+  fi
+
+  if ! "$WATCHER_PYTHON" -c 'import rich' >/dev/null 2>&1; then
+    detail "Installing live-watch terminal UI dependencies"
+    "$WATCHER_PYTHON" -m pip install --disable-pip-version-check --quiet -r "$WATCHER_REQUIREMENTS"
   fi
 }
 
@@ -255,12 +281,7 @@ require_executable "$APP_EXECUTABLE" "PokeMac executable"
 WATCH_MODE_ACTIVE=0
 if watch_mode_enabled; then
   WATCH_MODE_ACTIVE=1
-  require_command "python3"
-  require_command "curl"
-  if [[ ! -f "$WATCHER_HELPER" ]]; then
-    printf '[%s] Missing live watcher helper at %s\n' "$(timestamp)" "$WATCHER_HELPER" >&2
-    exit 1
-  fi
+  ensure_live_watch_runtime
 fi
 
 section "2/4 Extract Red content"
@@ -312,7 +333,7 @@ fi
 section "Live watch attached"
 detail "Press Ctrl-C to stop the watcher and quit PokeMac"
 set +e
-python3 "$WATCHER_HELPER" \
+"$WATCHER_PYTHON" "$WATCHER_HELPER" \
   --port "$TELEMETRY_PORT" \
   --trace-root "$TRACE_ROOT" \
   --save-root "$SAVE_ROOT" \

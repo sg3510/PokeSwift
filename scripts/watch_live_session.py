@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -14,6 +13,22 @@ import urllib.error
 import urllib.request
 from collections import deque
 from pathlib import Path
+
+try:
+    from rich.columns import Columns
+    from rich.console import Console, Group
+    from rich.live import Live
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+except ModuleNotFoundError:
+    Columns = None
+    Console = None
+    Group = None
+    Live = None
+    Panel = None
+    Table = None
+    Text = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,16 +71,6 @@ def iso_time(timestamp: str | None) -> str:
     return timestamp[-8:]
 
 
-def truncate(text: str, width: int) -> str:
-    if width <= 0:
-        return ""
-    if len(text) <= width:
-        return text
-    if width <= 3:
-        return text[:width]
-    return text[: width - 3] + "..."
-
-
 def format_position(position: object) -> str:
     if not isinstance(position, dict):
         return "--,--"
@@ -76,6 +81,14 @@ def compact_text(lines: object) -> str:
     if not isinstance(lines, list):
         return ""
     return " / ".join(str(line).strip() for line in lines if str(line).strip())
+
+
+def bool_label(value: object) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "--"
 
 
 class LiveSessionWatcher:
@@ -97,7 +110,7 @@ class LiveSessionWatcher:
         self._session_handle = None
         self._plain_last_summary = ""
         self._plain_last_status_at = 0.0
-        self._cursor_hidden = False
+        self.console = Console() if self.tty and Console is not None else None
         signal.signal(signal.SIGTERM, self._request_stop)
         signal.signal(signal.SIGINT, self._request_stop)
 
@@ -105,38 +118,47 @@ class LiveSessionWatcher:
         self.stop_requested = True
 
     def run(self) -> int:
+        if self.tty and self.console is None:
+            print("rich is required for interactive live watch mode.", file=sys.stderr)
+            return 1
+
         try:
-            self._enter_screen()
+            if self.console is not None and Live is not None:
+                return self._run_rich()
+            return self._run_plain()
+        finally:
+            self._close_event_file()
+
+    def _run_rich(self) -> int:
+        assert self.console is not None
+        assert Live is not None
+        with Live(
+            self._build_dashboard(),
+            console=self.console,
+            screen=True,
+            auto_refresh=False,
+            transient=True,
+        ) as live:
             while self.stop_requested is False:
                 now = time.monotonic()
                 self._poll_snapshot(now)
                 self._poll_events()
-                if self.tty:
-                    self._render_dashboard()
-                else:
-                    self._emit_plain_status(now)
-
+                live.update(self._build_dashboard(), refresh=True)
                 if process_running(self.app_pid) is False:
                     return 0
-
                 time.sleep(self.poll_interval)
-            return 130
-        finally:
-            self._leave_screen()
-            self._close_event_file()
+        return 130
 
-    def _enter_screen(self) -> None:
-        if self.tty is False:
-            return
-        sys.stdout.write("\x1b[?25l")
-        sys.stdout.flush()
-        self._cursor_hidden = True
-
-    def _leave_screen(self) -> None:
-        if self.tty and self._cursor_hidden:
-            sys.stdout.write("\x1b[?25h\x1b[0m\n")
-            sys.stdout.flush()
-            self._cursor_hidden = False
+    def _run_plain(self) -> int:
+        while self.stop_requested is False:
+            now = time.monotonic()
+            self._poll_snapshot(now)
+            self._poll_events()
+            self._emit_plain_status(now)
+            if process_running(self.app_pid) is False:
+                return 0
+            time.sleep(self.poll_interval)
+        return 130
 
     def _close_event_file(self) -> None:
         if self._session_handle is not None:
@@ -192,8 +214,22 @@ class LiveSessionWatcher:
             if isinstance(event, dict) is False:
                 continue
             self.events.append(event)
-            if self.tty is False:
+            if self.console is None:
                 print(self._format_event_line(event), flush=True)
+
+    def _telemetry_state(self) -> str:
+        if self.snapshot is not None:
+            return "live"
+        if self.last_snapshot_success_at is None:
+            return f"waiting (file-only): {self.last_snapshot_error}"
+        return f"snapshot unavailable: {self.last_snapshot_error}"
+
+    def _telemetry_style(self) -> str:
+        if self.snapshot is not None:
+            return "green"
+        if self.last_snapshot_success_at is None:
+            return "yellow"
+        return "red"
 
     def _status_value(self, key: str, default: str = "--") -> str:
         if self.snapshot is None:
@@ -203,14 +239,7 @@ class LiveSessionWatcher:
             return default
         return str(value)
 
-    def _telemetry_state(self) -> str:
-        if self.snapshot is not None:
-            return "live"
-        if self.last_snapshot_success_at is None:
-            return f"waiting (file-only): {self.last_snapshot_error}"
-        return f"snapshot unavailable: {self.last_snapshot_error}"
-
-    def _current_panel_lines(self, width: int) -> list[str]:
+    def _current_panel_lines(self) -> list[str]:
         snapshot = self.snapshot or {}
         battle = snapshot.get("battle")
         dialogue = snapshot.get("dialogue")
@@ -219,91 +248,80 @@ class LiveSessionWatcher:
         prompt = snapshot.get("fieldPrompt")
         field = snapshot.get("field")
 
-        lines: list[str] = []
         if isinstance(battle, dict):
             trainer = battle.get("trainerName") or battle.get("battleID") or "battle"
-            text = compact_text(battle.get("textLines"))
-            lines.append(f"Battle: {battle.get('kind', '--')} vs {trainer} | phase {battle.get('phase', '--')}")
-            lines.append(text or "Battle text: --")
-        elif isinstance(dialogue, dict):
-            lines.append(
-                f"Dialogue: {dialogue.get('dialogueID', '--')} | page "
-                f"{int(dialogue.get('pageIndex', 0)) + 1}/{dialogue.get('pageCount', '--')}"
-            )
-            lines.append(compact_text(dialogue.get("lines")) or "Dialogue text: --")
-        elif isinstance(shop, dict):
-            lines.append(f"Shop: {shop.get('title', '--')} | phase {shop.get('phase', '--')}")
-            lines.append(shop.get("promptText") or "Prompt: --")
-        elif isinstance(healing, dict):
-            lines.append(
-                f"Healing: phase {healing.get('phase', '--')} | "
-                f"balls {healing.get('activeBallCount', '--')}/{healing.get('totalBallCount', '--')}"
-            )
-            lines.append(f"Nurse: {healing.get('nurseObjectID', '--')}")
-        elif isinstance(prompt, dict):
+            return [
+                f"battle {battle.get('kind', '--')} vs {trainer}",
+                f"phase {battle.get('phase', '--')}",
+                compact_text(battle.get("textLines")) or "battle text --",
+            ]
+        if isinstance(dialogue, dict):
+            return [
+                f"dialogue {dialogue.get('dialogueID', '--')}",
+                f"page {int(dialogue.get('pageIndex', 0)) + 1}/{dialogue.get('pageCount', '--')}",
+                compact_text(dialogue.get("lines")) or "dialogue text --",
+            ]
+        if isinstance(shop, dict):
+            return [
+                f"shop {shop.get('title', '--')}",
+                f"phase {shop.get('phase', '--')}",
+                str(shop.get("promptText") or "prompt --"),
+            ]
+        if isinstance(healing, dict):
+            return [
+                f"healing phase {healing.get('phase', '--')}",
+                f"balls {healing.get('activeBallCount', '--')}/{healing.get('totalBallCount', '--')}",
+                f"nurse {healing.get('nurseObjectID', '--')}",
+            ]
+        if isinstance(prompt, dict):
             options = prompt.get("options") if isinstance(prompt.get("options"), list) else []
-            lines.append(f"Field prompt: {prompt.get('kind', '--')} | focus {prompt.get('focusedIndex', '--')}")
-            lines.append(f"Options: {', '.join(str(option) for option in options) if options else '--'}")
-        elif isinstance(field, dict):
+            return [
+                f"field prompt {prompt.get('kind', '--')}",
+                f"focus {prompt.get('focusedIndex', '--')}",
+                f"options {', '.join(str(option) for option in options) if options else '--'}",
+            ]
+        if isinstance(field, dict):
             transition = field.get("transition") if isinstance(field.get("transition"), dict) else None
             alert = field.get("alert") if isinstance(field.get("alert"), dict) else None
-            lines.append("Idle field")
             if transition:
-                lines.append(f"Transition: {transition.get('kind', '--')} {transition.get('phase', '--')}")
-            elif alert:
-                lines.append(f"Alert: {alert.get('kind', '--')} on {alert.get('objectID', '--')}")
-            else:
-                lines.append(f"Render mode: {field.get('renderMode', '--')}")
-        else:
-            lines.append(f"Scene: {self._status_value('scene')}")
-            lines.append("No active field/battle/dialogue state")
+                return ["idle field", f"transition {transition.get('kind', '--')}", f"phase {transition.get('phase', '--')}"]
+            if alert:
+                return ["idle field", f"alert {alert.get('kind', '--')}", f"object {alert.get('objectID', '--')}"]
+            return ["idle field", f"render {field.get('renderMode', '--')}", "no blocking overlay"]
+        return [f"scene {self._status_value('scene')}", f"substate {self._status_value('substate')}", "no current runtime details"]
 
-        return [truncate(line, width) for line in lines[:2]]
-
-    def _party_lines(self, width: int) -> list[str]:
+    def _party_rows(self) -> list[tuple[str, str, str, str]]:
         snapshot = self.snapshot or {}
         party = snapshot.get("party")
         pokemon = []
         if isinstance(party, dict) and isinstance(party.get("pokemon"), list):
             pokemon = party["pokemon"][:6]
 
-        if not pokemon:
-            return ["No party data"]
-
-        lines = []
+        rows: list[tuple[str, str, str, str]] = []
         for index, member in enumerate(pokemon, start=1):
             if not isinstance(member, dict):
                 continue
-            name = member.get("displayName", "--")
-            status = member.get("majorStatus", "none")
-            moves = member.get("moves") if isinstance(member.get("moves"), list) else []
-            line = (
-                f"{index}. {name} Lv{member.get('level', '--')} "
-                f"HP {member.get('currentHP', '--')}/{member.get('maxHP', '--')} "
-                f"status {status} | {', '.join(str(move) for move in moves) if moves else '--'}"
+            rows.append(
+                (
+                    str(index),
+                    f"{member.get('displayName', '--')} Lv{member.get('level', '--')}",
+                    f"{member.get('currentHP', '--')}/{member.get('maxHP', '--')}",
+                    ", ".join(str(move) for move in member.get("moves", [])) if isinstance(member.get("moves"), list) else "--",
+                )
             )
-            lines.append(truncate(line, width))
-        return lines or ["No party data"]
+        return rows
 
-    def _input_lines(self, width: int) -> list[str]:
+    def _input_rows(self) -> list[tuple[str, str]]:
         snapshot = self.snapshot or {}
         inputs = snapshot.get("recentInputEvents")
-        if not isinstance(inputs, list) or not inputs:
-            return ["No recent inputs"]
-
-        formatted = [
-            f"{iso_time(item.get('timestamp') if isinstance(item, dict) else None)} {item.get('button', '--')}"
-            for item in inputs[-8:]
-            if isinstance(item, dict)
-        ]
-        if not formatted:
-            return ["No recent inputs"]
-
-        lines = []
-        chunk_size = 4
-        for start in range(0, len(formatted), chunk_size):
-            lines.append(truncate(" | ".join(formatted[start : start + chunk_size]), width))
-        return lines
+        if not isinstance(inputs, list):
+            return []
+        rows = []
+        for item in inputs[-3:]:
+            if not isinstance(item, dict):
+                continue
+            rows.append((iso_time(item.get("timestamp")), str(item.get("button", "--"))))
+        return rows
 
     def _format_event_line(self, event: dict[str, object]) -> str:
         timestamp = iso_time(str(event.get("timestamp", "")))
@@ -311,63 +329,108 @@ class LiveSessionWatcher:
         message = str(event.get("message", "--"))
         return f"{timestamp}  {kind:<18} {message}"
 
-    def _event_lines(self, width: int, max_lines: int) -> list[str]:
-        if not self.events:
-            return ["No live session events yet"]
-        return [truncate(self._format_event_line(event), width) for event in list(self.events)[-max_lines:]]
-
-    def _render_dashboard(self) -> None:
-        width, height = shutil.get_terminal_size((120, 36))
-        content_width = max(40, width - 2)
-        header_lines = [
-            truncate("PokeSwift Live Watch", content_width),
-            truncate(
-                f"App PID {self.app_pid} | Telemetry {self._telemetry_state()}",
-                content_width,
-            ),
-            truncate(f"Trace {self.trace_root}", content_width),
-            truncate(f"Save {self.save_root}", content_width),
-        ]
+    def _build_dashboard(self):
+        assert Console is not None
+        assert Group is not None
+        assert Panel is not None
+        assert Table is not None
+        assert Text is not None
+        console = self.console
+        assert console is not None
 
         snapshot = self.snapshot or {}
         field = snapshot.get("field") if isinstance(snapshot.get("field"), dict) else {}
         audio = snapshot.get("audio") if isinstance(snapshot.get("audio"), dict) else {}
         save = snapshot.get("save") if isinstance(snapshot.get("save"), dict) else {}
-        status_line = (
-            f"Scene {self._status_value('scene')} | Substate {self._status_value('substate')} | "
-            f"Map {field.get('mapName', '--')} [{field.get('mapID', '--')}] | "
-            f"Pos {format_position(field.get('playerPosition'))} | Facing {field.get('facing', '--')} | "
-            f"Music {audio.get('trackID', '--')} | Save {save.get('canSave', '--')}/{save.get('canLoad', '--')}"
+
+        title = Text("PokeSwift Live Watch", style="bold cyan")
+        title.append(f"  PID {self.app_pid}", style="bold")
+        title.append("  telemetry ", style="dim")
+        title.append(self._telemetry_state(), style=self._telemetry_style())
+        header_meta = Table.grid(expand=True)
+        header_meta.add_column(ratio=1)
+        header_meta.add_column(ratio=1)
+        header_meta.add_row(f"[dim]trace[/] {self.trace_root}", f"[dim]save[/]  {self.save_root}")
+        header = Panel(
+            Group(
+                title,
+                header_meta,
+            ),
+            border_style="cyan",
+            padding=(0, 1),
         )
 
-        current_lines = self._current_panel_lines(content_width)
-        party_lines = self._party_lines(content_width)
-        input_lines = self._input_lines(content_width)
+        status = Table.grid(expand=True)
+        status.add_column(ratio=1)
+        status.add_column(ratio=1)
+        status.add_row(
+            f"scene [bold]{self._status_value('scene')}[/] / {self._status_value('substate')}",
+            f"music [bold]{audio.get('trackID', '--')}[/]",
+        )
+        status.add_row(
+            f"map [bold]{field.get('mapName', '--')}[/] [{field.get('mapID', '--')}]",
+            f"save canSave={bool_label(save.get('canSave'))} canLoad={bool_label(save.get('canLoad'))}",
+        )
+        status.add_row(
+            f"pos [bold]{format_position(field.get('playerPosition'))}[/] facing {field.get('facing', '--')}",
+            f"render {field.get('renderMode', '--')}",
+        )
+        status_panel = Panel(status, title="Status", border_style="blue", padding=(0, 1))
 
-        base_line_count = 10 + len(current_lines) + len(party_lines) + len(input_lines)
-        event_budget = max(3, min(12, height - base_line_count))
-        event_lines = self._event_lines(content_width, event_budget)
+        current_table = Table.grid(expand=True)
+        current_table.add_column()
+        for line in self._current_panel_lines():
+            current_table.add_row(line)
+        current_panel = Panel(current_table, title="Current", border_style="magenta", padding=(0, 1))
 
-        lines = header_lines + [
-            "",
-            truncate(status_line, content_width),
-            "",
-            "Current",
-            *current_lines,
-            "",
-            "Party",
-            *party_lines,
-            "",
-            "Inputs",
-            *input_lines,
-            "",
-            "Events",
-            *event_lines,
-        ]
-        frame = "\n".join(lines)
-        sys.stdout.write("\x1b[H\x1b[J")
-        sys.stdout.write(frame)
-        sys.stdout.flush()
+        party_table = Table.grid(expand=True, padding=(0, 1))
+        party_table.add_column(style="dim", width=2, justify="right")
+        party_table.add_column(ratio=3, min_width=18)
+        party_table.add_column(width=10, justify="right")
+        party_table.add_column(ratio=4, min_width=18)
+        party_rows = self._party_rows()
+        if party_rows:
+            for row in party_rows:
+                party_table.add_row(*row)
+        else:
+            party_table.add_row("-", "No party data", "--", "--")
+        party_panel = Panel(party_table, title="Party", border_style="green", padding=(0, 1))
+
+        input_table = Table.grid(expand=True, padding=(0, 1))
+        input_table.add_column(width=8, style="dim")
+        input_table.add_column(ratio=1, min_width=8)
+        input_rows = self._input_rows()
+        if input_rows:
+            for row in input_rows:
+                input_table.add_row(*row)
+        else:
+            input_table.add_row("--:--:--", "No recent inputs")
+        input_panel = Panel(input_table, title="Inputs", border_style="yellow", padding=(0, 1))
+
+        left_column = Group(status_panel, current_panel)
+        right_column = Group(party_panel, input_panel)
+        top_grid = Table.grid(expand=True)
+        top_grid.add_column(ratio=3, min_width=56)
+        top_grid.add_column(ratio=2, min_width=36)
+        top_grid.add_row(left_column, right_column)
+
+        event_table = Table.grid(expand=True, padding=(0, 1))
+        event_table.add_column(width=8, style="dim")
+        event_table.add_column(width=18, style="cyan")
+        event_table.add_column(ratio=1)
+        if self.events:
+            for event in self.events:
+                event_table.add_row(
+                    iso_time(str(event.get("timestamp", ""))),
+                    str(event.get("kind", "--")),
+                    str(event.get("message", "--")),
+                )
+        else:
+            event_table.add_row("--:--:--", "waiting", "No live session events yet")
+
+        events_panel = Panel(event_table, title="Events", border_style="red", padding=(0, 1))
+
+        return Group(header, top_grid, events_panel)
 
     def _plain_summary(self) -> str:
         snapshot = self.snapshot or {}
