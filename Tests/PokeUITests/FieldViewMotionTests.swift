@@ -59,6 +59,20 @@ extension PokeUITests {
     XCTAssertLessThanOrEqual(
       camera.origin.y + camera.viewportSize.height, metrics.contentPixelSize.height)
   }
+  func testDisplayedRenderedSceneRejectsStaleMapAfterCrossMapSwap() throws {
+    let currentMap = makePaletteMap(blockWidth: 2, blockHeight: 2)
+    let staleScene = try makeRenderedScene(mapID: "PREVIOUS_MAP", map: currentMap)
+
+    XCTAssertNil(FieldMapView.displayedRenderedScene(staleScene, currentMapID: currentMap.id))
+  }
+  func testDisplayedRenderedSceneKeepsMatchingMapScene() throws {
+    let currentMap = makePaletteMap(blockWidth: 2, blockHeight: 2)
+    let renderedScene = try makeRenderedScene(mapID: currentMap.id, map: currentMap)
+
+    XCTAssertEqual(
+      FieldMapView.displayedRenderedScene(renderedScene, currentMapID: currentMap.id)?.mapID,
+      currentMap.id)
+  }
   func testSpriteFrameLookupUsesExplicitFacingFrames() {
     let definition = FieldSpriteDefinition(
       id: "SPRITE_RED",
@@ -313,4 +327,13 @@ extension PokeUITests {
       .init(x: -1, y: 3)
     )
   }
+}
+
+private func makeRenderedScene(mapID: String, map: MapManifest) throws -> FieldRenderedScene {
+  FieldRenderedScene(
+    mapID: mapID,
+    metrics: FieldSceneRenderer.sceneMetrics(for: map),
+    backgroundImage: try makeTestTileImage(topHalf: 0x11, bottomHalf: 0x22),
+    actors: []
+  )
 }

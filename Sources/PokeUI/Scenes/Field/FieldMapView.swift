@@ -53,11 +53,12 @@ public struct FieldMapView: View {
             let scale = viewportScale(for: proxy.size)
             let viewportWidth = CGFloat(FieldSceneRenderer.viewportPixelSize.width) * scale
             let viewportHeight = CGFloat(FieldSceneRenderer.viewportPixelSize.height) * scale
+            let displayedRenderedScene = Self.displayedRenderedScene(renderedScene, currentMapID: map.id)
 
             ZStack {
-                if let renderedScene {
+                if let displayedRenderedScene {
                     FixedViewportRenderedField(
-                        scene: renderedScene,
+                        scene: displayedRenderedScene,
                         playerFacing: playerFacing,
                         playerStepAnimation: playerStepAnimation,
                         playerStepDuration: playerStepDuration,
@@ -134,6 +135,17 @@ public struct FieldMapView: View {
         )
     }
 
+    static func displayedRenderedScene(
+        _ renderedScene: FieldRenderedScene?,
+        currentMapID: String
+    ) -> FieldRenderedScene? {
+        guard let renderedScene,
+              renderedScene.mapID == currentMapID else {
+            return nil
+        }
+        return renderedScene
+    }
+
     @MainActor
     private func updateRenderedScene() async {
         guard let renderAssets else {
@@ -141,8 +153,14 @@ public struct FieldMapView: View {
             return
         }
 
+        let targetMapID = map.id
+        if renderedScene?.mapID != targetMapID {
+            renderedScene = nil
+        }
+
         let scene = await renderFieldScene(assets: renderAssets)
-        guard Task.isCancelled == false else { return }
+        guard Task.isCancelled == false,
+              scene?.mapID == targetMapID else { return }
         renderedScene = scene
     }
 
@@ -324,7 +342,7 @@ public struct FieldMapView: View {
     }
 
     private func makePlayerStepAnimation(to nextIdentity: FieldPresentationIdentity, direction: FacingDirection?) -> PlayerStepAnimationState? {
-        guard let previousIdentity = presentationIdentity,
+        guard presentationIdentity != nil,
               let direction else {
             return nil
         }
