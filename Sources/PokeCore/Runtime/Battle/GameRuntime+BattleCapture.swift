@@ -57,6 +57,7 @@ extension GameRuntime {
 
         let capturedPokemon = battle.enemyPokemon
         gameplayState.ownedSpeciesIDs.insert(capturedPokemon.speciesID)
+        gameplayState.seenSpeciesIDs.insert(capturedPokemon.speciesID)
         var messages = ["All right! \(capturedPokemon.nickname) was caught!"]
 
         let addedToParty: Bool
