@@ -75,6 +75,110 @@ public struct TrainerProfileProps: Equatable, Sendable {
     }
 }
 
+public struct PartySidebarMoveDetails: Equatable, Sendable {
+    public let displayName: String
+    public let typeLabel: String?
+    public let maxPP: Int?
+    public let power: Int?
+    public let accuracy: Int?
+
+    public init(
+        displayName: String,
+        typeLabel: String? = nil,
+        maxPP: Int? = nil,
+        power: Int? = nil,
+        accuracy: Int? = nil
+    ) {
+        self.displayName = displayName
+        self.typeLabel = typeLabel
+        self.maxPP = maxPP
+        self.power = power
+        self.accuracy = accuracy
+    }
+}
+
+public struct PartySidebarMoveProps: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let moveID: String
+    public let displayName: String
+    public let typeLabel: String?
+    public let currentPP: Int?
+    public let maxPP: Int?
+    public let power: Int?
+    public let accuracy: Int?
+
+    public init(
+        id: String,
+        moveID: String,
+        displayName: String,
+        typeLabel: String? = nil,
+        currentPP: Int? = nil,
+        maxPP: Int? = nil,
+        power: Int? = nil,
+        accuracy: Int? = nil
+    ) {
+        self.id = id
+        self.moveID = moveID
+        self.displayName = displayName
+        self.typeLabel = typeLabel
+        self.currentPP = currentPP
+        self.maxPP = maxPP
+        self.power = power
+        self.accuracy = accuracy
+    }
+}
+
+public struct PartySidebarMoveMetadataProps: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let label: String
+    public let value: String
+
+    public var displayText: String {
+        "\(label) \(value)"
+    }
+
+    public init(id: String, label: String, value: String) {
+        self.id = id
+        self.label = label
+        self.value = value
+    }
+}
+
+extension PartySidebarMoveProps {
+    public var typeChipText: String? {
+        typeLabel?.uppercased()
+    }
+
+    public var metadataChips: [PartySidebarMoveMetadataProps] {
+        [
+            .init(id: "\(id)-pp", label: "PP", value: ppDisplayText),
+            .init(id: "\(id)-power", label: "POW", value: powerDisplayText),
+            .init(id: "\(id)-accuracy", label: "ACC", value: accuracyDisplayText),
+        ]
+    }
+
+    public var ppDisplayText: String {
+        switch (currentPP, maxPP) {
+        case let (currentPP?, maxPP?):
+            return "\(currentPP)/\(maxPP)"
+        case let (currentPP?, nil):
+            return "\(currentPP)"
+        case let (nil, maxPP?):
+            return "\(maxPP)"
+        case (nil, nil):
+            return "--"
+        }
+    }
+
+    public var powerDisplayText: String {
+        power.map(String.init) ?? "--"
+    }
+
+    public var accuracyDisplayText: String {
+        accuracy.map(String.init) ?? "--"
+    }
+}
+
 public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
     public let id: String
     public let speciesID: String
@@ -102,7 +206,11 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
     public let selectionAnnotation: String?
     public let spriteURL: URL?
     public let typeLabels: [String]
-    public let moveNames: [String]
+    public let moves: [PartySidebarMoveProps]
+
+    public var moveNames: [String] {
+        moves.map(\.displayName)
+    }
 
     public init(
         id: String,
@@ -131,7 +239,7 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         selectionAnnotation: String? = nil,
         spriteURL: URL? = nil,
         typeLabels: [String] = [],
-        moveNames: [String] = []
+        moves: [PartySidebarMoveProps] = []
     ) {
         self.id = id
         self.speciesID = speciesID
@@ -159,7 +267,7 @@ public struct PartySidebarPokemonProps: Identifiable, Equatable, Sendable {
         self.selectionAnnotation = selectionAnnotation
         self.spriteURL = spriteURL
         self.typeLabels = typeLabels
-        self.moveNames = moveNames
+        self.moves = moves
     }
 }
 
@@ -414,6 +522,7 @@ public struct BattleSidebarProps: Equatable, Sendable {
     public let canUseBag: Bool
     public let canSwitch: Bool
     public let bagItemCount: Int
+    public let moveDetailsByID: [String: PartySidebarMoveDetails]
     public let party: PartySidebarProps
     public let capture: BattleCaptureTelemetry?
     public let presentation: BattlePresentationTelemetry
@@ -432,6 +541,7 @@ public struct BattleSidebarProps: Equatable, Sendable {
         canUseBag: Bool = false,
         canSwitch: Bool = false,
         bagItemCount: Int = 0,
+        moveDetailsByID: [String: PartySidebarMoveDetails] = [:],
         party: PartySidebarProps,
         capture: BattleCaptureTelemetry? = nil,
         presentation: BattlePresentationTelemetry = .init(
@@ -453,6 +563,7 @@ public struct BattleSidebarProps: Equatable, Sendable {
         self.canUseBag = canUseBag
         self.canSwitch = canSwitch
         self.bagItemCount = bagItemCount
+        self.moveDetailsByID = moveDetailsByID
         self.party = party
         self.capture = capture
         self.presentation = presentation
@@ -529,7 +640,8 @@ public struct BattleSidebarProps: Equatable, Sendable {
                         detail: "\(slot.currentPP)/\(slot.maxPP)",
                         isSelectable: slot.isSelectable,
                         isFocused: shouldForceCombatSectionOpen && index == focusedMoveIndex,
-                        kind: .forget
+                        kind: .forget,
+                        slotIndex: index
                     )
                 }
             }
@@ -563,7 +675,8 @@ public struct BattleSidebarProps: Equatable, Sendable {
                 detail: "\(slot.currentPP)/\(slot.maxPP)",
                 isSelectable: slot.isSelectable,
                 isFocused: shouldForceCombatSectionOpen && index == focusedMoveIndex,
-                kind: .move
+                kind: .move,
+                slotIndex: index
             )
         }
 
@@ -610,6 +723,25 @@ public struct BattleSidebarProps: Equatable, Sendable {
 
         return rows
     }
+
+    public func moveCardProps(for actionRow: BattleSidebarActionRowProps) -> PartySidebarMoveProps? {
+        guard let slotIndex = actionRow.slotIndex, moveSlots.indices.contains(slotIndex) else {
+            return nil
+        }
+
+        let slot = moveSlots[slotIndex]
+        let moveDetails = moveDetailsByID[slot.moveID]
+        return PartySidebarMoveProps(
+            id: actionRow.id,
+            moveID: slot.moveID,
+            displayName: moveDetails?.displayName ?? slot.displayName,
+            typeLabel: moveDetails?.typeLabel,
+            currentPP: slot.currentPP,
+            maxPP: moveDetails?.maxPP ?? slot.maxPP,
+            power: moveDetails?.power,
+            accuracy: moveDetails?.accuracy
+        )
+    }
 }
 
 public struct BattleSidebarActionRowProps: Identifiable, Equatable, Sendable {
@@ -631,6 +763,7 @@ public struct BattleSidebarActionRowProps: Identifiable, Equatable, Sendable {
     public let isSelectable: Bool
     public let isFocused: Bool
     public let kind: Kind
+    public let slotIndex: Int?
 
     public init(
         id: String,
@@ -638,7 +771,8 @@ public struct BattleSidebarActionRowProps: Identifiable, Equatable, Sendable {
         detail: String?,
         isSelectable: Bool,
         isFocused: Bool,
-        kind: Kind
+        kind: Kind,
+        slotIndex: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -646,6 +780,7 @@ public struct BattleSidebarActionRowProps: Identifiable, Equatable, Sendable {
         self.isSelectable = isSelectable
         self.isFocused = isFocused
         self.kind = kind
+        self.slotIndex = slotIndex
     }
 }
 
@@ -756,7 +891,7 @@ public enum GameplaySidebarPropsBuilder {
     public static func makeParty(
         from party: PartyTelemetry?,
         speciesDetailsByID: [String: PartySidebarSpeciesDetails] = [:],
-        moveDisplayNamesByID: [String: String] = [:],
+        moveDetailsByID: [String: PartySidebarMoveDetails] = [:],
         mode: PartySidebarInteractionMode = .passive,
         focusedIndex: Int? = nil,
         selectedIndex: Int? = nil,
@@ -767,7 +902,20 @@ public enum GameplaySidebarPropsBuilder {
     ) -> PartySidebarProps {
         let mappedPokemon: [PartySidebarPokemonProps] = party?.pokemon.enumerated().map { index, pokemon in
             let speciesDetails = speciesDetailsByID[pokemon.speciesID]
-            let moveNames = pokemon.moves.map { moveDisplayNamesByID[$0] ?? $0 }
+            let moves = pokemon.moveStates.enumerated().map { moveIndex, move -> PartySidebarMoveProps in
+                let moveDetails = moveDetailsByID[move.id]
+
+                return PartySidebarMoveProps(
+                    id: "\(pokemon.speciesID)-move-\(moveIndex)-\(move.id)",
+                    moveID: move.id,
+                    displayName: moveDetails?.displayName ?? move.id,
+                    typeLabel: moveDetails?.typeLabel,
+                    currentPP: move.currentPP,
+                    maxPP: moveDetails?.maxPP,
+                    power: moveDetails?.power,
+                    accuracy: moveDetails?.accuracy
+                )
+            }
 
             return PartySidebarPokemonProps(
                 id: "\(pokemon.speciesID)-\(index)",
@@ -796,7 +944,7 @@ public enum GameplaySidebarPropsBuilder {
                 selectionAnnotation: annotationByIndex[index],
                 spriteURL: speciesDetails?.spriteURL,
                 typeLabels: [speciesDetails?.primaryType, speciesDetails?.secondaryType].compactMap { $0 },
-                moveNames: moveNames
+                moves: moves
             )
         } ?? []
 

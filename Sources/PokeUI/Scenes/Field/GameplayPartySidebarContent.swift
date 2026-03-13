@@ -335,25 +335,25 @@ struct PartyPokemonHoverCard: View {
     let props: PartySidebarPokemonProps
 
     var body: some View {
-        GameplayHoverCardSurface {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 12) {
+        GameplayHoverCardSurface(padding: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
                     PartyPokemonLargeSpriteTile(props: props)
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 5) {
                         Text(props.displayName.uppercased())
                             .font(.system(size: 18, weight: .bold, design: .monospaced))
                             .foregroundStyle(FieldRetroPalette.ink)
 
-                        GlassEffectContainer(spacing: 8) {
-                            HStack(spacing: 6) {
+                        GlassEffectContainer(spacing: 6) {
+                            HStack(spacing: 4) {
                                 ForEach(props.typeLabels, id: \.self) { typeLabel in
-                                    GameplaySidebarChipSurface(
+                                    PartyPokemonCompactChipSurface(
                                         backgroundColor: FieldRetroPalette.pokemonTypeBadgeBackground(for: typeLabel),
                                         tint: FieldRetroPalette.pokemonTypeGlassTint(for: typeLabel)
                                     ) {
                                         Text(typeLabel)
-                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                            .font(.system(size: 9, weight: .bold, design: .monospaced))
                                             .foregroundStyle(FieldRetroPalette.ink.opacity(0.82))
                                     }
                                 }
@@ -361,16 +361,16 @@ struct PartyPokemonHoverCard: View {
                         }
 
                         Text("Lv\(props.level)  HP \(props.currentHP)/\(props.maxHP)")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
 
                         Text(experienceSummary)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
                     }
                 }
 
-                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 8) {
+                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 6) {
                     PartyPokemonStatPill(label: "HP", value: props.statHP, growthOutlook: props.hpGrowthOutlook)
                     PartyPokemonStatPill(label: "ATK", value: props.attack, growthOutlook: props.attackGrowthOutlook)
                     PartyPokemonStatPill(label: "DEF", value: props.defense, growthOutlook: props.defenseGrowthOutlook)
@@ -378,23 +378,7 @@ struct PartyPokemonHoverCard: View {
                     PartyPokemonStatPill(label: "SPC", value: props.special, growthOutlook: props.specialGrowthOutlook)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("MOVES")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.56))
-
-                    if props.moveNames.isEmpty {
-                        Text("No moves known")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
-                    } else {
-                        ForEach(Array(props.moveNames.enumerated()), id: \.offset) { _, moveName in
-                            Text(moveName.uppercased())
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(FieldRetroPalette.ink)
-                        }
-                    }
-                }
+                PartyPokemonMoveSection(moves: props.moves)
             }
         }
         .frame(width: Self.layoutWidth, alignment: .leading)
@@ -404,6 +388,146 @@ struct PartyPokemonHoverCard: View {
         let progress = max(0, props.totalExperience - props.levelStartExperience)
         let needed = max(1, props.nextLevelExperience - props.levelStartExperience)
         return "EXP \(progress)/\(needed)"
+    }
+}
+
+struct PartyPokemonMoveSection: View {
+    let moves: [PartySidebarMoveProps]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("MOVES")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.56))
+
+            if moves.isEmpty {
+                GameplayMoveCardEmptyState {
+                    Text("No moves known")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(moves) { move in
+                        PartyPokemonMoveRow(props: move)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct PartyPokemonMoveRow: View {
+    let props: PartySidebarMoveProps
+
+    var body: some View {
+        GameplayMoveCard(props: props)
+    }
+}
+
+struct GameplayMoveCard: View {
+    let props: PartySidebarMoveProps
+    var isSelectable = true
+    var isFocused = false
+    var showsFocusIndicator = false
+
+    private let cardPadding = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
+
+    var body: some View {
+        GameplaySidebarInsetSurface(
+            padding: cardPadding,
+            tint: rowTint
+        ) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if showsFocusIndicator {
+                        Text(isFocused ? "▶" : " ")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(textColor.opacity(0.92))
+                            .frame(width: 10, alignment: .leading)
+                    }
+
+                    Text(props.displayName.uppercased())
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(textColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    Spacer(minLength: 6)
+
+                    if let typeChipText = props.typeChipText {
+                        PartyPokemonCompactChipSurface(
+                            backgroundColor: FieldRetroPalette.pokemonTypeBadgeBackground(for: typeChipText),
+                            tint: FieldRetroPalette.pokemonTypeGlassTint(for: typeChipText)
+                        ) {
+                            Text(typeChipText)
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(textColor.opacity(0.82))
+                        }
+                    }
+                }
+
+                GlassEffectContainer(spacing: 6) {
+                    HStack(spacing: 4) {
+                        ForEach(props.metadataChips) { chip in
+                            PartyPokemonMoveMetaChip(props: chip)
+                        }
+                    }
+                }
+            }
+        }
+        .opacity(isSelectable ? 1 : 0.72)
+        .overlay {
+            if isFocused {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(FieldRetroPalette.outline.opacity(0.18), lineWidth: 1.5)
+            }
+        }
+    }
+
+    private var rowTint: Color {
+        guard let typeLabel = props.typeChipText else {
+            return FieldRetroPalette.accentGlassTint
+        }
+        return FieldRetroPalette.pokemonTypeGlassTint(for: typeLabel)
+    }
+
+    private var textColor: Color {
+        isSelectable ? FieldRetroPalette.ink : FieldRetroPalette.ink.opacity(0.44)
+    }
+}
+
+struct GameplayMoveCardEmptyState<Content: View>: View {
+    let content: Content
+
+    private let cardPadding = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        GameplaySidebarInsetSurface(
+            padding: cardPadding,
+            tint: FieldRetroPalette.interactiveGlassTint
+        ) {
+            content
+        }
+    }
+}
+
+struct PartyPokemonMoveMetaChip: View {
+    let props: PartySidebarMoveMetadataProps
+
+    var body: some View {
+        PartyPokemonCompactChipSurface(
+            backgroundColor: FieldRetroPalette.slotFill.opacity(0.82),
+            tint: FieldRetroPalette.interactiveGlassTint
+        ) {
+            Text(props.displayText)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.76))
+        }
     }
 }
 
@@ -428,11 +552,42 @@ struct PartyPokemonLargeSpriteTile: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(FieldRetroPalette.outline.opacity(0.12), lineWidth: 1)
         }
-        .frame(width: 76, height: 76)
+        .frame(width: 68, height: 68)
         .glassEffect(
             .regular.tint(FieldRetroPalette.accentGlassTint),
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
+    }
+}
+
+struct PartyPokemonCompactChipSurface<Content: View>: View {
+    let backgroundColor: Color
+    let tint: Color
+    let content: Content
+
+    init(
+        backgroundColor: Color,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.backgroundColor = backgroundColor
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(backgroundColor, in: Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(FieldRetroPalette.outline.opacity(0.08), lineWidth: 1)
+            }
+            .glassEffect(
+                .regular.tint(tint),
+                in: Capsule(style: .continuous)
+            )
     }
 }
 
