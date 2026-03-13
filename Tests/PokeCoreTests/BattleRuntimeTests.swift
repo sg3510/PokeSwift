@@ -1965,6 +1965,45 @@ extension PokeCoreTests {
         XCTAssertGreaterThan(continuedThrash.updatedAttacker.battleEffects.confusionTurnsRemaining, 0)
     }
 
+    func testBideAccumulatesDamageTakenDuringStorageTurns() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "SLOWBRO", displayName: "Slowbro", primaryType: "WATER", secondaryType: "PSYCHIC_TYPE", baseHP: 95, baseAttack: 75, baseDefense: 110, baseSpeed: 30, baseSpecial: 80, startingMoves: ["BIDE"]),
+                        .init(id: "TARGET", displayName: "Target", primaryType: "NORMAL", baseHP: 75, baseAttack: 50, baseDefense: 55, baseSpeed: 40, baseSpecial: 45, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "BIDE", displayName: "BIDE", power: 0, accuracy: 100, maxPP: 10, effect: "BIDE_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        var bider = runtime.makePokemon(speciesID: "SLOWBRO", level: 18, nickname: "Slowbro")
+        var target = runtime.makePokemon(speciesID: "TARGET", level: 18, nickname: "Target")
+        runtime.battleRandomOverrides = [0]
+        _ = runtime.applyMove(attacker: &bider, defender: &target, moveIndex: 0)
+        XCTAssertEqual(bider.battleEffects.bideTurnsRemaining, 2)
+
+        runtime.battleRandomOverrides = [0, 255]
+        let tackleDamage = runtime.applyMove(attacker: &target, defender: &bider, moveIndex: 0)
+        XCTAssertGreaterThan(tackleDamage.dealtDamage, 0)
+        XCTAssertEqual(bider.battleEffects.bideAccumulatedDamage, tackleDamage.dealtDamage)
+
+        bider.battleEffects.bideTurnsRemaining = 1
+        let release = runtime.resolveBattleAction(
+            side: .player,
+            attacker: bider,
+            defender: target,
+            moveIndex: 0,
+            defenderCanActLaterInTurn: false
+        )
+        XCTAssertEqual(release.dealtDamage, tackleDamage.dealtDamage * 2)
+    }
+
     func testSubstituteRageTransformAndConversionMutateBattleState() {
         let runtime = GameRuntime(
             content: fixtureContent(
@@ -2390,6 +2429,52 @@ extension PokeCoreTests {
         let furyAttackResult = runtime.applyMove(attacker: &furyAttackAttacker, defender: &furyAttackDefender, moveIndex: 1)
         XCTAssertEqual(furyAttackResult.dealtDamage, furyAttackPerHit * 5)
         XCTAssertTrue(furyAttackResult.messages.contains("Hit 5 times!"))
+    }
+
+    func testMultiHitMovesRespectSubstituteRouting() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "MULTI", displayName: "Multi", primaryType: "NORMAL", baseHP: 60, baseAttack: 75, baseDefense: 60, baseSpeed: 70, baseSpecial: 40, startingMoves: ["DOUBLE_KICK"]),
+                        .init(id: "WALL", displayName: "Wall", primaryType: "NORMAL", baseHP: 90, baseAttack: 50, baseDefense: 55, baseSpeed: 30, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "DOUBLE_KICK", displayName: "DOUBLE KICK", power: 30, accuracy: 100, maxPP: 30, effect: "ATTACK_TWICE_EFFECT", type: "FIGHTING"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        var attacker = runtime.makePokemon(speciesID: "MULTI", level: 18, nickname: "Multi")
+        var defender = runtime.makePokemon(speciesID: "WALL", level: 18, nickname: "Wall")
+        let doubleKick = try! XCTUnwrap(runtime.content.move(id: "DOUBLE_KICK"))
+        let damagePerHit = runtime.resolvedMoveDamage(
+            move: doubleKick,
+            attacker: attacker,
+            defender: defender,
+            adjustedAttack: runtime.adjustedOffenseStat(for: attacker, moveType: doubleKick.type, criticalHit: false),
+            adjustedDefense: max(1, runtime.adjustedDefenseStat(for: defender, moveType: doubleKick.type, moveEffect: doubleKick.effect, criticalHit: false)),
+            typeMultiplier: runtime.totalTypeMultiplier(for: doubleKick.type, defender: defender),
+            criticalHit: false
+        )
+
+        defender.battleEffects.hasSubstitute = true
+        defender.battleEffects.substituteHP = damagePerHit * 2 + 5
+        let hpBefore = defender.currentHP
+
+        runtime.battleRandomOverrides = [0, 255]
+        let result = runtime.applyMove(attacker: &attacker, defender: &defender, moveIndex: 0)
+
+        XCTAssertEqual(result.dealtDamage, damagePerHit * 2)
+        XCTAssertTrue(result.messages.contains("Substitute took damage!"))
+        XCTAssertTrue(result.messages.contains("Hit 2 times!"))
+        XCTAssertEqual(defender.currentHP, hpBefore)
+        XCTAssertEqual(defender.battleEffects.lastDamageTaken, 0)
+        XCTAssertTrue(defender.battleEffects.hasSubstitute)
+        XCTAssertEqual(defender.battleEffects.substituteHP, 5)
     }
 
     func testTwineedlePoisonsAfterMultiHitResolution() {

@@ -73,6 +73,7 @@ private struct BattleTurnPreparationResult {
 private struct ResolvedMultiHitMove {
     let dealtDamage: Int
     let lastHitDamage: Int
+    let hitSubstitute: Bool
     let messages: [String]
 }
 
@@ -379,6 +380,9 @@ extension GameRuntime {
             )
             dealtDamage = multiHitResult.dealtDamage
             defender.battleEffects.lastDamageTaken = multiHitResult.lastHitDamage
+            if multiHitResult.hitSubstitute {
+                shouldApplyEffect = false
+            }
             messages.append(contentsOf: multiHitResult.messages)
         } else if moveCanDealDamage(move, forcedDamage: forcedDamage) {
             let isCriticalHit = isCounterMove ? false : isCriticalHit(for: attacker)
@@ -412,23 +416,20 @@ extension GameRuntime {
                     forcedDamage: forcedDamage
                 )
             }
-            var appliedDamage = damage
-            let substituteResult = applyDamageToSubstituteIfNeeded(
-                dealtDamage: appliedDamage,
+            let damageResult = applyIncomingDamageToBattleDefender(
+                dealtDamage: damage,
                 defender: &defender
             )
-            dealtDamage = substituteResult.appliedDamage
-            messages.append(contentsOf: substituteResult.messages)
+            dealtDamage = damageResult.appliedDamage
+            messages.append(contentsOf: damageResult.messages)
 
-            if substituteResult.hitSubstitute == false {
-                defender.currentHP = max(0, defender.currentHP - appliedDamage)
-                defender.battleEffects.lastDamageTaken = appliedDamage
+            if damageResult.hitSubstitute == false {
+                defender.battleEffects.lastDamageTaken = damage
             } else {
-                appliedDamage = substituteResult.appliedDamage
                 shouldApplyEffect = false
             }
 
-            if substituteResult.hitSubstitute == false, typeMultiplier == 0 {
+            if damageResult.hitSubstitute == false, typeMultiplier == 0 {
                 messages.append("It doesn't affect \(defender.nickname)!")
             } else {
                 if isCriticalHit {
@@ -563,6 +564,25 @@ extension GameRuntime {
         }
 
         return .init(hitSubstitute: true, appliedDamage: appliedDamage, messages: messages)
+    }
+
+    fileprivate func applyIncomingDamageToBattleDefender(
+        dealtDamage: Int,
+        defender: inout RuntimePokemonState
+    ) -> SubstituteDamageResult {
+        let substituteResult = applyDamageToSubstituteIfNeeded(
+            dealtDamage: dealtDamage,
+            defender: &defender
+        )
+        if substituteResult.hitSubstitute {
+            return substituteResult
+        }
+
+        defender.currentHP = max(0, defender.currentHP - dealtDamage)
+        if defender.battleEffects.bideTurnsRemaining > 0 {
+            defender.battleEffects.bideAccumulatedDamage += dealtDamage
+        }
+        return .init(hitSubstitute: false, appliedDamage: dealtDamage, messages: [])
     }
 
     func clearInterruptedMultiTurnState(for pokemon: inout RuntimePokemonState) {
@@ -1017,7 +1037,7 @@ extension GameRuntime {
         criticalHit: Bool
     ) -> ResolvedMultiHitMove {
         guard typeMultiplier > 0 else {
-            return .init(dealtDamage: 0, lastHitDamage: 0, messages: ["It doesn't affect \(defender.nickname)!"])
+            return .init(dealtDamage: 0, lastHitDamage: 0, hitSubstitute: false, messages: ["It doesn't affect \(defender.nickname)!"])
         }
 
         let damagePerHit = resolvedMoveDamage(
@@ -1033,15 +1053,25 @@ extension GameRuntime {
         var totalDamage = 0
         var actualHits = 0
         var lastHitDamage = 0
-        for _ in 0..<plannedHits where defender.currentHP > 0 {
-            let appliedDamage = min(defender.currentHP, damagePerHit)
-            defender.currentHP -= appliedDamage
-            totalDamage += appliedDamage
+        var hitSubstitute = false
+        var messages: [String] = []
+        for _ in 0..<plannedHits where defender.currentHP > 0 || defender.battleEffects.hasSubstitute {
+            let hitResult = applyIncomingDamageToBattleDefender(
+                dealtDamage: damagePerHit,
+                defender: &defender
+            )
+            totalDamage += hitResult.appliedDamage
             actualHits += 1
-            lastHitDamage = appliedDamage
+            if hitResult.hitSubstitute {
+                hitSubstitute = true
+            } else {
+                lastHitDamage = hitResult.appliedDamage
+            }
+            for message in hitResult.messages where messages.contains(message) == false {
+                messages.append(message)
+            }
         }
 
-        var messages: [String] = []
         if criticalHit {
             messages.append("Critical hit!")
         }
@@ -1056,7 +1086,7 @@ extension GameRuntime {
             messages.append("Hit \(actualHits) times!")
         }
 
-        return .init(dealtDamage: totalDamage, lastHitDamage: lastHitDamage, messages: messages)
+        return .init(dealtDamage: totalDamage, lastHitDamage: lastHitDamage, hitSubstitute: hitSubstitute, messages: messages)
     }
 
     func resolvedCounterDamage(attacker: RuntimePokemonState, defender: RuntimePokemonState) -> Int? {
