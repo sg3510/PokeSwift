@@ -38,16 +38,25 @@ struct FieldAlertBubbleView: View {
 
 struct FieldViewportTransitionOverlay: View {
     let transition: FieldTransitionTelemetry?
+    let keepCovered: Bool
 
     var body: some View {
         Rectangle()
             .fill(Color.black)
-            .opacity(targetOpacity)
+            .opacity(Self.targetOpacity(transition: transition, keepCovered: keepCovered))
             .animation(.linear(duration: 0.12), value: transition?.phase)
+            .animation(.linear(duration: 0.12), value: keepCovered)
             .allowsHitTesting(false)
     }
 
-    private var targetOpacity: Double {
-        transition?.phase == "fadingOut" ? 1 : 0
+    static func targetOpacity(
+        transition: FieldTransitionTelemetry?,
+        keepCovered: Bool
+    ) -> Double {
+        guard transition != nil else { return 0 }
+        if keepCovered {
+            return 1
+        }
+        return transition?.phase == "fadingOut" ? 1 : 0
     }
 }

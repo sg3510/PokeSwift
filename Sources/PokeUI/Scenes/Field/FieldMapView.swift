@@ -54,6 +54,11 @@ public struct FieldMapView: View {
             let viewportWidth = CGFloat(FieldSceneRenderer.viewportPixelSize.width) * scale
             let viewportHeight = CGFloat(FieldSceneRenderer.viewportPixelSize.height) * scale
             let displayedRenderedScene = Self.displayedRenderedScene(renderedScene, currentMapID: map.id)
+            let keepTransitionCovered = Self.shouldKeepTransitionCovered(
+                transition: transition,
+                displayedRenderedScene: displayedRenderedScene,
+                hasRenderAssets: renderAssets != nil
+            )
 
             ZStack {
                 if let displayedRenderedScene {
@@ -69,7 +74,8 @@ public struct FieldMapView: View {
                         cameraOrigin: presentedCameraOrigin,
                         playerWorldPosition: presentedPlayerWorldPosition,
                         objectWorldPositions: presentedObjectWorldPositions,
-                        objectStepAnimations: objectStepAnimations
+                        objectStepAnimations: objectStepAnimations,
+                        keepTransitionCovered: keepTransitionCovered
                     )
                 } else {
                     FixedViewportPlaceholderField(
@@ -83,7 +89,8 @@ public struct FieldMapView: View {
                         displayStyle: displayStyle,
                         displayScale: scale,
                         cameraOrigin: presentedCameraOrigin,
-                        playerWorldPosition: presentedPlayerWorldPosition
+                        playerWorldPosition: presentedPlayerWorldPosition,
+                        keepTransitionCovered: keepTransitionCovered
                     )
                 }
             }
@@ -146,6 +153,14 @@ public struct FieldMapView: View {
         return renderedScene
     }
 
+    static func shouldKeepTransitionCovered(
+        transition: FieldTransitionTelemetry?,
+        displayedRenderedScene: FieldRenderedScene?,
+        hasRenderAssets: Bool
+    ) -> Bool {
+        hasRenderAssets && transition != nil && displayedRenderedScene == nil
+    }
+
     @MainActor
     private func updateRenderedScene() async {
         guard let renderAssets else {
@@ -154,10 +169,6 @@ public struct FieldMapView: View {
         }
 
         let targetMapID = map.id
-        if renderedScene?.mapID != targetMapID {
-            renderedScene = nil
-        }
-
         let scene = await renderFieldScene(assets: renderAssets)
         guard Task.isCancelled == false,
               scene?.mapID == targetMapID else { return }

@@ -73,6 +73,57 @@ extension PokeUITests {
       FieldMapView.displayedRenderedScene(renderedScene, currentMapID: currentMap.id)?.mapID,
       currentMap.id)
   }
+  func testCrossMapTransitionKeepsScreenCoveredUntilRenderedSceneIsReady() {
+    let transition = FieldTransitionTelemetry(kind: "warp", phase: "fadingIn")
+
+    XCTAssertTrue(
+      FieldMapView.shouldKeepTransitionCovered(
+        transition: transition,
+        displayedRenderedScene: nil,
+        hasRenderAssets: true
+      )
+    )
+  }
+  func testCrossMapTransitionDoesNotKeepScreenCoveredOnceRenderedSceneIsReady() throws {
+    let currentMap = makePaletteMap(blockWidth: 2, blockHeight: 2)
+    let renderedScene = try makeRenderedScene(mapID: currentMap.id, map: currentMap)
+    let transition = FieldTransitionTelemetry(kind: "warp", phase: "fadingIn")
+
+    XCTAssertFalse(
+      FieldMapView.shouldKeepTransitionCovered(
+        transition: transition,
+        displayedRenderedScene: renderedScene,
+        hasRenderAssets: true
+      )
+    )
+  }
+  func testTransitionOverlayStaysOpaqueWhenCoverMustBeMaintained() {
+    let transition = FieldTransitionTelemetry(kind: "warp", phase: "fadingIn")
+
+    XCTAssertEqual(
+      FieldViewportTransitionOverlay.targetOpacity(
+        transition: transition,
+        keepCovered: true
+      ),
+      1
+    )
+  }
+  func testTransitionOverlayOnlyAutoCoversFadeOutWhenSceneIsReady() {
+    XCTAssertEqual(
+      FieldViewportTransitionOverlay.targetOpacity(
+        transition: .init(kind: "warp", phase: "fadingOut"),
+        keepCovered: false
+      ),
+      1
+    )
+    XCTAssertEqual(
+      FieldViewportTransitionOverlay.targetOpacity(
+        transition: .init(kind: "warp", phase: "fadingIn"),
+        keepCovered: false
+      ),
+      0
+    )
+  }
   func testSpriteFrameLookupUsesExplicitFacingFrames() {
     let definition = FieldSpriteDefinition(
       id: "SPRITE_RED",

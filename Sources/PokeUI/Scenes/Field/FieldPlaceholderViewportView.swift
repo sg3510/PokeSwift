@@ -18,6 +18,7 @@ struct FixedViewportPlaceholderField: View {
     let displayScale: CGFloat
     let cameraOrigin: CGPoint
     let playerWorldPosition: CGPoint
+    let keepTransitionCovered: Bool
 
     var body: some View {
         let viewportWidth = CGFloat(FieldSceneRenderer.viewportPixelSize.width) * displayScale
@@ -98,7 +99,10 @@ struct FixedViewportPlaceholderField: View {
         .frame(width: viewportWidth, height: viewportHeight, alignment: .topLeading)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
-            FieldViewportTransitionOverlay(transition: transition)
+            FieldViewportTransitionOverlay(
+                transition: transition,
+                keepCovered: keepTransitionCovered
+            )
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }

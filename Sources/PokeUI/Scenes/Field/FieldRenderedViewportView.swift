@@ -19,6 +19,7 @@ struct FixedViewportRenderedField: View {
     let playerWorldPosition: CGPoint
     let objectWorldPositions: [String: CGPoint]
     let objectStepAnimations: [String: ObjectStepAnimationState]
+    let keepTransitionCovered: Bool
 
     var body: some View {
         let cornerRadius = max(6, displayScale * 2.5)
@@ -95,7 +96,10 @@ struct FixedViewportRenderedField: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
-                FieldViewportTransitionOverlay(transition: transition)
+                FieldViewportTransitionOverlay(
+                    transition: transition,
+                    keepCovered: keepTransitionCovered
+                )
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             }
         }
