@@ -6,7 +6,7 @@ import PokeDataModel
 @MainActor
 @Observable
 public final class GameRuntime {
-    nonisolated public static let saveSchemaVersion = 7
+    nonisolated public static let saveSchemaVersion = 8
 
     public let content: LoadedContent
 
@@ -42,6 +42,7 @@ public final class GameRuntime {
     var fieldPartyReorderState: RuntimeFieldPartyReorderState?
     public internal(set) var namingState: RuntimeNamingState?
     public internal(set) var nicknameConfirmation: RuntimeNicknameConfirmationState?
+    public internal(set) var oakIntroState: OakIntroState?
     var deferredActions: [DeferredAction] = []
     var currentAudioState: RuntimeAudioState?
     var recentSoundEffects: [RuntimeSoundEffectState] = []
@@ -151,6 +152,10 @@ public final class GameRuntime {
         gameplayState?.seenSpeciesIDs ?? []
     }
 
+    public var encounterCountsBySpeciesID: [String: Int] {
+        gameplayState?.speciesEncounterCounts ?? [:]
+    }
+
     var currentInventoryItems: [RuntimeInventoryItemState] {
         gameplayState?.inventory.sorted { $0.itemID < $1.itemID } ?? []
     }
@@ -219,7 +224,12 @@ public final class GameRuntime {
               dialogue.pages.indices.contains(dialogueState.pageIndex) else {
             return nil
         }
-        return dialogue.pages[dialogueState.pageIndex]
+        let page = dialogue.pages[dialogueState.pageIndex]
+        let substitutedLines = page.lines.map {
+            $0.replacingOccurrences(of: "<PLAYER>", with: playerName)
+              .replacingOccurrences(of: "<RIVAL>", with: gameplayState?.rivalName ?? "BLUE")
+        }
+        return DialoguePage(lines: substitutedLines, waitsForPrompt: page.waitsForPrompt, events: page.events)
     }
 
     public var starterChoiceOptions: [SpeciesManifest] {
@@ -277,6 +287,30 @@ public final class GameRuntime {
         isSaveableFieldGameplay && saveMetadata != nil
     }
 
+    public var namingCharacterHandler: ((Character) -> Void)? {
+        if scene == .naming {
+            return { [self] char in self.typeNamingCharacter(char) }
+        }
+        if scene == .oakIntro,
+           let state = oakIntroState,
+           (state.phase == .namingPlayer || state.phase == .namingRival),
+           state.isTypingCustomName {
+            return { [self] char in self.typeOakIntroCharacter(char) }
+        }
+        return nil
+    }
+
+    public func typeOakIntroCharacter(_ character: Character) {
+        guard var state = oakIntroState,
+              state.phase == .namingPlayer || state.phase == .namingRival else { return }
+        let upper = Character(character.uppercased())
+        guard RuntimeNamingState.validCharacters.contains(upper) else { return }
+        guard state.enteredCharacters.count < RuntimeNamingState.maxLength else { return }
+        state.enteredCharacters.append(upper)
+        oakIntroState = state
+        publishSnapshot()
+    }
+
     public func setAcquisitionRandomOverrides(_ values: [Int]) {
         acquisitionRandomOverrides = values
     }
@@ -329,6 +363,8 @@ public final class GameRuntime {
             handleBattle(button: button)
         case .naming:
             handleNaming(button: button)
+        case .oakIntro:
+            handleOakIntro(button: button)
         case .placeholder:
             if button == .cancel {
                 scene = .titleMenu

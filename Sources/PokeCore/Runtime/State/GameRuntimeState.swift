@@ -568,6 +568,80 @@ public struct RuntimeNamingState {
     public var enteredText: String { String(enteredCharacters) }
 }
 
+public enum OakIntroPhase: String {
+    case oakAppears
+    case nidorinoAppears
+    case playerAppears
+    case namingPlayer
+    case playerNamed
+    case rivalAppears
+    case namingRival
+    case rivalNamed
+    case finalSpeech
+    case fadeOut
+
+    public func dialoguePages(playerName: String?, rivalName: String?) -> [[String]] {
+        switch self {
+        case .oakAppears:
+            [
+                ["Hello there!", "Welcome to the world", "of POKéMON!"],
+                ["My name is OAK!", "People call me the", "POKéMON PROF!"],
+            ]
+        case .nidorinoAppears:
+            [
+                ["This world is", "inhabited by creatures", "called POKéMON!"],
+                ["For some people,", "POKéMON are pets.", "Others use them for fights."],
+                ["Myself…", "I study POKéMON", "as a profession."],
+            ]
+        case .playerAppears:
+            [["First, what is", "your name?"]]
+        case .playerNamed:
+            [["Right! So your", "name is \(playerName ?? "RED")!"]]
+        case .rivalAppears:
+            [
+                ["This is my grand-", "son. He's been your rival", "since you were a baby."],
+                ["…Erm, what is", "his name again?"],
+            ]
+        case .rivalNamed:
+            [["That's right!", "I remember now!", "His name is \(rivalName ?? "BLUE")!"]]
+        case .finalSpeech:
+            [
+                ["\(playerName ?? "RED")!", "Your very own", "POKéMON legend is", "about to unfold!"],
+                ["A world of dreams", "and adventures with", "POKéMON awaits!", "Let's go!"],
+            ]
+        case .namingPlayer, .namingRival, .fadeOut:
+            []
+        }
+    }
+}
+
+public struct OakIntroState {
+    public static let playerNamePresets = ["NEW NAME", "RED", "ASH", "JACK"]
+    public static let rivalNamePresets = ["NEW NAME", "BLUE", "GARY", "JOHN"]
+
+    public internal(set) var phase: OakIntroPhase
+    public internal(set) var currentPageIndex: Int
+    public internal(set) var enteredCharacters: [Character]
+    public internal(set) var playerName: String?
+    public internal(set) var rivalName: String?
+    public internal(set) var namePresetFocusedIndex: Int
+    public internal(set) var isTypingCustomName: Bool
+
+    public var enteredText: String { String(enteredCharacters) }
+
+    public var dialoguePages: [[String]] {
+        phase.dialoguePages(playerName: playerName, rivalName: rivalName)
+    }
+
+    public var currentPresets: [String] {
+        switch phase {
+        case .namingPlayer: return Self.playerNamePresets
+        case .namingRival: return Self.rivalNamePresets
+        default: return []
+        }
+    }
+}
+
 struct RuntimeFieldAlertState: Equatable {
     var objectID: String
     var kind: FieldAlertBubbleKind
@@ -586,6 +660,7 @@ struct GameplayState {
     var boxedPokemon: [RuntimePokemonBoxState]
     var ownedSpeciesIDs: Set<String>
     var seenSpeciesIDs: Set<String>
+    var speciesEncounterCounts: [String: Int]
     var earnedBadgeIDs: Set<String>
     var gotStarterBit: Bool
     var playerName: String
