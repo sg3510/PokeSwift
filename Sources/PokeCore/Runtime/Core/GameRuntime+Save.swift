@@ -252,6 +252,7 @@ extension GameRuntime {
             accuracyStage: pokemon.accuracyStage,
             evasionStage: pokemon.evasionStage,
             majorStatus: pokemon.majorStatus,
+            statusCounter: pokemon.statusCounter,
             moves: pokemon.moves.map { GameSaveMove(id: $0.id, currentPP: $0.currentPP) }
         )
     }
@@ -287,6 +288,7 @@ extension GameRuntime {
             accuracyStage: pokemon.accuracyStage,
             evasionStage: pokemon.evasionStage,
             majorStatus: pokemon.majorStatus,
+            statusCounter: pokemon.statusCounter,
             moves: pokemon.moves.map { RuntimeMoveState(id: $0.id, currentPP: $0.currentPP) }
         )
     }

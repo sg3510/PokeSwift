@@ -38,6 +38,7 @@ extension PokeCoreTests {
         runtime.handle(button: .start)
         await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
         runtime.handle(button: .confirm)
+        completeOakIntro(runtime)
 
         let snapshot = runtime.currentSnapshot()
         XCTAssertEqual(snapshot.scene, .field)
@@ -50,6 +51,7 @@ extension PokeCoreTests {
         let saveStore = InMemorySaveStore()
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
         runtime.beginNewGame()
+        completeOakIntro(runtime)
 
         runtime.gameplayState?.mapID = "REDS_HOUSE_2F"
         runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 3)
@@ -98,6 +100,7 @@ extension PokeCoreTests {
                 accuracyStage: 0,
                 evasionStage: 0,
                 majorStatus: .sleep,
+                statusCounter: 2,
                 moves: []
             )
         ]
@@ -113,6 +116,7 @@ extension PokeCoreTests {
         XCTAssertEqual(saveStore.envelope?.snapshot.currentBoxIndex, 1)
         XCTAssertEqual(saveStore.envelope?.snapshot.boxedPokemon[1].pokemon.first?.nickname, "BoxedMon")
         XCTAssertEqual(saveStore.envelope?.snapshot.boxedPokemon[1].pokemon.first?.majorStatus, .sleep)
+        XCTAssertEqual(saveStore.envelope?.snapshot.boxedPokemon[1].pokemon.first?.statusCounter, 2)
         XCTAssertEqual(saveStore.envelope?.snapshot.ownedSpeciesIDs.sorted(), ["PIDGEY", "SQUIRTLE"])
         XCTAssertEqual(saveStore.envelope?.snapshot.seenSpeciesIDs.sorted(), ["PIDGEY", "RATTATA", "SQUIRTLE"])
         XCTAssertEqual(saveStore.envelope?.snapshot.speciesEncounterCounts, ["SQUIRTLE": 4, "PIDGEY": 2, "RATTATA": 7])
@@ -141,6 +145,7 @@ extension PokeCoreTests {
         XCTAssertEqual(resumed.gameplayState?.currentBoxIndex, 1)
         XCTAssertEqual(resumed.gameplayState?.boxedPokemon[1].pokemon.first?.nickname, "BoxedMon")
         XCTAssertEqual(resumed.gameplayState?.boxedPokemon[1].pokemon.first?.majorStatus, .sleep)
+        XCTAssertEqual(resumed.gameplayState?.boxedPokemon[1].pokemon.first?.statusCounter, 2)
         XCTAssertEqual(resumed.gameplayState?.ownedSpeciesIDs, Set(["SQUIRTLE", "PIDGEY"]))
         XCTAssertEqual(resumed.gameplayState?.seenSpeciesIDs, Set(["SQUIRTLE", "PIDGEY", "RATTATA"]))
         XCTAssertEqual(resumed.gameplayState?.speciesEncounterCounts, ["SQUIRTLE": 4, "PIDGEY": 2, "RATTATA": 7])
@@ -422,6 +427,7 @@ extension PokeCoreTests {
         let saveStore = InMemorySaveStore()
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
         runtime.beginNewGame()
+        completeOakIntro(runtime)
 
         XCTAssertTrue(runtime.saveCurrentGame())
 
@@ -516,6 +522,7 @@ extension PokeCoreTests {
         )
 
         runtime.beginNewGame()
+        completeOakIntro(runtime)
 
         XCTAssertEqual(runtime.scene, .field)
         XCTAssertEqual(runtime.nextAcquisitionRandomByte(), expectedRuntimeRandomByte(afterSeedingWith: expectedSeed))

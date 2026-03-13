@@ -99,14 +99,15 @@ extension GameRuntime {
         to pokemon: inout RuntimePokemonState,
         isTrainerBattle: Bool
     ) -> BattleExperienceRewardResult {
+        let baseSpeciesID = levelUpSpeciesID(for: pokemon)
         let gainedExperience = battleExperienceAward(for: defeatedPokemon, isTrainerBattle: isTrainerBattle)
         let updatedStatExp = awardStatExp(from: defeatedPokemon, to: pokemon.statExp)
-        let maximumExperience = maximumExperience(for: pokemon.speciesID)
+        let maximumExperience = maximumExperience(for: baseSpeciesID)
         let updatedExperience = min(maximumExperience, pokemon.experience + gainedExperience)
         let updatedLevel = levelAfterGainingExperience(
             currentLevel: pokemon.level,
             updatedExperience: updatedExperience,
-            speciesID: pokemon.speciesID
+            speciesID: baseSpeciesID
         )
         guard gainedExperience > 0 || updatedStatExp != pokemon.statExp else {
             return BattleExperienceRewardResult(messages: [], pendingLearnMove: nil)
@@ -118,7 +119,7 @@ extension GameRuntime {
 
         if updatedLevel > previousLevel {
             let recalculatedPokemon = makeConfiguredPokemon(
-                speciesID: pokemon.speciesID,
+                speciesID: baseSpeciesID,
                 nickname: pokemon.nickname,
                 level: updatedLevel,
                 experience: updatedExperience,
@@ -132,14 +133,50 @@ extension GameRuntime {
                 accuracyStage: pokemon.accuracyStage,
                 evasionStage: pokemon.evasionStage,
                 majorStatus: pokemon.majorStatus,
-                moves: pokemon.moves
+                moves: levelUpMoveSet(for: pokemon)
             )
             let gainedMaxHP = recalculatedPokemon.maxHP - previousMaxHP
-            var leveledPokemon = recalculatedPokemon
-            leveledPokemon.currentHP = min(
-                recalculatedPokemon.maxHP,
-                max(0, pokemon.currentHP + gainedMaxHP)
-            )
+            var leveledPokemon: RuntimePokemonState
+            if pokemon.battleEffects.transformedState != nil {
+                leveledPokemon = RuntimePokemonState(
+                    speciesID: pokemon.speciesID,
+                    nickname: pokemon.nickname,
+                    level: updatedLevel,
+                    experience: updatedExperience,
+                    dvs: pokemon.dvs,
+                    statExp: updatedStatExp,
+                    maxHP: recalculatedPokemon.maxHP,
+                    currentHP: min(
+                        recalculatedPokemon.maxHP,
+                        max(0, pokemon.currentHP + gainedMaxHP)
+                    ),
+                    attack: pokemon.attack,
+                    defense: pokemon.defense,
+                    speed: pokemon.speed,
+                    special: pokemon.special,
+                    attackStage: pokemon.attackStage,
+                    defenseStage: pokemon.defenseStage,
+                    speedStage: pokemon.speedStage,
+                    specialStage: pokemon.specialStage,
+                    accuracyStage: pokemon.accuracyStage,
+                    evasionStage: pokemon.evasionStage,
+                    majorStatus: pokemon.majorStatus,
+                    statusCounter: pokemon.statusCounter,
+                    isBadlyPoisoned: pokemon.isBadlyPoisoned,
+                    moves: pokemon.moves,
+                    battleEffects: pokemon.battleEffects
+                )
+                updateTransformedOriginalState(for: &leveledPokemon, originalPokemon: recalculatedPokemon)
+            } else {
+                leveledPokemon = recalculatedPokemon
+                leveledPokemon.currentHP = min(
+                    recalculatedPokemon.maxHP,
+                    max(0, pokemon.currentHP + gainedMaxHP)
+                )
+                leveledPokemon.statusCounter = pokemon.statusCounter
+                leveledPokemon.isBadlyPoisoned = pokemon.isBadlyPoisoned
+                leveledPokemon.battleEffects = pokemon.battleEffects
+            }
             pokemon = leveledPokemon
         } else {
             pokemon = RuntimePokemonState(
@@ -162,7 +199,10 @@ extension GameRuntime {
                 accuracyStage: pokemon.accuracyStage,
                 evasionStage: pokemon.evasionStage,
                 majorStatus: pokemon.majorStatus,
-                moves: pokemon.moves
+                statusCounter: pokemon.statusCounter,
+                isBadlyPoisoned: pokemon.isBadlyPoisoned,
+                moves: pokemon.moves,
+                battleEffects: pokemon.battleEffects
             )
         }
 
@@ -175,7 +215,7 @@ extension GameRuntime {
         let learnMoveResult = applyPendingLevelUpMoves(
             to: &pokemon,
             moveIDs: levelUpMoveIDsDue(
-                for: pokemon.speciesID,
+                for: baseSpeciesID,
                 from: previousLevel,
                 to: updatedLevel
             )
@@ -204,16 +244,18 @@ extension GameRuntime {
     ) -> LevelUpMoveProcessingResult {
         var messages: [String] = []
         var pendingMoveIDs = moveIDs
+        var knownMoves = levelUpMoveSet(for: pokemon)
 
         while pendingMoveIDs.isEmpty == false {
             let moveID = pendingMoveIDs.removeFirst()
-            guard pokemon.moves.contains(where: { $0.id == moveID }) == false,
+            guard knownMoves.contains(where: { $0.id == moveID }) == false,
                   let move = content.move(id: moveID) else {
                 continue
             }
 
-            if pokemon.moves.count < 4 {
-                pokemon.moves.append(RuntimeMoveState(id: move.id, currentPP: move.maxPP))
+            if knownMoves.count < 4 {
+                knownMoves.append(RuntimeMoveState(id: move.id, currentPP: move.maxPP))
+                setLevelUpMoveSet(knownMoves, for: &pokemon)
                 messages.append("\(pokemon.nickname) learned \(move.displayName)!")
                 continue
             }
@@ -278,12 +320,16 @@ extension GameRuntime {
     func resolveLearnMoveSelection(battle: inout RuntimeBattleState) {
         guard battle.phase == .learnMoveSelection,
               let learnMoveState = battle.learnMoveState,
-              battle.playerPokemon.moves.indices.contains(battle.focusedMoveIndex),
               let newMove = content.move(id: learnMoveState.moveID) else {
             return
         }
 
-        let forgottenMoveID = battle.playerPokemon.moves[battle.focusedMoveIndex].id
+        var knownMoves = levelUpMoveSet(for: battle.playerPokemon)
+        guard knownMoves.indices.contains(battle.focusedMoveIndex) else {
+            return
+        }
+
+        let forgottenMoveID = knownMoves[battle.focusedMoveIndex].id
         guard hmMoveIDs.contains(forgottenMoveID) == false else {
             let moveDisplayName = content.move(id: forgottenMoveID)?.displayName ?? forgottenMoveID
             battle.message = "\(moveDisplayName) can't be forgotten."
@@ -291,10 +337,11 @@ extension GameRuntime {
         }
 
         let forgottenMoveName = content.move(id: forgottenMoveID)?.displayName ?? forgottenMoveID
-        battle.playerPokemon.moves[battle.focusedMoveIndex] = RuntimeMoveState(
+        knownMoves[battle.focusedMoveIndex] = RuntimeMoveState(
             id: newMove.id,
             currentPP: newMove.maxPP
         )
+        setLevelUpMoveSet(knownMoves, for: &battle.playerPokemon)
         battle.learnMoveState = nil
 
         processPendingLevelUpMoves(
@@ -324,6 +371,53 @@ extension GameRuntime {
         }
 
         presentBattleMessages(messages, battle: &battle, pendingAction: .continueLevelUpResolution)
+    }
+
+    func levelUpSpeciesID(for pokemon: RuntimePokemonState) -> String {
+        pokemon.battleEffects.transformedState?.originalSpeciesID ?? pokemon.speciesID
+    }
+
+    func levelUpMoveSet(for pokemon: RuntimePokemonState) -> [RuntimeMoveState] {
+        pokemon.battleEffects.transformedState?.originalMoves ?? pokemon.moves
+    }
+
+    func battleDisplayedMoveSet(for battle: RuntimeBattleState) -> [RuntimeMoveState] {
+        if battle.learnMoveState != nil {
+            return levelUpMoveSet(for: battle.playerPokemon)
+        }
+        return battle.playerPokemon.moves
+    }
+
+    func setLevelUpMoveSet(_ moves: [RuntimeMoveState], for pokemon: inout RuntimePokemonState) {
+        guard var transformedState = pokemon.battleEffects.transformedState else {
+            pokemon.moves = moves
+            return
+        }
+
+        transformedState.originalMoves = moves
+        pokemon.battleEffects.transformedState = transformedState
+    }
+
+    func updateTransformedOriginalState(
+        for pokemon: inout RuntimePokemonState,
+        originalPokemon: RuntimePokemonState
+    ) {
+        guard var transformedState = pokemon.battleEffects.transformedState else {
+            return
+        }
+
+        transformedState.originalAttack = originalPokemon.attack
+        transformedState.originalDefense = originalPokemon.defense
+        transformedState.originalSpeed = originalPokemon.speed
+        transformedState.originalSpecial = originalPokemon.special
+        transformedState.originalAttackStage = originalPokemon.attackStage
+        transformedState.originalDefenseStage = originalPokemon.defenseStage
+        transformedState.originalSpeedStage = originalPokemon.speedStage
+        transformedState.originalSpecialStage = originalPokemon.specialStage
+        transformedState.originalAccuracyStage = originalPokemon.accuracyStage
+        transformedState.originalEvasionStage = originalPokemon.evasionStage
+        transformedState.originalMoves = originalMovesForTransformSnapshot(originalPokemon)
+        pokemon.battleEffects.transformedState = transformedState
     }
 
     func resumeRewardContinuation(battle: inout RuntimeBattleState) {

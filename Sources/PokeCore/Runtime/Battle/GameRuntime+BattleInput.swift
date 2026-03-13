@@ -108,7 +108,10 @@ extension GameRuntime {
             case .learnMoveDecision:
                 battle.focusedMoveIndex = min(1, battle.focusedMoveIndex + 1)
             case .learnMoveSelection:
-                battle.focusedMoveIndex = min(max(0, battle.playerPokemon.moves.count - 1), battle.focusedMoveIndex + 1)
+                battle.focusedMoveIndex = min(
+                    max(0, battleDisplayedMoveSet(for: battle).count - 1),
+                    battle.focusedMoveIndex + 1
+                )
             default:
                 break
             }
@@ -183,6 +186,8 @@ extension GameRuntime {
             return
         }
 
+        // Battle text can award Pay Day money directly through self.gameplayState.
+        gameplayState.money = self.gameplayState?.money ?? gameplayState.money
         gameplayState.playerParty = syncedPlayerParty(from: battle, gameplayState: gameplayState)
         gameplayState.battle = battle
         self.gameplayState = gameplayState
@@ -193,6 +198,29 @@ extension GameRuntime {
 
     func resolveBattleTurn(battle: inout RuntimeBattleState, gameplayState: inout GameplayState) {
         guard battle.phase == .moveSelection else {
+            return
+        }
+
+        if let forcedMoveIndex = forcedMoveIndex(for: battle.playerPokemon) {
+            battle.focusedMoveIndex = forcedMoveIndex
+            battle.phase = .resolvingTurn
+            battle.pendingAction = nil
+            battle.queuedMessages = []
+            battle.pendingPresentationBatches = []
+            battle.message = ""
+            updateBattlePresentation(
+                battle: &battle,
+                stage: .attackWindup,
+                uiVisibility: .visible,
+                activeSide: nil,
+                meterAnimation: nil,
+                transitionStyle: .none
+            )
+
+            let batches = makeTurnPresentationBatches(for: &battle)
+            guard let firstBatch = batches.first else { return }
+            battle.pendingPresentationBatches = Array(batches.dropFirst())
+            scheduleBattlePresentation(firstBatch, battleID: battle.battleID)
             return
         }
 
