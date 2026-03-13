@@ -559,25 +559,14 @@ private struct PokedexDetailContent: View {
     }
 
     private var detailFieldsSection: some View {
-        GameplaySidebarInsetSurface(
-            padding: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("FIELD DATA")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.48))
+        VStack(alignment: .leading, spacing: 5) {
+            Text("FIELD DATA")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.48))
 
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(minimum: 0), spacing: 8),
-                        GridItem(.flexible(minimum: 0), spacing: 8),
-                    ],
-                    alignment: .leading,
-                    spacing: 8
-                ) {
-                    ForEach(entry.detailFields) { field in
-                        PokedexDetailFieldCard(field: field)
-                    }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(entry.detailFields) { field in
+                    PokedexDetailFieldRow(field: field)
                 }
             }
         }
@@ -664,31 +653,23 @@ private struct PokedexStatRow: View {
     }
 }
 
-private struct PokedexDetailFieldCard: View {
+private struct PokedexDetailFieldRow: View {
     let field: PokedexSidebarDetailFieldProps
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(field.label)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(FieldRetroPalette.ink.opacity(0.48))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.5))
+                .frame(width: 84, alignment: .leading)
 
             Text(field.value)
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundStyle(FieldRetroPalette.ink)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(FieldRetroPalette.ink.opacity(0.84))
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(FieldRetroPalette.slotFill.opacity(0.45))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(FieldRetroPalette.outline.opacity(0.08), lineWidth: 1)
+                .minimumScaleFactor(0.7)
+
+            Spacer(minLength: 0)
         }
     }
 }
