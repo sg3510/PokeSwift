@@ -1271,6 +1271,59 @@ extension PokeCoreTests {
         XCTAssertEqual(wakingAction.messages, ["Pidgey woke up!"])
     }
 
+    func testHazeCuresTargetSleepSkipsItsLaterTurnAndClearsBadPoisonFlag() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "KOFFING", displayName: "Koffing", primaryType: "POISON", baseHP: 40, baseAttack: 65, baseDefense: 95, baseSpeed: 35, baseSpecial: 60, startingMoves: ["HAZE"]),
+                        .init(id: "PIDGEY", displayName: "Pidgey", primaryType: "NORMAL", secondaryType: "FLYING", baseHP: 40, baseAttack: 45, baseDefense: 40, baseSpeed: 56, baseSpecial: 35, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "HAZE", displayName: "HAZE", power: 0, accuracy: 100, maxPP: 30, effect: "HAZE_EFFECT", type: "ICE"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        var koffing = runtime.makePokemon(speciesID: "KOFFING", level: 18, nickname: "Koffing")
+        var pidgey = runtime.makePokemon(speciesID: "PIDGEY", level: 18, nickname: "Pidgey")
+        koffing.majorStatus = .poison
+        koffing.isBadlyPoisoned = true
+        koffing.battleEffects.toxicCounter = 3
+        pidgey.majorStatus = .sleep
+        pidgey.statusCounter = 2
+
+        let hazeResult = runtime.applyMove(
+            attacker: &koffing,
+            defender: &pidgey,
+            moveIndex: 0,
+            defenderCanActLaterInTurn: true
+        )
+
+        XCTAssertEqual(hazeResult.messages, ["Koffing used HAZE!", "All status changes were eliminated!"])
+        XCTAssertEqual(koffing.majorStatus, .poison)
+        XCTAssertFalse(koffing.isBadlyPoisoned)
+        XCTAssertEqual(koffing.battleEffects.toxicCounter, 0)
+        XCTAssertEqual(pidgey.majorStatus, .none)
+        XCTAssertEqual(pidgey.statusCounter, 0)
+        XCTAssertTrue(pidgey.battleEffects.skipTurnOnce)
+
+        let skippedTurn = runtime.resolveBattleAction(
+            side: .enemy,
+            attacker: pidgey,
+            defender: koffing,
+            moveIndex: 0,
+            defenderCanActLaterInTurn: false
+        )
+
+        XCTAssertFalse(skippedTurn.didExecuteMove)
+        XCTAssertEqual(skippedTurn.messages, [])
+        XCTAssertFalse(skippedTurn.updatedAttacker.battleEffects.skipTurnOnce)
+    }
+
     func testDisableBlocksSelectedMoveUntilCounterExpires() {
         let runtime = GameRuntime(
             content: fixtureContent(
@@ -1359,11 +1412,45 @@ extension PokeCoreTests {
 
         var mage = runtime.makePokemon(speciesID: "MAGE", level: 20, nickname: "Mage")
         countermon.battleEffects.lastDamageTaken = 18
-        mage.battleEffects.lastMoveID = "EMBER"
+        mage.battleEffects.lastSelectedMoveID = "EMBER"
+        mage.battleEffects.lastSelectedMovePower = 40
+        mage.battleEffects.lastSelectedMoveType = "FIRE"
         runtime.battleRandomOverrides = [0]
         let failedCounter = runtime.applyMove(attacker: &countermon, defender: &mage, moveIndex: 0)
         XCTAssertEqual(failedCounter.dealtDamage, 0)
         XCTAssertEqual(failedCounter.messages.suffix(1), ["But it failed!"])
+    }
+
+    func testCounterFailsAgainstMetronomeSelectedMoveEvenAfterNormalDamage() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "COUNTERMON", displayName: "Countermon", primaryType: "FIGHTING", baseHP: 60, baseAttack: 70, baseDefense: 60, baseSpeed: 55, baseSpecial: 50, startingMoves: ["COUNTER"]),
+                        .init(id: "TRICKSTER", displayName: "Trickster", primaryType: "NORMAL", baseHP: 60, baseAttack: 65, baseDefense: 55, baseSpeed: 35, baseSpecial: 40, startingMoves: ["METRONOME"]),
+                    ],
+                    moves: [
+                        .init(id: "COUNTER", displayName: "COUNTER", power: 1, accuracy: 100, maxPP: 20, effect: "NO_ADDITIONAL_EFFECT", type: "FIGHTING"),
+                        .init(id: "METRONOME", displayName: "METRONOME", power: 0, accuracy: 100, maxPP: 10, effect: "METRONOME_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        var countermon = runtime.makePokemon(speciesID: "COUNTERMON", level: 20, nickname: "Countermon")
+        var trickster = runtime.makePokemon(speciesID: "TRICKSTER", level: 20, nickname: "Trickster")
+
+        runtime.battleRandomOverrides = [1, 0, 255]
+        let metronomeResult = runtime.applyMove(attacker: &trickster, defender: &countermon, moveIndex: 0)
+        XCTAssertEqual(trickster.battleEffects.lastSelectedMoveID, "METRONOME")
+        XCTAssertGreaterThan(metronomeResult.dealtDamage, 0)
+
+        runtime.battleRandomOverrides = [0]
+        let counterResult = runtime.applyMove(attacker: &countermon, defender: &trickster, moveIndex: 0)
+        XCTAssertEqual(counterResult.dealtDamage, 0)
+        XCTAssertEqual(counterResult.messages.suffix(1), ["But it failed!"])
     }
 
     func testCounterMovesAfterOpposingMoveEvenWhenUserIsFaster() {
@@ -1542,6 +1629,17 @@ extension PokeCoreTests {
         }
         XCTAssertTrue(teleportResult.messages.contains("Ran from battle!"))
 
+        wildBattle.playerPokemon = runtime.makePokemon(speciesID: "ABRA", level: 1, nickname: "Abra")
+        wildBattle.enemyParty = [runtime.makePokemon(speciesID: "RATTATA", level: 20, nickname: "Rattata")]
+        runtime.gameplayState?.battle = wildBattle
+        var underleveledAbra = wildBattle.playerPokemon
+        var strongRattata = wildBattle.enemyPokemon
+        runtime.battleRandomOverrides = [0, 0, 255]
+        let failedTeleport = runtime.applyMove(attacker: &underleveledAbra, defender: &strongRattata, moveIndex: 0)
+        XCTAssertNil(failedTeleport.pendingAction)
+        XCTAssertEqual(failedTeleport.messages.suffix(1), ["But it failed!"])
+        XCTAssertEqual(runtime.battleRandomOverrides, [255])
+
         var meowth = runtime.makePokemon(speciesID: "MEOWTH", level: 11, nickname: "Meowth")
         var payDayTarget = runtime.makePokemon(speciesID: "RATTATA", level: 10, nickname: "Rattata")
         runtime.battleRandomOverrides = [0, 255]
@@ -1558,6 +1656,60 @@ extension PokeCoreTests {
             XCTAssertTrue(true)
         } else {
             XCTFail("Expected Pay Day award flow to preserve the original pending action")
+        }
+    }
+
+    func testPayDayAwardPersistsThroughBattleInputAdvance() {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .battle
+        runtime.substate = "battle"
+
+        let initialMoney = try! XCTUnwrap(runtime.gameplayState?.money)
+        runtime.gameplayState?.battle = RuntimeBattleState(
+            battleID: "pay_day_award",
+            kind: .wild,
+            trainerName: "",
+            trainerSpritePath: nil,
+            baseRewardMoney: 0,
+            completionFlagID: "",
+            healsPartyAfterBattle: false,
+            preventsBlackoutOnLoss: false,
+            playerWinDialogueID: "",
+            playerLoseDialogueID: nil,
+            postBattleScriptID: nil,
+            canRun: true,
+            trainerClass: nil,
+            sourceTrainerObjectID: nil,
+            playerPokemon: runtime.makePokemon(speciesID: "STARTER1", level: 5, nickname: "Starter"),
+            enemyParty: [runtime.makePokemon(speciesID: "STARTER1", level: 5, nickname: "Wildmon")],
+            enemyActiveIndex: 0,
+            aiLayer2Encouragement: 0,
+            payDayMoney: 22,
+            phase: .turnText,
+            focusedMoveIndex: 0,
+            focusedBagItemIndex: 0,
+            focusedPartyIndex: 0,
+            partySelectionMode: .optionalSwitch,
+            message: "",
+            queuedMessages: [],
+            pendingAction: .escape,
+            lastCaptureResult: nil,
+            pendingPresentationBatches: [],
+            learnMoveState: nil,
+            rewardContinuation: nil,
+            presentation: .init()
+        )
+
+        runtime.handleBattle(button: .confirm)
+
+        XCTAssertEqual(runtime.gameplayState?.money, initialMoney + 22)
+        XCTAssertEqual(runtime.gameplayState?.battle?.payDayMoney, 0)
+        XCTAssertEqual(runtime.gameplayState?.battle?.message, "RED picked up ¥22!")
+        if case .escape? = runtime.gameplayState?.battle?.pendingAction {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected Pay Day payout message to keep the escape continuation queued")
         }
     }
 
@@ -1672,6 +1824,161 @@ extension PokeCoreTests {
         XCTAssertEqual(ditto.speciesID, "RATTATA")
         XCTAssertEqual(ditto.moves.map(\.id), rattata.moves.map(\.id))
         XCTAssertNotNil(ditto.battleEffects.transformedState)
+    }
+
+    func testTransformedPokemonLevelUpRestoresOriginalStatsAfterBattle() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "DITTO", displayName: "Ditto", primaryType: "NORMAL", baseExp: 61, growthRate: .mediumFast, baseHP: 48, baseAttack: 48, baseDefense: 48, baseSpeed: 48, baseSpecial: 48, startingMoves: ["TRANSFORM"]),
+                        .init(id: "RATTATA", displayName: "Rattata", primaryType: "NORMAL", baseExp: 51, growthRate: .mediumFast, baseHP: 30, baseAttack: 56, baseDefense: 35, baseSpeed: 72, baseSpecial: 25, startingMoves: ["TACKLE"]),
+                        .init(id: "DEFEATED", displayName: "Defeated", primaryType: "NORMAL", baseExp: 255, growthRate: .mediumFast, baseHP: 40, baseAttack: 45, baseDefense: 40, baseSpeed: 56, baseSpecial: 35, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "TRANSFORM", displayName: "TRANSFORM", power: 0, accuracy: 100, maxPP: 10, effect: "TRANSFORM_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        let baseDitto = runtime.makePokemon(speciesID: "DITTO", level: 5, nickname: "Ditto")
+        let nextLevelExperience = runtime.experienceRequired(for: 6, speciesID: "DITTO") - 1
+        var ditto = runtime.makeConfiguredPokemon(
+            speciesID: "DITTO",
+            nickname: "Ditto",
+            level: 5,
+            experience: nextLevelExperience,
+            dvs: baseDitto.dvs,
+            statExp: .zero,
+            currentHP: nil,
+            attackStage: 0,
+            defenseStage: 0,
+            accuracyStage: 0,
+            evasionStage: 0,
+            moves: [RuntimeMoveState(id: "TRANSFORM", currentPP: 10)]
+        )
+        var rattata = runtime.makePokemon(speciesID: "RATTATA", level: 6, nickname: "Rattata")
+        runtime.battleRandomOverrides = [0]
+        _ = runtime.applyMove(attacker: &ditto, defender: &rattata, moveIndex: 0)
+
+        let defeated = runtime.makePokemon(speciesID: "DEFEATED", level: 5, nickname: "Defeated")
+        let reward = runtime.applyBattleExperienceReward(
+            defeatedPokemon: defeated,
+            to: &ditto,
+            isTrainerBattle: false
+        )
+        XCTAssertTrue(reward.messages.contains(where: { $0.contains("Ditto grew to Lv") }))
+
+        let restored = runtime.clearBattleStatStages(ditto)
+        let expected = runtime.makeConfiguredPokemon(
+            speciesID: "DITTO",
+            nickname: "Ditto",
+            level: restored.level,
+            experience: restored.experience,
+            dvs: restored.dvs,
+            statExp: restored.statExp,
+            currentHP: nil,
+            attackStage: 0,
+            defenseStage: 0,
+            accuracyStage: 0,
+            evasionStage: 0,
+            moves: [RuntimeMoveState(id: "TRANSFORM", currentPP: 10)]
+        )
+
+        XCTAssertEqual(restored.speciesID, "DITTO")
+        XCTAssertGreaterThan(restored.level, 5)
+        XCTAssertEqual(restored.maxHP, expected.maxHP)
+        XCTAssertEqual(restored.attack, expected.attack)
+        XCTAssertEqual(restored.defense, expected.defense)
+        XCTAssertEqual(restored.speed, expected.speed)
+        XCTAssertEqual(restored.special, expected.special)
+        XCTAssertEqual(restored.moves.map(\.id), ["TRANSFORM"])
+    }
+
+    func testTransformedLearnMovePromptUsesOriginalMoveSlots() throws {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "DITTO", displayName: "Ditto", primaryType: "NORMAL", baseHP: 48, baseAttack: 48, baseDefense: 48, baseSpeed: 48, baseSpecial: 48, startingMoves: ["TRANSFORM", "GROWL", "TAIL_WHIP", "SCRATCH"]),
+                        .init(id: "ONE_MOVE", displayName: "OneMove", primaryType: "NORMAL", baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 45, baseSpecial: 65, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "TRANSFORM", displayName: "TRANSFORM", power: 0, accuracy: 100, maxPP: 10, effect: "TRANSFORM_EFFECT", type: "NORMAL"),
+                        .init(id: "GROWL", displayName: "GROWL", power: 0, accuracy: 100, maxPP: 40, effect: "ATTACK_DOWN1_EFFECT", type: "NORMAL"),
+                        .init(id: "TAIL_WHIP", displayName: "TAIL WHIP", power: 0, accuracy: 100, maxPP: 30, effect: "DEFENSE_DOWN1_EFFECT", type: "NORMAL"),
+                        .init(id: "SCRATCH", displayName: "SCRATCH", power: 40, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "SLAM", displayName: "SLAM", power: 80, accuracy: 75, maxPP: 20, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .battle
+        runtime.substate = "battle"
+
+        var ditto = runtime.makePokemon(speciesID: "DITTO", level: 20, nickname: "Ditto")
+        var oneMove = runtime.makePokemon(speciesID: "ONE_MOVE", level: 20, nickname: "OneMove")
+        runtime.battleRandomOverrides = [0]
+        _ = runtime.applyMove(attacker: &ditto, defender: &oneMove, moveIndex: 0)
+
+        runtime.gameplayState?.battle = RuntimeBattleState(
+            battleID: "transformed_learn_move",
+            kind: .wild,
+            trainerName: "",
+            trainerSpritePath: nil,
+            baseRewardMoney: 0,
+            completionFlagID: "",
+            healsPartyAfterBattle: false,
+            preventsBlackoutOnLoss: false,
+            playerWinDialogueID: "",
+            playerLoseDialogueID: nil,
+            postBattleScriptID: nil,
+            canRun: true,
+            trainerClass: nil,
+            sourceTrainerObjectID: nil,
+            playerPokemon: ditto,
+            enemyParty: [oneMove],
+            enemyActiveIndex: 0,
+            aiLayer2Encouragement: 0,
+            payDayMoney: 0,
+            phase: .learnMoveSelection,
+            focusedMoveIndex: 0,
+            focusedBagItemIndex: 0,
+            focusedPartyIndex: 0,
+            partySelectionMode: .optionalSwitch,
+            message: "Choose a move to forget for SLAM.",
+            queuedMessages: [],
+            pendingAction: nil,
+            lastCaptureResult: nil,
+            pendingPresentationBatches: [],
+            learnMoveState: .init(moveID: "SLAM", remainingMoveIDs: []),
+            rewardContinuation: nil,
+            presentation: .init()
+        )
+
+        runtime.handleBattle(button: .down)
+        runtime.handleBattle(button: .down)
+        runtime.handleBattle(button: .down)
+
+        let focusedIndex = try XCTUnwrap(runtime.gameplayState?.battle?.focusedMoveIndex)
+        XCTAssertEqual(focusedIndex, 3)
+
+        let snapshot = try XCTUnwrap(runtime.currentSnapshot().battle)
+        XCTAssertEqual(snapshot.moveSlots.map(\.displayName), ["TRANSFORM", "GROWL", "TAIL WHIP", "SCRATCH"])
+
+        runtime.handleBattle(button: .confirm)
+
+        let learnedMoves = try XCTUnwrap(
+            runtime.gameplayState?.battle?.playerPokemon.battleEffects.transformedState?.originalMoves.map(\.id)
+        )
+        XCTAssertEqual(learnedMoves, ["TRANSFORM", "GROWL", "TAIL_WHIP", "SLAM"])
     }
 
     func testMimicMirrorMoveAndMetronomeCopyMoves() {

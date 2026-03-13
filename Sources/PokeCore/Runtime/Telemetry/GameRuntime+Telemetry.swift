@@ -120,7 +120,7 @@ extension GameRuntime {
             phase: battle.phase.rawValue,
             textLines: battle.message.isEmpty ? [] : [battle.message],
             learnMovePrompt: makeBattleLearnMovePromptTelemetry(from: battle),
-            moveSlots: battle.playerPokemon.moves.compactMap { makeBattleMoveSlotTelemetry(from: $0) },
+            moveSlots: battleDisplayedMoveSet(for: battle).compactMap { makeBattleMoveSlotTelemetry(from: $0) },
             bagItems: currentBattleBagItems.compactMap(makeInventoryItemTelemetry(from:)),
             battleMessage: battle.message,
             capture: makeBattleCaptureTelemetry(from: battle.lastCaptureResult),

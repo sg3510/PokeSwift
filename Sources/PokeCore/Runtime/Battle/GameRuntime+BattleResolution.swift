@@ -247,6 +247,11 @@ extension GameRuntime {
             attacker.battleEffects.bideAccumulatedDamage = 0
         }
 
+        let selectedMove = move
+        attacker.battleEffects.lastSelectedMoveID = selectedMove.id
+        attacker.battleEffects.lastSelectedMovePower = selectedMove.power
+        attacker.battleEffects.lastSelectedMoveType = selectedMove.type
+
         if move.effect == "MIRROR_MOVE_EFFECT" {
             guard let copiedMove = mirrorMoveTarget(for: defender),
                   copiedMove.effect != "MIRROR_MOVE_EFFECT" else {
@@ -449,6 +454,7 @@ extension GameRuntime {
         }
 
         var payDayMoneyGain = 0
+        var effectPendingAction: RuntimeBattlePendingAction?
         if shouldApplyEffect, move.power == 0 || (typeMultiplier > 0 && defender.currentHP > 0) {
             messages.append(
                 contentsOf: applyMoveEffect(
@@ -457,7 +463,8 @@ extension GameRuntime {
                     dealtDamage: dealtDamage,
                     attacker: &attacker,
                     defender: &defender,
-                    defenderCanActLaterInTurn: defenderCanActLaterInTurn
+                    defenderCanActLaterInTurn: defenderCanActLaterInTurn,
+                    pendingAction: &effectPendingAction
                 )
             )
             if move.effect == "PAY_DAY_EFFECT", dealtDamage > 0 {
@@ -467,19 +474,11 @@ extension GameRuntime {
             messages.append(contentsOf: applyExplosionRecoil(to: &attacker))
         }
 
-        let pendingAction: RuntimeBattlePendingAction?
-        if move.effect == "SWITCH_AND_TELEPORT_EFFECT",
-           applySwitchAndTeleport(move: move, attacker: attacker, defender: defender) {
-            pendingAction = .escape
-        } else {
-            pendingAction = nil
-        }
-
         return ResolvedBattleMove(
             messages: messages,
             dealtDamage: dealtDamage,
             typeMultiplier: typeMultiplier,
-            pendingAction: pendingAction,
+            pendingAction: effectPendingAction,
             payDayMoneyGain: payDayMoneyGain
         )
     }
@@ -595,7 +594,8 @@ extension GameRuntime {
         dealtDamage: Int,
         attacker: inout RuntimePokemonState,
         defender: inout RuntimePokemonState,
-        defenderCanActLaterInTurn: Bool
+        defenderCanActLaterInTurn: Bool,
+        pendingAction: inout RuntimeBattlePendingAction?
     ) -> [String] {
         let effect = move.effect
         guard let descriptor = statStageEffectDescriptor(for: effect) else {
@@ -605,7 +605,8 @@ extension GameRuntime {
                 dealtDamage: dealtDamage,
                 attacker: &attacker,
                 defender: &defender,
-                defenderCanActLaterInTurn: defenderCanActLaterInTurn
+                defenderCanActLaterInTurn: defenderCanActLaterInTurn,
+                pendingAction: &pendingAction
             )
         }
 
@@ -713,6 +714,18 @@ extension GameRuntime {
         if pokemon.majorStatus == .freeze {
             return .init(
                 messages: ["\(pokemon.nickname) is frozen solid!"],
+                canAct: false,
+                shouldSkipPP: false,
+                shouldSkipAccuracy: false,
+                shouldSkipEffect: false,
+                forcedDamage: nil
+            )
+        }
+
+        if pokemon.battleEffects.skipTurnOnce {
+            pokemon.battleEffects.skipTurnOnce = false
+            return .init(
+                messages: [],
                 canAct: false,
                 shouldSkipPP: false,
                 shouldSkipAccuracy: false,
@@ -1036,11 +1049,11 @@ extension GameRuntime {
     }
 
     func resolvedCounterDamage(attacker: RuntimePokemonState, defender: RuntimePokemonState) -> Int? {
-        guard let lastMoveID = defender.battleEffects.lastMoveID,
-              lastMoveID != "COUNTER",
-              let lastMove = content.move(id: lastMoveID),
-              lastMove.power > 0,
-              lastMove.type == "NORMAL" || lastMove.type == "FIGHTING",
+        guard let lastSelectedMoveID = defender.battleEffects.lastSelectedMoveID,
+              lastSelectedMoveID != "COUNTER",
+              defender.battleEffects.lastSelectedMovePower > 0,
+              let lastSelectedMoveType = defender.battleEffects.lastSelectedMoveType,
+              lastSelectedMoveType == "NORMAL" || lastSelectedMoveType == "FIGHTING",
               attacker.battleEffects.lastDamageTaken > 0 else {
             return nil
         }
@@ -1054,7 +1067,8 @@ extension GameRuntime {
         dealtDamage: Int,
         attacker: inout RuntimePokemonState,
         defender: inout RuntimePokemonState,
-        defenderCanActLaterInTurn: Bool
+        defenderCanActLaterInTurn: Bool,
+        pendingAction: inout RuntimeBattlePendingAction?
     ) -> [String] {
         switch move.effect {
         case "SLEEP_EFFECT":
@@ -1099,13 +1113,22 @@ extension GameRuntime {
         case "REFLECT_EFFECT":
             return applyScreen(to: &attacker, kind: .physical)
         case "HAZE_EFFECT":
-            return applyHaze(attacker: &attacker, defender: &defender)
+            return applyHaze(
+                attacker: &attacker,
+                defender: &defender,
+                defenderCanActLaterInTurn: defenderCanActLaterInTurn
+            )
         case "BIDE_EFFECT":
             return applyBide(to: &attacker)
         case "THRASH_PETAL_DANCE_EFFECT":
             return applyThrash(move: move, attacker: &attacker)
         case "SWITCH_AND_TELEPORT_EFFECT":
-            return applySwitchAndTeleportMessages(move: move, attacker: attacker, defender: defender)
+            return applySwitchAndTeleportEffect(
+                move: move,
+                attacker: attacker,
+                defender: defender,
+                pendingAction: &pendingAction
+            )
         case "TRAPPING_EFFECT":
             return applyTrapping(move: move, dealtDamage: dealtDamage, attacker: &attacker)
         case "LEECH_SEED_EFFECT":
@@ -1353,15 +1376,24 @@ extension GameRuntime {
         }
     }
 
-    func applyHaze(attacker: inout RuntimePokemonState, defender: inout RuntimePokemonState) -> [String] {
+    func applyHaze(
+        attacker: inout RuntimePokemonState,
+        defender: inout RuntimePokemonState,
+        defenderCanActLaterInTurn: Bool
+    ) -> [String] {
+        let curedSleepOrFreeze = defenderCanActLaterInTurn &&
+            (defender.majorStatus == .sleep || defender.majorStatus == .freeze)
         resetBattleStages(for: &attacker)
         resetBattleStages(for: &defender)
         clearVolatileBattleState(for: &attacker)
         clearVolatileBattleState(for: &defender)
+        attacker.isBadlyPoisoned = false
+        attacker.battleEffects.toxicCounter = 0
         defender.majorStatus = .none
         defender.statusCounter = 0
         defender.isBadlyPoisoned = false
         defender.battleEffects.toxicCounter = 0
+        defender.battleEffects.skipTurnOnce = curedSleepOrFreeze
         return ["All status changes were eliminated!"]
     }
 
@@ -1433,12 +1465,22 @@ extension GameRuntime {
         return []
     }
 
-    func applySwitchAndTeleportMessages(move: MoveManifest, attacker: RuntimePokemonState, defender: RuntimePokemonState) -> [String] {
+    func applySwitchAndTeleportEffect(
+        move: MoveManifest,
+        attacker: RuntimePokemonState,
+        defender: RuntimePokemonState,
+        pendingAction: inout RuntimeBattlePendingAction?
+    ) -> [String] {
+        let succeeded = applySwitchAndTeleport(move: move, attacker: attacker, defender: defender)
+        if succeeded {
+            pendingAction = .escape
+        }
+
         if gameplayState?.battle?.kind != .wild {
             return move.id == "TELEPORT" ? ["But it failed!"] : ["Is unaffected!"]
         }
 
-        if applySwitchAndTeleport(move: move, attacker: attacker, defender: defender) {
+        if succeeded {
             switch move.id {
             case "TELEPORT":
                 return ["Ran from battle!"]
@@ -1657,6 +1699,7 @@ extension GameRuntime {
         pokemon.battleEffects.isSeeded = false
         pokemon.battleEffects.needsRecharge = false
         pokemon.battleEffects.isFlinched = false
+        pokemon.battleEffects.skipTurnOnce = false
     }
 
     func forcedMoveIndex(for pokemon: RuntimePokemonState) -> Int? {

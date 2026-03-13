@@ -60,7 +60,11 @@ struct RuntimePokemonBattleEffectsState {
     var isSeeded: Bool
     var needsRecharge: Bool
     var isFlinched: Bool
+    var skipTurnOnce: Bool
     var lastMoveID: String?
+    var lastSelectedMoveID: String?
+    var lastSelectedMovePower: Int
+    var lastSelectedMoveType: String?
     var lastDamageTaken: Int
     var bideTurnsRemaining: Int
     var bideAccumulatedDamage: Int
@@ -93,7 +97,11 @@ struct RuntimePokemonBattleEffectsState {
         isSeeded: Bool = false,
         needsRecharge: Bool = false,
         isFlinched: Bool = false,
+        skipTurnOnce: Bool = false,
         lastMoveID: String? = nil,
+        lastSelectedMoveID: String? = nil,
+        lastSelectedMovePower: Int = 0,
+        lastSelectedMoveType: String? = nil,
         lastDamageTaken: Int = 0,
         bideTurnsRemaining: Int = 0,
         bideAccumulatedDamage: Int = 0,
@@ -125,7 +133,11 @@ struct RuntimePokemonBattleEffectsState {
         self.isSeeded = isSeeded
         self.needsRecharge = needsRecharge
         self.isFlinched = isFlinched
+        self.skipTurnOnce = skipTurnOnce
         self.lastMoveID = lastMoveID
+        self.lastSelectedMoveID = lastSelectedMoveID
+        self.lastSelectedMovePower = lastSelectedMovePower
+        self.lastSelectedMoveType = lastSelectedMoveType
         self.lastDamageTaken = lastDamageTaken
         self.bideTurnsRemaining = bideTurnsRemaining
         self.bideAccumulatedDamage = bideAccumulatedDamage

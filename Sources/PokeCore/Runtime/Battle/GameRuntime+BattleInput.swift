@@ -108,7 +108,10 @@ extension GameRuntime {
             case .learnMoveDecision:
                 battle.focusedMoveIndex = min(1, battle.focusedMoveIndex + 1)
             case .learnMoveSelection:
-                battle.focusedMoveIndex = min(max(0, battle.playerPokemon.moves.count - 1), battle.focusedMoveIndex + 1)
+                battle.focusedMoveIndex = min(
+                    max(0, battleDisplayedMoveSet(for: battle).count - 1),
+                    battle.focusedMoveIndex + 1
+                )
             default:
                 break
             }
@@ -183,6 +186,8 @@ extension GameRuntime {
             return
         }
 
+        // Battle text can award Pay Day money directly through self.gameplayState.
+        gameplayState.money = self.gameplayState?.money ?? gameplayState.money
         gameplayState.playerParty = syncedPlayerParty(from: battle, gameplayState: gameplayState)
         gameplayState.battle = battle
         self.gameplayState = gameplayState
