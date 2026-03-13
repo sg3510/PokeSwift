@@ -255,7 +255,7 @@ enum GameplayScenePropsFactory {
 @MainActor
 struct GameplaySidebarManifestIndex {
     let speciesDetailsByID: [String: PartySidebarSpeciesDetails]
-    let moveDisplayNamesByID: [String: String]
+    let moveDetailsByID: [String: PartySidebarMoveDetails]
     let pokedexSpeciesList: [GameplaySidebarPropsBuilder.PokedexSpeciesData]
 
     init(runtime: GameRuntime) {
@@ -272,9 +272,18 @@ struct GameplaySidebarManifestIndex {
             }
         )
 
-        moveDisplayNamesByID = Dictionary(
+        moveDetailsByID = Dictionary(
             uniqueKeysWithValues: runtime.content.gameplayManifest.moves.map { move in
-                (move.id, move.displayName)
+                (
+                    move.id,
+                    PartySidebarMoveDetails(
+                        displayName: move.displayName,
+                        typeLabel: move.type,
+                        maxPP: move.maxPP,
+                        power: move.power > 0 ? move.power : nil,
+                        accuracy: move.accuracy > 0 ? move.accuracy : nil
+                    )
+                )
             }
         )
 

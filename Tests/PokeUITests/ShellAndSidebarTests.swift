@@ -46,6 +46,11 @@ extension PokeUITests {
           moneyText: "¥3,000",
           statusItems: ["FIELD", "X4 Y6", "DOWN"]
         ),
+        pokedex: GameplaySidebarPropsBuilder.makePokedex(
+          allSpecies: [],
+          ownedSpeciesIDs: [],
+          seenSpeciesIDs: []
+        ),
         party: .init(
           pokemon: [
             .init(
@@ -968,9 +973,21 @@ extension PokeUITests {
         secondaryType: "POISON"
       )
     ]
-    let moveDisplayNamesByID = [
-      "TACKLE": "Tackle",
-      "GROWL": "Growl",
+    let moveDetailsByID = [
+      "TACKLE": PartySidebarMoveDetails(
+        displayName: "Tackle",
+        typeLabel: "NORMAL",
+        maxPP: 35,
+        power: 40,
+        accuracy: 100
+      ),
+      "GROWL": PartySidebarMoveDetails(
+        displayName: "Growl",
+        typeLabel: "NORMAL",
+        maxPP: 40,
+        power: nil,
+        accuracy: 100
+      ),
     ]
 
     let profile = GameplaySidebarPropsBuilder.makeProfile(
@@ -990,7 +1007,7 @@ extension PokeUITests {
     let sidebarParty = GameplaySidebarPropsBuilder.makeParty(
       from: party,
       speciesDetailsByID: speciesDetailsByID,
-      moveDisplayNamesByID: moveDisplayNamesByID
+      moveDetailsByID: moveDetailsByID
     )
 
     XCTAssertEqual(profile.locationName, "Oak's Lab")
@@ -1016,8 +1033,95 @@ extension PokeUITests {
     XCTAssertEqual(sidebarParty.pokemon.first?.isLead, true)
     XCTAssertEqual(sidebarParty.pokemon.first?.typeLabels, ["GRASS", "POISON"])
     XCTAssertEqual(sidebarParty.pokemon.first?.moveNames, ["Tackle", "Growl"])
+    XCTAssertEqual(
+      sidebarParty.pokemon.first?.moves,
+      [
+        PartySidebarMoveProps(
+          id: "BULBASAUR-move-0-TACKLE",
+          moveID: "TACKLE",
+          displayName: "Tackle",
+          typeLabel: "NORMAL",
+          currentPP: nil,
+          maxPP: 35,
+          power: 40,
+          accuracy: 100
+        ),
+        PartySidebarMoveProps(
+          id: "BULBASAUR-move-1-GROWL",
+          moveID: "GROWL",
+          displayName: "Growl",
+          typeLabel: "NORMAL",
+          currentPP: nil,
+          maxPP: 40,
+          power: nil,
+          accuracy: 100
+        ),
+      ]
+    )
     XCTAssertEqual(sidebarParty.pokemon.first?.spriteURL?.path, "/tmp/bulbasaur.png")
   }
+  func testPartySidebarMovePropsFormatDetailedMetadataChips() {
+    let thunderbolt = PartySidebarMoveProps(
+      id: "pikachu-0-thunderbolt",
+      moveID: "THUNDERBOLT",
+      displayName: "Thunderbolt",
+      typeLabel: "ELECTRIC",
+      currentPP: 15,
+      maxPP: 15,
+      power: 95,
+      accuracy: 100
+    )
+    let swift = PartySidebarMoveProps(
+      id: "pikachu-0-swift",
+      moveID: "SWIFT",
+      displayName: "Swift",
+      typeLabel: "NORMAL",
+      currentPP: nil,
+      maxPP: 20,
+      power: 60,
+      accuracy: nil
+    )
+
+    XCTAssertEqual(thunderbolt.typeChipText, "ELECTRIC")
+    XCTAssertEqual(thunderbolt.metadataChips.map(\.displayText), ["PP 15/15", "POW 95", "ACC 100"])
+    XCTAssertEqual(swift.typeChipText, "NORMAL")
+    XCTAssertEqual(swift.metadataChips.map(\.displayText), ["PP 20", "POW 60", "ACC --"])
+  }
+
+  func testPartyPokemonHoverCardDetailedMoveRowsStayCompact() {
+    let props = PartySidebarPokemonProps(
+      id: "bulbasaur-0",
+      speciesID: "BULBASAUR",
+      displayName: "Bulbasaur",
+      level: 18,
+      totalExperience: 7_300,
+      levelStartExperience: 5_832,
+      nextLevelExperience: 8_000,
+      currentHP: 49,
+      maxHP: 49,
+      statHP: 49,
+      attack: 35,
+      defense: 33,
+      speed: 29,
+      special: 37,
+      isLead: true,
+      typeLabels: ["GRASS", "POISON"],
+      moves: [
+        PartySidebarMoveProps(id: "move-0", moveID: "TACKLE", displayName: "Tackle", typeLabel: "NORMAL", currentPP: 27, maxPP: 35, power: 40, accuracy: 100),
+        PartySidebarMoveProps(id: "move-1", moveID: "VINE_WHIP", displayName: "Vine Whip", typeLabel: "GRASS", currentPP: 10, maxPP: 10, power: 45, accuracy: 100),
+        PartySidebarMoveProps(id: "move-2", moveID: "POISONPOWDER", displayName: "Poisonpowder", typeLabel: "POISON", currentPP: 24, maxPP: 35, power: nil, accuracy: 75),
+        PartySidebarMoveProps(id: "move-3", moveID: "SLEEP_POWDER", displayName: "Sleep Powder", typeLabel: "GRASS", currentPP: 11, maxPP: 15, power: nil, accuracy: 75),
+      ]
+    )
+
+    let measuredHeight = measureFittingHeight(
+      of: PartyPokemonHoverCard(props: props),
+      width: PartyPokemonHoverCard.layoutWidth
+    )
+
+    XCTAssertLessThanOrEqual(measuredHeight, 500)
+  }
+
   func testSidebarExpansionStateKeepsExactlyOneSectionOpen() {
     var expansion = GameplaySidebarExpansionState()
 

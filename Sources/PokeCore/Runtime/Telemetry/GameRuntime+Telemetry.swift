@@ -284,7 +284,7 @@ extension GameRuntime {
             speed: pokemon.speed,
             special: pokemon.special,
             majorStatus: pokemon.majorStatus,
-            moves: pokemon.moves.map(\.id),
+            moveStates: pokemon.moves.map { PartyMoveTelemetry(id: $0.id, currentPP: $0.currentPP) },
             experience: .init(
                 total: pokemon.experience,
                 levelStart: experienceRequired(for: pokemon.level, speciesID: pokemon.speciesID),

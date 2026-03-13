@@ -192,6 +192,16 @@ public struct FieldHealingTelemetry: Codable, Equatable, Sendable {
     }
 }
 
+public struct PartyMoveTelemetry: Codable, Equatable, Sendable {
+    public let id: String
+    public let currentPP: Int?
+
+    public init(id: String, currentPP: Int? = nil) {
+        self.id = id
+        self.currentPP = currentPP
+    }
+}
+
 public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
     public let experience: ExperienceProgressTelemetry
     public let speciesID: String
@@ -206,6 +216,7 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
     public let growthOutlook: PokemonGrowthOutlookTelemetry
     public let majorStatus: MajorStatusCondition
     public let moves: [String]
+    public let moveStates: [PartyMoveTelemetry]
 
     public init(
         speciesID: String,
@@ -219,6 +230,7 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         special: Int,
         majorStatus: MajorStatusCondition = .none,
         moves: [String],
+        moveStates: [PartyMoveTelemetry]? = nil,
         experience: ExperienceProgressTelemetry = .init(total: 0, levelStart: 0, nextLevel: 1),
         growthOutlook: PokemonGrowthOutlookTelemetry = .neutral
     ) {
@@ -235,6 +247,40 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         self.growthOutlook = growthOutlook
         self.majorStatus = majorStatus
         self.moves = moves
+        self.moveStates = moveStates ?? moves.map { PartyMoveTelemetry(id: $0) }
+    }
+
+    public init(
+        speciesID: String,
+        displayName: String,
+        level: Int,
+        currentHP: Int,
+        maxHP: Int,
+        attack: Int,
+        defense: Int,
+        speed: Int,
+        special: Int,
+        majorStatus: MajorStatusCondition = .none,
+        moveStates: [PartyMoveTelemetry],
+        experience: ExperienceProgressTelemetry = .init(total: 0, levelStart: 0, nextLevel: 1),
+        growthOutlook: PokemonGrowthOutlookTelemetry = .neutral
+    ) {
+        self.init(
+            speciesID: speciesID,
+            displayName: displayName,
+            level: level,
+            currentHP: currentHP,
+            maxHP: maxHP,
+            attack: attack,
+            defense: defense,
+            speed: speed,
+            special: special,
+            majorStatus: majorStatus,
+            moves: moveStates.map(\.id),
+            moveStates: moveStates,
+            experience: experience,
+            growthOutlook: growthOutlook
+        )
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -251,6 +297,7 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         case growthOutlook
         case majorStatus
         case moves
+        case moveStates
     }
 
     public init(from decoder: Decoder) throws {
@@ -267,7 +314,26 @@ public struct PartyPokemonTelemetry: Codable, Equatable, Sendable {
         special = try container.decodeIfPresent(Int.self, forKey: .special) ?? 0
         growthOutlook = try container.decodeIfPresent(PokemonGrowthOutlookTelemetry.self, forKey: .growthOutlook) ?? .neutral
         majorStatus = try container.decodeIfPresent(MajorStatusCondition.self, forKey: .majorStatus) ?? .none
-        moves = try container.decode([String].self, forKey: .moves)
+        let decodedLegacyMoves: [String]
+        let decodedMoveStates: [PartyMoveTelemetry]
+        if let legacyMoveIDs = try? container.decode([String].self, forKey: .moves) {
+            decodedLegacyMoves = legacyMoveIDs
+        } else if let structuredMoves = try? container.decode([PartyMoveTelemetry].self, forKey: .moves) {
+            decodedLegacyMoves = structuredMoves.map(\.id)
+        } else {
+            decodedLegacyMoves = []
+        }
+
+        if let structuredMoves = try? container.decode([PartyMoveTelemetry].self, forKey: .moveStates) {
+            decodedMoveStates = structuredMoves
+        } else if let structuredMoves = try? container.decode([PartyMoveTelemetry].self, forKey: .moves) {
+            decodedMoveStates = structuredMoves
+        } else {
+            decodedMoveStates = decodedLegacyMoves.map { PartyMoveTelemetry(id: $0) }
+        }
+
+        moveStates = decodedMoveStates
+        moves = decodedLegacyMoves.isEmpty ? decodedMoveStates.map(\.id) : decodedLegacyMoves
     }
 }
 

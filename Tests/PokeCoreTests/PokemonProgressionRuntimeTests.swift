@@ -11,6 +11,9 @@ extension PokeCoreTests {
                 gameplayManifest: fixtureGameplayManifest(
                     species: [
                         .init(id: "SQUIRTLE", displayName: "Squirtle", primaryType: "WATER", baseExp: 66, growthRate: .mediumSlow, baseHP: 44, baseAttack: 48, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
                     ]
                 )
             ),
@@ -36,6 +39,9 @@ extension PokeCoreTests {
                 gameplayManifest: fixtureGameplayManifest(
                     species: [
                         .init(id: "SQUIRTLE", displayName: "Squirtle", primaryType: "WATER", baseExp: 66, growthRate: .mediumSlow, baseHP: 44, baseAttack: 48, baseDefense: 65, baseSpeed: 43, baseSpecial: 50, startingMoves: ["TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
                     ]
                 )
             ),
@@ -52,10 +58,102 @@ extension PokeCoreTests {
         XCTAssertEqual(partyPokemon.defense, 12)
         XCTAssertEqual(partyPokemon.speed, 10)
         XCTAssertEqual(partyPokemon.special, 11)
+        XCTAssertEqual(partyPokemon.moves, ["TACKLE"])
+        XCTAssertEqual(partyPokemon.moveStates, [PartyMoveTelemetry(id: "TACKLE", currentPP: 35)])
         XCTAssertEqual(partyPokemon.growthOutlook.hp, .lagging)
         XCTAssertEqual(partyPokemon.growthOutlook.special, .favored)
         XCTAssertEqual(partyPokemon.growthOutlook.attack, .neutral)
     }
+
+    func testPartyPokemonTelemetryDecodesLegacyMoveIDs() throws {
+        let payload = Data(
+            """
+            {
+              "speciesID": "PIKACHU",
+              "displayName": "Pikachu",
+              "level": 12,
+              "currentHP": 32,
+              "maxHP": 32,
+              "attack": 18,
+              "defense": 15,
+              "speed": 22,
+              "special": 19,
+              "majorStatus": "none",
+              "moves": ["THUNDERBOLT", "QUICK_ATTACK"]
+            }
+            """.utf8
+        )
+
+        let pokemon = try JSONDecoder().decode(PartyPokemonTelemetry.self, from: payload)
+
+        XCTAssertEqual(pokemon.moves, ["THUNDERBOLT", "QUICK_ATTACK"])
+        XCTAssertEqual(pokemon.moveStates, [PartyMoveTelemetry(id: "THUNDERBOLT"), PartyMoveTelemetry(id: "QUICK_ATTACK")])
+    }
+
+    func testPartyPokemonTelemetryEncodesLegacyMovesAndStructuredMoveStates() throws {
+        let pokemon = PartyPokemonTelemetry(
+            speciesID: "PIKACHU",
+            displayName: "Pikachu",
+            level: 12,
+            currentHP: 32,
+            maxHP: 32,
+            attack: 18,
+            defense: 15,
+            speed: 22,
+            special: 19,
+            moveStates: [
+                PartyMoveTelemetry(id: "THUNDERBOLT", currentPP: 10),
+                PartyMoveTelemetry(id: "QUICK_ATTACK", currentPP: 30),
+            ]
+        )
+
+        let payload = try JSONEncoder().encode(pokemon)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: payload) as? [String: Any])
+        let encodedMoves = try XCTUnwrap(json["moves"] as? [String])
+        let encodedMoveStates = try XCTUnwrap(json["moveStates"] as? [[String: Any]])
+
+        XCTAssertEqual(encodedMoves, ["THUNDERBOLT", "QUICK_ATTACK"])
+        XCTAssertEqual(encodedMoveStates.count, 2)
+        XCTAssertEqual(encodedMoveStates.first?["id"] as? String, "THUNDERBOLT")
+        XCTAssertEqual(encodedMoveStates.first?["currentPP"] as? Int, 10)
+        XCTAssertEqual(encodedMoveStates.last?["id"] as? String, "QUICK_ATTACK")
+        XCTAssertEqual(encodedMoveStates.last?["currentPP"] as? Int, 30)
+    }
+
+    func testPartyPokemonTelemetryDecodesMoveStatesWithoutLegacyMoves() throws {
+        let payload = Data(
+            """
+            {
+              "speciesID": "PIKACHU",
+              "displayName": "Pikachu",
+              "level": 12,
+              "currentHP": 32,
+              "maxHP": 32,
+              "attack": 18,
+              "defense": 15,
+              "speed": 22,
+              "special": 19,
+              "majorStatus": "none",
+              "moveStates": [
+                { "id": "THUNDERBOLT", "currentPP": 10 },
+                { "id": "QUICK_ATTACK", "currentPP": 30 }
+              ]
+            }
+            """.utf8
+        )
+
+        let pokemon = try JSONDecoder().decode(PartyPokemonTelemetry.self, from: payload)
+
+        XCTAssertEqual(pokemon.moves, ["THUNDERBOLT", "QUICK_ATTACK"])
+        XCTAssertEqual(
+            pokemon.moveStates,
+            [
+                PartyMoveTelemetry(id: "THUNDERBOLT", currentPP: 10),
+                PartyMoveTelemetry(id: "QUICK_ATTACK", currentPP: 30),
+            ]
+        )
+    }
+
     func testPartyTelemetryGrowthOutlookStaysBoundToDVsWhenStatExpChanges() {
         let runtime = GameRuntime(
             content: fixtureContent(
