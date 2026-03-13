@@ -20,7 +20,7 @@ final class RuntimeKeyInputBridge {
 
             switch event.type {
             case .keyDown:
-                if runtime.scene == .naming, !event.isARepeat {
+                if !event.isARepeat, let typeChar = runtime.namingCharacterHandler {
                     if event.keyCode == 36 {
                         runtime.handle(button: .start)
                         return nil
@@ -29,7 +29,7 @@ final class RuntimeKeyInputBridge {
                        chars.count == 1,
                        let char = chars.first,
                        char.isLetter || char == " " {
-                        runtime.typeNamingCharacter(char)
+                        typeChar(char)
                         return nil
                     }
                 }

@@ -975,6 +975,8 @@ public enum GameplaySidebarPropsBuilder {
             "SPLASH"
         case .naming:
             "NAMING"
+        case .oakIntro:
+            "INTRO"
         case .placeholder:
             "PLACEHOLDER"
         }
