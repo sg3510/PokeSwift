@@ -1824,6 +1824,21 @@ extension PokeCoreTests {
         XCTAssertTrue(teleportResult.messages.contains("Ran from battle!"))
 
         wildBattle.playerPokemon = runtime.makePokemon(speciesID: "ABRA", level: 1, nickname: "Abra")
+        wildBattle.enemyParty = [runtime.makePokemon(speciesID: "RATTATA", level: 3, nickname: "Rattata")]
+        runtime.gameplayState?.battle = wildBattle
+        var lowLevelAbra = wildBattle.playerPokemon
+        var lowLevelRattata = wildBattle.enemyPokemon
+        runtime.battleRandomOverrides = [0, 0]
+        let lowLevelTeleport = runtime.applyMove(attacker: &lowLevelAbra, defender: &lowLevelRattata, moveIndex: 0)
+        if case .escape? = lowLevelTeleport.pendingAction {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected TELEPORT to escape when the target's level / 4 threshold is zero")
+        }
+        XCTAssertTrue(lowLevelTeleport.messages.contains("Ran from battle!"))
+        XCTAssertEqual(runtime.battleRandomOverrides, [])
+
+        wildBattle.playerPokemon = runtime.makePokemon(speciesID: "ABRA", level: 1, nickname: "Abra")
         wildBattle.enemyParty = [runtime.makePokemon(speciesID: "RATTATA", level: 20, nickname: "Rattata")]
         runtime.gameplayState?.battle = wildBattle
         var underleveledAbra = wildBattle.playerPokemon
@@ -1949,20 +1964,33 @@ extension PokeCoreTests {
         var thrashTarget = runtime.makePokemon(speciesID: "TARGET", level: 18, nickname: "Target")
         runtime.battleRandomOverrides = [0, 255, 0]
         _ = runtime.applyMove(attacker: &thrasher, defender: &thrashTarget, moveIndex: 1)
-        XCTAssertEqual(thrasher.battleEffects.thrashTurnsRemaining, 1)
+        XCTAssertEqual(thrasher.battleEffects.thrashTurnsRemaining, 2)
 
-        runtime.battleRandomOverrides = [0, 0, 255]
-        let continuedThrash = runtime.resolveBattleAction(
+        runtime.battleRandomOverrides = [0, 255]
+        let firstContinuedThrash = runtime.resolveBattleAction(
             side: .player,
             attacker: thrasher,
             defender: thrashTarget,
             moveIndex: 1,
             defenderCanActLaterInTurn: false
         )
-        XCTAssertTrue(continuedThrash.didExecuteMove)
-        XCTAssertTrue(continuedThrash.messages.contains("Slowbro is thrashing about!"))
-        XCTAssertEqual(continuedThrash.updatedAttacker.battleEffects.thrashTurnsRemaining, 0)
-        XCTAssertGreaterThan(continuedThrash.updatedAttacker.battleEffects.confusionTurnsRemaining, 0)
+        XCTAssertTrue(firstContinuedThrash.didExecuteMove)
+        XCTAssertTrue(firstContinuedThrash.messages.contains("Slowbro is thrashing about!"))
+        XCTAssertEqual(firstContinuedThrash.updatedAttacker.battleEffects.thrashTurnsRemaining, 1)
+        XCTAssertEqual(firstContinuedThrash.updatedAttacker.battleEffects.confusionTurnsRemaining, 0)
+
+        runtime.battleRandomOverrides = [0, 0, 255]
+        let finalThrashTurn = runtime.resolveBattleAction(
+            side: .player,
+            attacker: firstContinuedThrash.updatedAttacker,
+            defender: firstContinuedThrash.updatedDefender,
+            moveIndex: 1,
+            defenderCanActLaterInTurn: false
+        )
+        XCTAssertTrue(finalThrashTurn.didExecuteMove)
+        XCTAssertTrue(finalThrashTurn.messages.contains("Slowbro is thrashing about!"))
+        XCTAssertEqual(finalThrashTurn.updatedAttacker.battleEffects.thrashTurnsRemaining, 0)
+        XCTAssertGreaterThan(finalThrashTurn.updatedAttacker.battleEffects.confusionTurnsRemaining, 0)
     }
 
     func testBideAccumulatesDamageTakenDuringStorageTurns() {

@@ -598,7 +598,7 @@ extension GameRuntime {
         pokemon.battleEffects.trappingDamage = 0
     }
 
-    func applySwitchAndTeleport(move: MoveManifest, attacker: RuntimePokemonState, defender: RuntimePokemonState) -> Bool {
+    func applySwitchAndTeleport(attacker: RuntimePokemonState, defender: RuntimePokemonState) -> Bool {
         guard gameplayState?.battle?.kind == .wild else {
             return false
         }
@@ -609,7 +609,7 @@ extension GameRuntime {
             return true
         }
 
-        let threshold = max(1, defenderLevel / 4)
+        let threshold = defenderLevel / 4
         let sampleRange = attackerLevel + defenderLevel + 1
         let sample = nextBattleRandomByte() % sampleRange
         if sample >= threshold {
@@ -1501,7 +1501,7 @@ extension GameRuntime {
             return []
         }
 
-        attacker.battleEffects.thrashTurnsRemaining = 1 + (nextBattleRandomByte() & 0x1)
+        attacker.battleEffects.thrashTurnsRemaining = 2 + (nextBattleRandomByte() & 0x1)
         attacker.battleEffects.thrashMoveID = move.id
         return []
     }
@@ -1512,7 +1512,7 @@ extension GameRuntime {
         defender: RuntimePokemonState,
         pendingAction: inout RuntimeBattlePendingAction?
     ) -> [String] {
-        let succeeded = applySwitchAndTeleport(move: move, attacker: attacker, defender: defender)
+        let succeeded = applySwitchAndTeleport(attacker: attacker, defender: defender)
         if succeeded {
             pendingAction = .escape
         }
