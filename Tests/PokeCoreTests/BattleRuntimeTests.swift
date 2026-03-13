@@ -1421,7 +1421,7 @@ extension PokeCoreTests {
         XCTAssertEqual(failedCounter.messages.suffix(1), ["But it failed!"])
     }
 
-    func testCounterFailsAgainstMetronomeSelectedMoveEvenAfterNormalDamage() {
+    func testCounterUsesExecutedMetronomeMoveMetadata() {
         let runtime = GameRuntime(
             content: fixtureContent(
                 gameplayManifest: fixtureGameplayManifest(
@@ -1444,13 +1444,46 @@ extension PokeCoreTests {
 
         runtime.battleRandomOverrides = [1, 0, 255]
         let metronomeResult = runtime.applyMove(attacker: &trickster, defender: &countermon, moveIndex: 0)
-        XCTAssertEqual(trickster.battleEffects.lastSelectedMoveID, "METRONOME")
+        XCTAssertEqual(trickster.battleEffects.lastSelectedMoveID, "TACKLE")
+        XCTAssertEqual(trickster.battleEffects.lastSelectedMoveType, "NORMAL")
         XCTAssertGreaterThan(metronomeResult.dealtDamage, 0)
 
         runtime.battleRandomOverrides = [0]
         let counterResult = runtime.applyMove(attacker: &countermon, defender: &trickster, moveIndex: 0)
-        XCTAssertEqual(counterResult.dealtDamage, 0)
-        XCTAssertEqual(counterResult.messages.suffix(1), ["But it failed!"])
+        XCTAssertEqual(counterResult.dealtDamage, metronomeResult.dealtDamage * 2)
+    }
+
+    func testCounterUsesExecutedMirrorMoveMetadata() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "COUNTERMON", displayName: "Countermon", primaryType: "FIGHTING", baseHP: 60, baseAttack: 70, baseDefense: 60, baseSpeed: 55, baseSpecial: 50, startingMoves: ["COUNTER"]),
+                        .init(id: "COPYCAT", displayName: "Copycat", primaryType: "FLYING", baseHP: 60, baseAttack: 65, baseDefense: 55, baseSpeed: 35, baseSpecial: 40, startingMoves: ["MIRROR_MOVE"]),
+                    ],
+                    moves: [
+                        .init(id: "COUNTER", displayName: "COUNTER", power: 1, accuracy: 100, maxPP: 20, effect: "NO_ADDITIONAL_EFFECT", type: "FIGHTING"),
+                        .init(id: "MIRROR_MOVE", displayName: "MIRROR MOVE", power: 0, accuracy: 100, maxPP: 20, effect: "MIRROR_MOVE_EFFECT", type: "FLYING"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        var countermon = runtime.makePokemon(speciesID: "COUNTERMON", level: 20, nickname: "Countermon")
+        var copycat = runtime.makePokemon(speciesID: "COPYCAT", level: 20, nickname: "Copycat")
+        countermon.battleEffects.lastMoveID = "TACKLE"
+
+        runtime.battleRandomOverrides = [0, 255]
+        let mirrorMoveResult = runtime.applyMove(attacker: &copycat, defender: &countermon, moveIndex: 0)
+        XCTAssertEqual(copycat.battleEffects.lastSelectedMoveID, "TACKLE")
+        XCTAssertEqual(copycat.battleEffects.lastSelectedMoveType, "NORMAL")
+        XCTAssertGreaterThan(mirrorMoveResult.dealtDamage, 0)
+
+        runtime.battleRandomOverrides = [0]
+        let counterResult = runtime.applyMove(attacker: &countermon, defender: &copycat, moveIndex: 0)
+        XCTAssertEqual(counterResult.dealtDamage, mirrorMoveResult.dealtDamage * 2)
     }
 
     func testCounterMovesAfterOpposingMoveEvenWhenUserIsFaster() {
@@ -1510,7 +1543,13 @@ extension PokeCoreTests {
 
         var expectedCounterUser = playerPokemon
         var expectedAttacker = enemyPokemon
-        runtime.battleRandomOverrides = [0, 255]
+        runtime.battleRandomOverrides = [0, 255, 0]
+        _ = runtime.resolveActionMoveIndex(
+            for: .enemy,
+            battle: battle,
+            playerPokemon: expectedCounterUser,
+            enemyPokemon: expectedAttacker
+        )
         _ = runtime.applyMove(attacker: &expectedAttacker, defender: &expectedCounterUser, moveIndex: 0)
         let expectedCounterDamage = expectedCounterUser.battleEffects.lastDamageTaken * 2
 
@@ -1588,6 +1627,67 @@ extension PokeCoreTests {
         let secondBatchMessages = batches[1].compactMap(\.message)
         XCTAssertEqual(firstBatchMessages.first, "Slowmon used TACKLE!")
         XCTAssertEqual(secondBatchMessages.first, "Fastmon used COUNTER!")
+    }
+
+    func testBattlePresentationPreservesEnemySelectionRNGConsumption() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "SLOWMON", displayName: "Slowmon", primaryType: "NORMAL", baseHP: 60, baseAttack: 65, baseDefense: 60, baseSpeed: 35, baseSpecial: 40, startingMoves: ["TACKLE"]),
+                        .init(id: "FASTMON", displayName: "Fastmon", primaryType: "NORMAL", baseHP: 60, baseAttack: 70, baseDefense: 60, baseSpeed: 90, baseSpecial: 50, startingMoves: ["SING", "TACKLE"]),
+                    ],
+                    moves: [
+                        .init(id: "SING", displayName: "SING", power: 0, accuracy: 55, maxPP: 15, effect: "SLEEP_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        let playerPokemon = runtime.makePokemon(speciesID: "SLOWMON", level: 20, nickname: "Slowmon")
+        let enemyPokemon = runtime.makePokemon(speciesID: "FASTMON", level: 20, nickname: "Fastmon")
+
+        var battle = RuntimeBattleState(
+            battleID: "enemy_selection_rng_consumption",
+            kind: .wild,
+            trainerName: "Wild Fastmon",
+            trainerSpritePath: nil,
+            baseRewardMoney: 0,
+            completionFlagID: "",
+            healsPartyAfterBattle: false,
+            preventsBlackoutOnLoss: false,
+            playerWinDialogueID: "",
+            playerLoseDialogueID: nil,
+            postBattleScriptID: nil,
+            canRun: true,
+            trainerClass: nil,
+            sourceTrainerObjectID: nil,
+            playerPokemon: playerPokemon,
+            enemyParty: [enemyPokemon],
+            enemyActiveIndex: 0,
+            aiLayer2Encouragement: 0,
+            payDayMoney: 0,
+            phase: .moveSelection,
+            focusedMoveIndex: 0,
+            focusedBagItemIndex: 0,
+            focusedPartyIndex: 0,
+            partySelectionMode: .optionalSwitch,
+            message: "",
+            queuedMessages: [],
+            pendingAction: nil,
+            lastCaptureResult: nil,
+            pendingPresentationBatches: [],
+            learnMoveState: nil,
+            rewardContinuation: nil,
+            presentation: .init()
+        )
+
+        runtime.battleRandomOverrides = [0, 255]
+        let batches = runtime.makeTurnPresentationBatches(for: &battle)
+        let firstBatchMessages = batches[0].compactMap(\.message)
+        XCTAssertEqual(firstBatchMessages, ["Fastmon used SING!", "But it missed!"])
     }
 
     func testChargingMovesConsumePpOnlyOnceAcrossTwoTurnCycle() {
@@ -2115,6 +2215,38 @@ extension PokeCoreTests {
         XCTAssertNotEqual(metronome.messages.first, "Bird used METRONOME!")
         XCTAssertNotEqual(bird.battleEffects.lastMoveID, "METRONOME")
         XCTAssertNotEqual(bird.battleEffects.lastMoveID, "STRUGGLE")
+    }
+
+    func testTransformSnapshotPreservesOriginalMimicSlotForBattleCleanup() {
+        let runtime = GameRuntime(
+            content: fixtureContent(
+                gameplayManifest: fixtureGameplayManifest(
+                    species: [
+                        .init(id: "BIRD", displayName: "Bird", primaryType: "NORMAL", secondaryType: "FLYING", baseHP: 40, baseAttack: 45, baseDefense: 40, baseSpeed: 56, baseSpecial: 35, startingMoves: ["MIMIC", "TRANSFORM"]),
+                        .init(id: "TARGET", displayName: "Target", primaryType: "NORMAL", baseHP: 45, baseAttack: 49, baseDefense: 49, baseSpeed: 45, baseSpecial: 65, startingMoves: ["TACKLE", "GROWL"]),
+                    ],
+                    moves: [
+                        .init(id: "MIMIC", displayName: "MIMIC", power: 0, accuracy: 100, maxPP: 10, effect: "MIMIC_EFFECT", type: "NORMAL"),
+                        .init(id: "TRANSFORM", displayName: "TRANSFORM", power: 0, accuracy: 100, maxPP: 10, effect: "TRANSFORM_EFFECT", type: "NORMAL"),
+                        .init(id: "TACKLE", displayName: "TACKLE", power: 35, accuracy: 100, maxPP: 35, effect: "NO_ADDITIONAL_EFFECT", type: "NORMAL"),
+                        .init(id: "GROWL", displayName: "GROWL", power: 0, accuracy: 100, maxPP: 40, effect: "ATTACK_DOWN1_EFFECT", type: "NORMAL"),
+                    ]
+                )
+            ),
+            telemetryPublisher: nil
+        )
+
+        var bird = runtime.makePokemon(speciesID: "BIRD", level: 15, nickname: "Bird")
+        var target = runtime.makePokemon(speciesID: "TARGET", level: 15, nickname: "Target")
+
+        runtime.battleRandomOverrides = [0]
+        _ = runtime.applyMove(attacker: &bird, defender: &target, moveIndex: 0)
+        XCTAssertEqual(bird.moves[0].id, "TACKLE")
+
+        _ = runtime.applyMove(attacker: &bird, defender: &target, moveIndex: 1)
+        let restored = runtime.restoreBattleSpecificPokemonMutations(bird)
+
+        XCTAssertEqual(restored.moves.map(\.id), ["MIMIC", "TRANSFORM"])
     }
 
     func testFixedDamageDrainAndRecoilEffectsUseGBSemantics() {

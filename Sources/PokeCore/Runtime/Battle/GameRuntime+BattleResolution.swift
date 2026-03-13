@@ -248,13 +248,11 @@ extension GameRuntime {
         }
 
         let selectedMove = move
-        attacker.battleEffects.lastSelectedMoveID = selectedMove.id
-        attacker.battleEffects.lastSelectedMovePower = selectedMove.power
-        attacker.battleEffects.lastSelectedMoveType = selectedMove.type
 
         if move.effect == "MIRROR_MOVE_EFFECT" {
             guard let copiedMove = mirrorMoveTarget(for: defender),
                   copiedMove.effect != "MIRROR_MOVE_EFFECT" else {
+                recordLastSelectedMoveMetadata(selectedMove, attacker: &attacker)
                 return ResolvedBattleMove(
                     messages: ["But it failed!"],
                     dealtDamage: 0,
@@ -266,6 +264,7 @@ extension GameRuntime {
             move = copiedMove
         } else if move.effect == "METRONOME_EFFECT" {
             guard let randomMove = metronomeMove() else {
+                recordLastSelectedMoveMetadata(selectedMove, attacker: &attacker)
                 return ResolvedBattleMove(
                     messages: ["But it failed!"],
                     dealtDamage: 0,
@@ -277,6 +276,7 @@ extension GameRuntime {
             move = randomMove
         }
 
+        recordLastSelectedMoveMetadata(move, attacker: &attacker)
         attacker.battleEffects.lastMoveID = move.id
         defender.battleEffects.lastDamageTaken = 0
 
@@ -528,6 +528,12 @@ extension GameRuntime {
             return nil
         }
         return candidates[nextBattleRandomByte() % candidates.count]
+    }
+
+    func recordLastSelectedMoveMetadata(_ move: MoveManifest, attacker: inout RuntimePokemonState) {
+        attacker.battleEffects.lastSelectedMoveID = move.id
+        attacker.battleEffects.lastSelectedMovePower = move.power
+        attacker.battleEffects.lastSelectedMoveType = move.type
     }
 
     func moveCanDealDamage(_ move: MoveManifest, forcedDamage: Int?) -> Bool {
@@ -1520,6 +1526,7 @@ extension GameRuntime {
             return ["But it failed!"]
         }
 
+        let originalMoves = originalMovesForTransformSnapshot(attacker)
         attacker.battleEffects.transformedState = .init(
             originalSpeciesID: attacker.speciesID,
             originalAttack: attacker.attack,
@@ -1532,7 +1539,7 @@ extension GameRuntime {
             originalSpecialStage: attacker.specialStage,
             originalAccuracyStage: attacker.accuracyStage,
             originalEvasionStage: attacker.evasionStage,
-            originalMoves: attacker.moves
+            originalMoves: originalMoves
         )
         attacker.speciesID = defender.speciesID
         attacker.attack = defender.attack
@@ -1552,6 +1559,15 @@ extension GameRuntime {
         attacker.battleEffects.typeOverridePrimary = nil
         attacker.battleEffects.typeOverrideSecondary = nil
         return ["\(attacker.nickname) transformed!"]
+    }
+
+    func originalMovesForTransformSnapshot(_ pokemon: RuntimePokemonState) -> [RuntimeMoveState] {
+        var originalMoves = pokemon.moves
+        if let mimicState = pokemon.battleEffects.mimicState,
+           originalMoves.indices.contains(mimicState.slotIndex) {
+            originalMoves[mimicState.slotIndex] = mimicState.originalMove
+        }
+        return originalMoves
     }
 
     func applySubstitute(to attacker: inout RuntimePokemonState) -> [String] {

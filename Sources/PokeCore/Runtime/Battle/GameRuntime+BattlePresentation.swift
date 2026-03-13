@@ -62,6 +62,26 @@ extension GameRuntime {
         return moveIndex
     }
 
+    func consumeActionMoveSelectionRandomnessIfNeeded(
+        for side: BattlePresentationSide,
+        battle: RuntimeBattleState,
+        playerPokemon: RuntimePokemonState,
+        enemyPokemon: RuntimePokemonState
+    ) {
+        guard side == .enemy else {
+            return
+        }
+
+        // Preserve the selection RNG burn while still executing the move that
+        // was already peeked for ordering.
+        _ = resolveActionMoveIndex(
+            for: side,
+            battle: battle,
+            playerPokemon: playerPokemon,
+            enemyPokemon: enemyPokemon
+        )
+    }
+
     func turnActionOrder(
         playerPokemon: RuntimePokemonState,
         enemyPokemon: RuntimePokemonState,
@@ -495,6 +515,12 @@ extension GameRuntime {
         )
 
         for side in actionSides {
+            consumeActionMoveSelectionRandomnessIfNeeded(
+                for: side,
+                battle: battle,
+                playerPokemon: simulatedPlayer,
+                enemyPokemon: simulatedEnemy
+            )
             let moveIndex = side == .player
                 ? playerMoveIndex
                 : enemyMoveIndex

@@ -416,7 +416,7 @@ extension GameRuntime {
         transformedState.originalSpecialStage = originalPokemon.specialStage
         transformedState.originalAccuracyStage = originalPokemon.accuracyStage
         transformedState.originalEvasionStage = originalPokemon.evasionStage
-        transformedState.originalMoves = originalPokemon.moves
+        transformedState.originalMoves = originalMovesForTransformSnapshot(originalPokemon)
         pokemon.battleEffects.transformedState = transformedState
     }
 
