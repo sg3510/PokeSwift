@@ -192,13 +192,82 @@ extension PokeCoreTests {
         )
     }
 
+    func testLegacySaveWithoutPlayTimeFieldsDefaultsToZeroAndStillLoads() throws {
+        let json = """
+        {
+          "metadata": {
+            "schemaVersion": 6,
+            "variant": "red",
+            "playthroughID": "legacy-no-playtime",
+            "playerName": "RED",
+            "locationName": "Red's House 2F",
+            "badgeCount": 0,
+            "savedAt": "2026-03-13T12:00:00Z"
+          },
+          "snapshot": {
+            "mapID": "REDS_HOUSE_2F",
+            "playerPosition": { "x": 4, "y": 4 },
+            "facing": "down",
+            "objectStates": {},
+            "activeFlags": [],
+            "money": 3000,
+            "inventory": [],
+            "earnedBadgeIDs": [],
+            "playerName": "RED",
+            "rivalName": "BLUE",
+            "playerParty": [
+              {
+                "speciesID": "SQUIRTLE",
+                "nickname": "Squirtle",
+                "level": 5,
+                "experience": 135,
+                "dvs": { "attack": 0, "defense": 0, "speed": 0, "special": 0 },
+                "statExp": { "hp": 0, "attack": 0, "defense": 0, "speed": 0, "special": 0 },
+                "maxHP": 20,
+                "currentHP": 20,
+                "attack": 10,
+                "defense": 10,
+                "speed": 10,
+                "special": 10,
+                "attackStage": 0,
+                "defenseStage": 0,
+                "accuracyStage": 0,
+                "evasionStage": 0,
+                "moves": []
+              }
+            ],
+            "chosenStarterSpeciesID": "SQUIRTLE",
+            "rivalStarterSpeciesID": "BULBASAUR",
+            "pendingStarterSpeciesID": null,
+            "activeMapScriptTriggerID": null,
+            "activeScriptID": null,
+            "activeScriptStep": null,
+            "encounterStepCounter": 0
+          }
+        }
+        """
+
+        let envelope = try JSONDecoder().decode(GameSaveEnvelope.self, from: Data(json.utf8))
+        XCTAssertEqual(envelope.metadata.playTimeSeconds, 0)
+        XCTAssertEqual(envelope.snapshot.playTimeSeconds, 0)
+
+        let saveStore = InMemorySaveStore()
+        saveStore.envelope = envelope
+ 
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
+
+        XCTAssertTrue(runtime.continueFromTitleMenu())
+        XCTAssertEqual(runtime.gameplayState?.playTimeSeconds, 0)
+        XCTAssertEqual(runtime.currentSaveMetadata?.playTimeSeconds, 0)
+    }
+
     func testSchemaSevenSaveDefaultsSpeciesEncounterCountsToZero() throws {
         let saveStore = InMemorySaveStore()
         saveStore.envelope = try decodeLegacySaveEnvelope(
             schemaVersion: 7,
             acquisitionRNGState: 1
         )
-
+ 
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
 
         XCTAssertTrue(runtime.continueFromTitleMenu())

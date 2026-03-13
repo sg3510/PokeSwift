@@ -29,6 +29,29 @@ public struct GameSaveMetadata: Codable, Equatable, Sendable {
         self.playTimeSeconds = playTimeSeconds
         self.savedAt = savedAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case variant
+        case playthroughID
+        case playerName
+        case locationName
+        case badgeCount
+        case playTimeSeconds
+        case savedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        variant = try container.decode(GameVariant.self, forKey: .variant)
+        playthroughID = try container.decode(String.self, forKey: .playthroughID)
+        playerName = try container.decode(String.self, forKey: .playerName)
+        locationName = try container.decode(String.self, forKey: .locationName)
+        badgeCount = try container.decode(Int.self, forKey: .badgeCount)
+        playTimeSeconds = try container.decodeIfPresent(Int.self, forKey: .playTimeSeconds) ?? 0
+        savedAt = try container.decode(String.self, forKey: .savedAt)
+    }
 }
 
 public struct GameSaveEnvelope: Codable, Equatable, Sendable {
@@ -176,7 +199,7 @@ public struct GameSaveSnapshot: Codable, Equatable, Sendable {
         activeScriptID = try container.decodeIfPresent(String.self, forKey: .activeScriptID)
         activeScriptStep = try container.decodeIfPresent(Int.self, forKey: .activeScriptStep)
         encounterStepCounter = try container.decodeIfPresent(Int.self, forKey: .encounterStepCounter) ?? 0
-        playTimeSeconds = try container.decode(Int.self, forKey: .playTimeSeconds)
+        playTimeSeconds = try container.decodeIfPresent(Int.self, forKey: .playTimeSeconds) ?? 0
     }
 }
 

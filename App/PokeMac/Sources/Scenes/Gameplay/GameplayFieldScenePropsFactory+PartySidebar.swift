@@ -29,7 +29,7 @@ extension GameplayScenePropsFactory {
         return GameplaySidebarPropsBuilder.makeParty(
             from: party,
             speciesDetailsByID: manifestIndex.speciesDetailsByID,
-            moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID,
+            moveDetailsByID: manifestIndex.moveDetailsByID,
             mode: configuration.mode,
             focusedIndex: runtime.fieldPartyReorderSelectionIndex,
             selectedIndex: configuration.selectedIndex,
@@ -49,7 +49,7 @@ extension GameplayScenePropsFactory {
         return GameplaySidebarPropsBuilder.makeParty(
             from: party,
             speciesDetailsByID: manifestIndex.speciesDetailsByID,
-            moveDisplayNamesByID: manifestIndex.moveDisplayNamesByID,
+            moveDetailsByID: manifestIndex.moveDetailsByID,
             mode: configuration.mode,
             focusedIndex: configuration.focusedIndex,
             selectableIndices: configuration.selectableIndices,
