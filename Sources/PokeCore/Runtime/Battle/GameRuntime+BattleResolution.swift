@@ -380,7 +380,7 @@ extension GameRuntime {
             dealtDamage = multiHitResult.dealtDamage
             defender.battleEffects.lastDamageTaken = multiHitResult.lastHitDamage
             messages.append(contentsOf: multiHitResult.messages)
-        } else if move.power > 0 || forcedDamage != nil {
+        } else if moveCanDealDamage(move, forcedDamage: forcedDamage) {
             let isCriticalHit = isCounterMove ? false : isCriticalHit(for: attacker)
             let damage: Int
             if isCounterMove {
@@ -414,7 +414,6 @@ extension GameRuntime {
             }
             var appliedDamage = damage
             let substituteResult = applyDamageToSubstituteIfNeeded(
-                move: move,
                 dealtDamage: appliedDamage,
                 defender: &defender
             )
@@ -531,13 +530,19 @@ extension GameRuntime {
         return candidates[nextBattleRandomByte() % candidates.count]
     }
 
+    func moveCanDealDamage(_ move: MoveManifest, forcedDamage: Int?) -> Bool {
+        forcedDamage != nil ||
+            move.power > 0 ||
+            move.effect == "OHKO_EFFECT" ||
+            move.effect == "SUPER_FANG_EFFECT" ||
+            move.effect == "SPECIAL_DAMAGE_EFFECT"
+    }
+
     fileprivate func applyDamageToSubstituteIfNeeded(
-        move: MoveManifest,
         dealtDamage: Int,
         defender: inout RuntimePokemonState
     ) -> SubstituteDamageResult {
         guard dealtDamage > 0,
-              move.power > 0,
               defender.battleEffects.hasSubstitute else {
             return .init(hitSubstitute: false, appliedDamage: dealtDamage, messages: [])
         }
@@ -890,7 +895,7 @@ extension GameRuntime {
             return .init(
                 messages: messages,
                 canAct: true,
-                shouldSkipPP: false,
+                shouldSkipPP: true,
                 shouldSkipAccuracy: false,
                 shouldSkipEffect: false,
                 forcedDamage: nil

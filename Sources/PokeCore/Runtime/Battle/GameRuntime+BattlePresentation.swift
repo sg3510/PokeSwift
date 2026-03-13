@@ -481,7 +481,7 @@ extension GameRuntime {
             playerPokemon: simulatedPlayer,
             enemyPokemon: simulatedEnemy
         )
-        let enemyMoveIndexForOrdering = peekActionMoveIndex(
+        let enemyMoveIndex = peekActionMoveIndex(
             for: .enemy,
             battle: battle,
             playerPokemon: simulatedPlayer,
@@ -491,18 +491,13 @@ extension GameRuntime {
             playerPokemon: simulatedPlayer,
             enemyPokemon: simulatedEnemy,
             playerMoveIndex: playerMoveIndex,
-            enemyMoveIndex: enemyMoveIndexForOrdering
+            enemyMoveIndex: enemyMoveIndex
         )
 
         for side in actionSides {
             let moveIndex = side == .player
                 ? playerMoveIndex
-                : resolveActionMoveIndex(
-                    for: .enemy,
-                    battle: battle,
-                    playerPokemon: simulatedPlayer,
-                    enemyPokemon: simulatedEnemy
-                )
+                : enemyMoveIndex
             let action = resolveBattleAction(
                 side: side,
                 attacker: side == .player ? simulatedPlayer : simulatedEnemy,
