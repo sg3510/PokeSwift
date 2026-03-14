@@ -39,6 +39,7 @@ struct RuntimeSceneRouter: View {
             if let gameplaySceneProps = GameplayScenePropsFactory.make(
                 runtime: runtime,
                 appearanceMode: preferences.appearanceMode,
+                gameBoyShellStyle: preferences.gameBoyShellStyle,
                 gameplayHDREnabled: preferences.gameplayHDREnabled
             ) {
                 GameplayScene(props: gameplaySceneProps)

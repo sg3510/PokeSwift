@@ -381,12 +381,40 @@ public struct SaveSidebarProps: Equatable, Sendable {
     }
 }
 
+public struct GameBoyShellStyleOptionProps: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let shellStyle: GameBoyShellStyle
+    public let title: String
+    public let isSelected: Bool
+
+    public init(
+        id: String,
+        shellStyle: GameBoyShellStyle,
+        title: String,
+        isSelected: Bool
+    ) {
+        self.id = id
+        self.shellStyle = shellStyle
+        self.title = title
+        self.isSelected = isSelected
+    }
+}
+
 public struct OptionsSidebarProps: Equatable, Sendable {
     public let title: String
+    public let shellPickerTitle: String
+    public let shellOptions: [GameBoyShellStyleOptionProps]
     public let rows: [SidebarActionRowProps]
 
-    public init(title: String, rows: [SidebarActionRowProps]) {
+    public init(
+        title: String,
+        shellPickerTitle: String,
+        shellOptions: [GameBoyShellStyleOptionProps],
+        rows: [SidebarActionRowProps]
+    ) {
         self.title = title
+        self.shellPickerTitle = shellPickerTitle
+        self.shellOptions = shellOptions
         self.rows = rows
     }
 }
@@ -1094,10 +1122,20 @@ public enum GameplaySidebarPropsBuilder {
     public static func makeOptionsSection(
         isMusicEnabled: Bool,
         appearanceMode: AppAppearanceMode,
+        gameBoyShellStyle: GameBoyShellStyle,
         gameplayHDREnabled: Bool
     ) -> OptionsSidebarProps {
         OptionsSidebarProps(
             title: "Options",
+            shellPickerTitle: "GB Shell",
+            shellOptions: GameBoyShellStyle.allCases.map { shellStyle in
+                GameBoyShellStyleOptionProps(
+                    id: shellStyle.actionID,
+                    shellStyle: shellStyle,
+                    title: shellStyle.optionsLabel,
+                    isSelected: shellStyle == gameBoyShellStyle
+                )
+            },
             rows: [
                 .init(id: "appearanceMode", title: "Appearance", detail: appearanceMode.optionsLabel, isEnabled: true),
                 .init(id: "gameplayHDR", title: "HDR Effects", detail: gameplayHDREnabled ? "On" : "Off", isEnabled: true),

@@ -11,6 +11,7 @@ enum GameplayScenePropsFactory {
     static func make(
         runtime: GameRuntime,
         appearanceMode: AppAppearanceMode,
+        gameBoyShellStyle: GameBoyShellStyle,
         gameplayHDREnabled: Bool
     ) -> GameplaySceneProps? {
         let manifestIndex = cachedManifestIndex(for: runtime)
@@ -71,6 +72,7 @@ enum GameplayScenePropsFactory {
                         options: GameplaySidebarPropsBuilder.makeOptionsSection(
                             isMusicEnabled: runtime.isMusicEnabled,
                             appearanceMode: appearanceMode,
+                            gameBoyShellStyle: gameBoyShellStyle,
                             gameplayHDREnabled: gameplayHDREnabled
                         ),
                         preferredExpandedSection: runtime.captureAftermathPokedexSelectionID == nil ? nil : .pokedex

@@ -74,6 +74,11 @@ private extension GameplayScene {
             return
         }
 
+        if let shellStyle = GameBoyShellStyle(actionID: actionID) {
+            preferences.setGameBoyShellStyle(shellStyle)
+            return
+        }
+
         switch actionID {
         case "appearanceMode":
             preferences.cycleAppearanceMode()

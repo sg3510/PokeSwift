@@ -54,6 +54,41 @@ public enum AppAppearanceMode: String, CaseIterable, Codable, Sendable {
     }
 }
 
+public enum GameBoyShellStyle: String, CaseIterable, Codable, Sendable {
+    case classic
+    case kiwi
+    case dandelion
+    case teal
+    case grape
+
+    public var optionsLabel: String {
+        switch self {
+        case .classic:
+            return "Classic"
+        case .kiwi:
+            return "Kiwi"
+        case .dandelion:
+            return "Dandelion"
+        case .teal:
+            return "Teal"
+        case .grape:
+            return "Grape"
+        }
+    }
+
+    public var actionID: String {
+        "shellStyle:\(rawValue)"
+    }
+
+    public init?(actionID: String) {
+        guard actionID.hasPrefix("shellStyle:") else {
+            return nil
+        }
+
+        self.init(rawValue: String(actionID.dropFirst("shellStyle:".count)))
+    }
+}
+
 public struct GameplayHDRProfile: Equatable, Sendable {
     public let isEnabled: Bool
     public let outerGlowExposure: Double
@@ -167,6 +202,16 @@ public struct ThemeRGBA: Equatable, Sendable {
                 linearExposure: max(1, linearExposure)
             )
         )
+    }
+}
+
+public struct GameBoyShellPalette: Equatable, Sendable {
+    public let backdrop: ThemeRGBA
+    public let shadow: ThemeRGBA
+
+    public init(backdrop: ThemeRGBA, shadow: ThemeRGBA) {
+        self.backdrop = backdrop
+        self.shadow = shadow
     }
 }
 
@@ -329,6 +374,41 @@ public enum PokeThemePalette {
         }
     }
 
+    public static func gameBoyShellPalette(
+        shellStyle: GameBoyShellStyle,
+        appearanceMode: AppAppearanceMode,
+        colorScheme: ColorScheme
+    ) -> GameBoyShellPalette {
+        switch shellStyle {
+        case .classic:
+            let resolvedPalette = resolve(for: appearanceMode.resolved(for: colorScheme)).field
+            return GameBoyShellPalette(
+                backdrop: resolvedPalette.shellBackdrop,
+                shadow: resolvedPalette.shellBackdropShadow
+            )
+        case .kiwi:
+            return GameBoyShellPalette(
+                backdrop: .init(red: 0.64, green: 0.82, blue: 0.4),
+                shadow: .init(red: 0.2, green: 0.32, blue: 0.08, alpha: 0.42)
+            )
+        case .dandelion:
+            return GameBoyShellPalette(
+                backdrop: .init(red: 0.95, green: 0.82, blue: 0.35),
+                shadow: .init(red: 0.46, green: 0.3, blue: 0.05, alpha: 0.38)
+            )
+        case .teal:
+            return GameBoyShellPalette(
+                backdrop: .init(red: 0.34, green: 0.74, blue: 0.72),
+                shadow: .init(red: 0.08, green: 0.28, blue: 0.27, alpha: 0.4)
+            )
+        case .grape:
+            return GameBoyShellPalette(
+                backdrop: .init(red: 0.64, green: 0.48, blue: 0.75),
+                shadow: .init(red: 0.23, green: 0.15, blue: 0.3, alpha: 0.42)
+            )
+        }
+    }
+
     public static let primaryText = dynamic(\.primaryText)
     public static let secondaryText = dynamic(\.secondaryText)
     public static let tertiaryText = dynamic(\.tertiaryText)
@@ -423,6 +503,10 @@ private struct PokeGameplayHDREnabledKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct PokeGameBoyShellStyleKey: EnvironmentKey {
+    static let defaultValue: GameBoyShellStyle = .classic
+}
+
 public extension EnvironmentValues {
     var pokeAppearanceMode: AppAppearanceMode {
         get { self[PokeAppearanceModeKey.self] }
@@ -433,6 +517,11 @@ public extension EnvironmentValues {
         get { self[PokeGameplayHDREnabledKey.self] }
         set { self[PokeGameplayHDREnabledKey.self] = newValue }
     }
+
+    var pokeGameBoyShellStyle: GameBoyShellStyle {
+        get { self[PokeGameBoyShellStyleKey.self] }
+        set { self[PokeGameBoyShellStyleKey.self] = newValue }
+    }
 }
 
 public extension View {
@@ -442,6 +531,10 @@ public extension View {
 
     func pokeGameplayHDREnabled(_ isEnabled: Bool) -> some View {
         environment(\.pokeGameplayHDREnabled, isEnabled)
+    }
+
+    func pokeGameBoyShellStyle(_ shellStyle: GameBoyShellStyle) -> some View {
+        environment(\.pokeGameBoyShellStyle, shellStyle)
     }
 }
 

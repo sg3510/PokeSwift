@@ -69,6 +69,7 @@ extension PokeUITests {
         options: GameplaySidebarPropsBuilder.makeOptionsSection(
           isMusicEnabled: true,
           appearanceMode: .light,
+          gameBoyShellStyle: .classic,
           gameplayHDREnabled: true
         )
       )
@@ -1342,6 +1343,7 @@ extension PokeUITests {
         options: GameplaySidebarPropsBuilder.makeOptionsSection(
           isMusicEnabled: true,
           appearanceMode: .light,
+          gameBoyShellStyle: .classic,
           gameplayHDREnabled: true
         ),
         preferredExpandedSection: .pokedex
@@ -1355,6 +1357,7 @@ extension PokeUITests {
     let options = GameplaySidebarPropsBuilder.makeOptionsSection(
       isMusicEnabled: true,
       appearanceMode: .light,
+      gameBoyShellStyle: .classic,
       gameplayHDREnabled: true
     )
 
@@ -1363,6 +1366,9 @@ extension PokeUITests {
     XCTAssertEqual(
       options.rows.map(\.title), ["Appearance", "HDR Effects", "Text Speed", "Battle Scene", "Battle Style", "Music"])
     XCTAssertEqual(options.rows.map(\.isEnabled), [true, true, false, false, false, true])
+    XCTAssertEqual(options.shellPickerTitle, "GB Shell")
+    XCTAssertEqual(options.shellOptions.map(\.shellStyle), [.classic, .kiwi, .dandelion, .teal, .grape])
+    XCTAssertEqual(options.shellOptions.filter(\.isSelected).map(\.shellStyle), [.classic])
     XCTAssertEqual(options.rows.last?.detail, "On")
     XCTAssertEqual(options.rows.first?.detail, "Light")
     XCTAssertEqual(options.rows.dropFirst().first?.detail, "On")
@@ -1407,16 +1413,19 @@ extension PokeUITests {
     let systemOptions = GameplaySidebarPropsBuilder.makeOptionsSection(
       isMusicEnabled: true,
       appearanceMode: .system,
+      gameBoyShellStyle: .classic,
       gameplayHDREnabled: false
     )
     let lightOptions = GameplaySidebarPropsBuilder.makeOptionsSection(
       isMusicEnabled: true,
       appearanceMode: .light,
+      gameBoyShellStyle: .kiwi,
       gameplayHDREnabled: true
     )
     let darkOptions = GameplaySidebarPropsBuilder.makeOptionsSection(
       isMusicEnabled: true,
       appearanceMode: .retroDark,
+      gameBoyShellStyle: .dandelion,
       gameplayHDREnabled: true
     )
 
@@ -1429,6 +1438,60 @@ extension PokeUITests {
     XCTAssertEqual(systemOptions.rows.last?.detail, "On")
     XCTAssertEqual(lightOptions.rows.last?.detail, "On")
     XCTAssertEqual(darkOptions.rows.last?.detail, "On")
+    XCTAssertEqual(systemOptions.shellOptions.filter(\.isSelected).map(\.shellStyle), [.classic])
+    XCTAssertEqual(lightOptions.shellOptions.filter(\.isSelected).map(\.shellStyle), [.kiwi])
+    XCTAssertEqual(darkOptions.shellOptions.filter(\.isSelected).map(\.shellStyle), [.dandelion])
+  }
+  func testClassicGameBoyShellPaletteTracksAppearanceMode() {
+    let lightClassic = PokeThemePalette.gameBoyShellPalette(
+      shellStyle: .classic,
+      appearanceMode: .light,
+      colorScheme: .light
+    )
+    let darkClassic = PokeThemePalette.gameBoyShellPalette(
+      shellStyle: .classic,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+
+    XCTAssertEqual(lightClassic.backdrop, PokeThemePalette.resolve(for: .light).field.shellBackdrop)
+    XCTAssertEqual(lightClassic.shadow, PokeThemePalette.resolve(for: .light).field.shellBackdropShadow)
+    XCTAssertEqual(darkClassic.backdrop, PokeThemePalette.resolve(for: .retroDark).field.shellBackdrop)
+    XCTAssertEqual(darkClassic.shadow, PokeThemePalette.resolve(for: .retroDark).field.shellBackdropShadow)
+  }
+  func testExplicitGameBoyShellPalettesStayStableAcrossAppearanceModes() {
+    for shellStyle in [GameBoyShellStyle.kiwi, .dandelion, .teal, .grape] {
+      let lightPalette = PokeThemePalette.gameBoyShellPalette(
+        shellStyle: shellStyle,
+        appearanceMode: .light,
+        colorScheme: .light
+      )
+      let darkPalette = PokeThemePalette.gameBoyShellPalette(
+        shellStyle: shellStyle,
+        appearanceMode: .retroDark,
+        colorScheme: .dark
+      )
+
+      XCTAssertEqual(lightPalette, darkPalette)
+      XCTAssertNotEqual(lightPalette.backdrop, PokeThemePalette.resolve(for: .light).field.shellBackdrop)
+    }
+  }
+  func testOptionsSidebarContentWithShellPickerFitsSidebarWidth() {
+    let props = GameplaySidebarPropsBuilder.makeOptionsSection(
+      isMusicEnabled: true,
+      appearanceMode: .light,
+      gameBoyShellStyle: .kiwi,
+      gameplayHDREnabled: true
+    )
+    let view = OptionsSidebarContent(
+      props: props,
+      fieldDisplayStyle: .constant(.defaultGameplayStyle),
+      onAction: nil
+    )
+
+    let measuredHeight = measureFittingHeight(of: view, width: 320)
+    XCTAssertGreaterThan(measuredHeight, 140)
+    XCTAssertLessThanOrEqual(measuredHeight, GameplayFieldMetrics.optionsExpandedMaxHeight)
   }
   func testAppearanceModeCyclesSystemDarkLight() {
     XCTAssertEqual(AppAppearanceMode.system.nextOptionMode, .retroDark)
