@@ -44,6 +44,90 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_1")
         XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "ROUTE_1")
     }
+
+    func testRepoGeneratedRoute2NorthConnectionCrossesIntoPewterCity() throws {
+        let runtime = try makeRepoRuntime()
+        let start = try findConnectionStart(
+            from: "ROUTE_2",
+            moving: .up,
+            expecting: "PEWTER_CITY"
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_2"
+        runtime.gameplayState?.playerPosition = start
+        runtime.gameplayState?.facing = .up
+
+        runtime.movePlayer(in: .up)
+
+        XCTAssertEqual(runtime.gameplayState?.mapID, "PEWTER_CITY")
+        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "PEWTER_CITY")
+    }
+
+    func testRepoGeneratedPewterCitySouthConnectionCrossesIntoRoute2() throws {
+        let runtime = try makeRepoRuntime()
+        let start = try findConnectionStart(
+            from: "PEWTER_CITY",
+            moving: .down,
+            expecting: "ROUTE_2"
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PEWTER_CITY"
+        runtime.gameplayState?.playerPosition = start
+        runtime.gameplayState?.facing = .down
+
+        runtime.movePlayer(in: .down)
+
+        XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_2")
+        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "ROUTE_2")
+    }
+
+    func testRepoGeneratedPewterCityEastConnectionCrossesIntoRoute3() throws {
+        let runtime = try makeRepoRuntime()
+        let start = try findConnectionStart(
+            from: "PEWTER_CITY",
+            moving: .right,
+            expecting: "ROUTE_3"
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PEWTER_CITY"
+        runtime.gameplayState?.playerPosition = start
+        runtime.gameplayState?.facing = .right
+
+        runtime.movePlayer(in: .right)
+
+        XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_3")
+        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "ROUTE_3")
+    }
+
+    func testRepoGeneratedRoute3WestConnectionCrossesIntoPewterCity() throws {
+        let runtime = try makeRepoRuntime()
+        let start = try findConnectionStart(
+            from: "ROUTE_3",
+            moving: .left,
+            expecting: "PEWTER_CITY"
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_3"
+        runtime.gameplayState?.playerPosition = start
+        runtime.gameplayState?.facing = .left
+
+        runtime.movePlayer(in: .left)
+
+        XCTAssertEqual(runtime.gameplayState?.mapID, "PEWTER_CITY")
+        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "PEWTER_CITY")
+    }
     func testRepoGeneratedRoute1GrassCanTriggerWildEncounterAndEscapeForFixedRandomBytes() throws {
         let runtime = try makeRepoRuntime()
         let grassTile = try findGrassTile(in: runtime, mapID: "ROUTE_1")
@@ -887,6 +971,71 @@ extension PokeCoreTests {
         XCTAssertFalse(runtime.hasFlag("EVENT_ROUTE22_RIVAL_WANTS_BATTLE"))
         XCTAssertFalse(runtime.gameplayState?.objectStates["route_22_rival_1"]?.visible ?? true)
         XCTAssertFalse(runtime.currentFieldObjects.contains(where: { $0.id == "route_22_rival_1" }))
+    }
+
+    func testRepoGeneratedRoute22GatePushesPlayerBackWithoutBoulderBadge() async throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_22_GATE"
+        runtime.gameplayState?.playerPosition = .init(x: 4, y: 2)
+        runtime.gameplayState?.facing = .up
+
+        runtime.evaluateMapScriptsIfNeeded()
+
+        advanceDialogueUntilComplete(runtime, maxInteractions: 4)
+        _ = try await waitForSnapshot(runtime) {
+            $0.scene == .field
+                && $0.dialogue == nil
+                && runtime.gameplayState?.activeScriptID == nil
+                && runtime.gameplayState?.activeScriptStep == nil
+                && runtime.gameplayState?.playerPosition == .init(x: 4, y: 3)
+        }
+
+        XCTAssertEqual(runtime.gameplayState?.activeMapScriptTriggerID, "guard_blocks_upper_lane_without_boulder_badge")
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, .init(x: 4, y: 3))
+        XCTAssertFalse(runtime.hasFlag("EVENT_BEAT_BROCK"))
+    }
+
+    func testRepoGeneratedBrockInteractionStartsBattleAndAwardsBadgeAndTM() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PEWTER_GYM"
+        runtime.gameplayState?.playerPosition = .init(x: 4, y: 4)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "WARTORTLE", level: 24, nickname: "Wartortle")]
+
+        let brock = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "pewter_gym_brock" })
+        runtime.interact(with: brock)
+
+        drainDialogueAndScripts(runtime, until: {
+            $0.scene == .battle
+        })
+
+        let battle = try XCTUnwrap(runtime.gameplayState?.battle)
+        XCTAssertEqual(battle.battleID, "opp_brock_1")
+        XCTAssertEqual(battle.postBattleScriptID, "pewter_gym_brock_reward")
+
+        runtime.finishBattle(battle: battle, won: true)
+
+        drainDialogueAndScripts(runtime) {
+            $0.scene == .field
+                && $0.dialogue == nil
+                && runtime.gameplayState?.activeScriptID == nil
+                && runtime.gameplayState?.activeScriptStep == nil
+                && ($0.eventFlags?.activeFlags.contains("EVENT_GOT_TM34") ?? false)
+        }
+
+        XCTAssertEqual(runtime.gameplayState?.earnedBadgeIDs, Set(["boulder"]))
+        XCTAssertTrue(runtime.hasFlag("EVENT_BEAT_BROCK"))
+        XCTAssertTrue(runtime.hasFlag("EVENT_GOT_TM34"))
+        XCTAssertEqual(runtime.itemQuantity("TM_BIDE"), 1)
     }
 
     func testRepoGeneratedBrockRewardScriptRetriesTMUntilBagHasRoomAndKeepsBadgeNormalized() throws {

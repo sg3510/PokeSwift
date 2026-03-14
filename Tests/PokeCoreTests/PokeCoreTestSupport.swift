@@ -534,6 +534,7 @@ func findConnectionStart(
 
     for y in 0..<map.stepHeight {
         for x in 0..<map.stepWidth {
+            let probe = try makeRepoRuntime()
             probe.gameplayState = probe.makeInitialGameplayState()
             probe.scene = .field
             probe.substate = "field"

@@ -172,6 +172,8 @@ final class GameplayExtractionTests: XCTestCase {
             "viridian_city_old_man_blocks_north_exit",
             "viridian_city_gym_locked_pushback",
             "viridian_mart_oaks_parcel",
+            "route_22_gate_guard_blocks_northbound_upper_lane",
+            "route_22_gate_guard_blocks_northbound_lower_lane",
             "oaks_lab_parcel_handoff",
             "oaks_lab_choose_charmander",
             "oaks_lab_choose_squirtle",
@@ -576,6 +578,39 @@ final class GameplayExtractionTests: XCTestCase {
         XCTAssertEqual(route22Gate.warps.map(\.targetMapID), ["ROUTE_22", "ROUTE_22", "ROUTE_23", "ROUTE_23"])
         XCTAssertEqual(route22Gate.warps[0].targetPosition, .init(x: 8, y: 5))
         XCTAssertEqual(route22Gate.warps[1].targetPosition, .init(x: 8, y: 5))
+        XCTAssertEqual(
+            manifest.mapScripts.first { $0.mapID == "ROUTE_22_GATE" }?.triggers,
+            [
+                .init(
+                    id: "guard_blocks_upper_lane_without_boulder_badge",
+                    scriptID: "route_22_gate_guard_blocks_northbound_upper_lane",
+                    conditions: [
+                        .init(kind: "flagUnset", flagID: "EVENT_BEAT_BROCK"),
+                        .init(kind: "playerXEquals", intValue: 4),
+                        .init(kind: "playerYEquals", intValue: 2),
+                    ]
+                ),
+                .init(
+                    id: "guard_blocks_lower_lane_without_boulder_badge",
+                    scriptID: "route_22_gate_guard_blocks_northbound_lower_lane",
+                    conditions: [
+                        .init(kind: "flagUnset", flagID: "EVENT_BEAT_BROCK"),
+                        .init(kind: "playerXEquals", intValue: 5),
+                        .init(kind: "playerYEquals", intValue: 2),
+                    ]
+                ),
+            ]
+        )
+
+        let route22GateUpperBlock = try XCTUnwrap(manifest.scripts.first { $0.id == "route_22_gate_guard_blocks_northbound_upper_lane" })
+        XCTAssertEqual(route22GateUpperBlock.steps.map(\.action), ["showDialogue", "movePlayer"])
+        XCTAssertEqual(route22GateUpperBlock.steps.first?.dialogueID, "route_22_gate_guard_no_boulder_badge")
+        XCTAssertEqual(route22GateUpperBlock.steps.last?.path, [.down])
+
+        let route22GateLowerBlock = try XCTUnwrap(manifest.scripts.first { $0.id == "route_22_gate_guard_blocks_northbound_lower_lane" })
+        XCTAssertEqual(route22GateLowerBlock.steps.map(\.action), ["showDialogue", "movePlayer"])
+        XCTAssertEqual(route22GateLowerBlock.steps.first?.dialogueID, "route_22_gate_guard_no_boulder_badge")
+        XCTAssertEqual(route22GateLowerBlock.steps.last?.path, [.down])
 
         let route2 = try XCTUnwrap(manifest.maps.first { $0.id == "ROUTE_2" })
         XCTAssertEqual(route2.defaultMusicID, "MUSIC_ROUTES1")

@@ -8433,6 +8433,47 @@
       ]
     },
     {
+      "mapID" : "ROUTE_22_GATE",
+      "triggers" : [
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_BEAT_BROCK",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 4,
+              "kind" : "playerXEquals"
+            },
+            {
+              "intValue" : 2,
+              "kind" : "playerYEquals"
+            }
+          ],
+          "id" : "guard_blocks_upper_lane_without_boulder_badge",
+          "scriptID" : "route_22_gate_guard_blocks_northbound_upper_lane"
+        },
+        {
+          "conditions" : [
+            {
+              "flagID" : "EVENT_BEAT_BROCK",
+              "kind" : "flagUnset"
+            },
+            {
+              "intValue" : 5,
+              "kind" : "playerXEquals"
+            },
+            {
+              "intValue" : 2,
+              "kind" : "playerYEquals"
+            }
+          ],
+          "id" : "guard_blocks_lower_lane_without_boulder_badge",
+          "scriptID" : "route_22_gate_guard_blocks_northbound_lower_lane"
+        }
+      ]
+    },
+    {
       "mapID" : "OAKS_LAB",
       "triggers" : [
         {
@@ -35220,6 +35261,42 @@
           "flagID" : "EVENT_GOT_OAKS_PARCEL",
           "path" : [
 
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "route_22_gate_guard_blocks_northbound_upper_lane",
+      "steps" : [
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "route_22_gate_guard_no_boulder_badge",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "movePlayer",
+          "path" : [
+            "down"
+          ]
+        }
+      ]
+    },
+    {
+      "id" : "route_22_gate_guard_blocks_northbound_lower_lane",
+      "steps" : [
+        {
+          "action" : "showDialogue",
+          "dialogueID" : "route_22_gate_guard_no_boulder_badge",
+          "path" : [
+
+          ]
+        },
+        {
+          "action" : "movePlayer",
+          "path" : [
+            "down"
           ]
         }
       ]

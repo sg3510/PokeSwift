@@ -2885,6 +2885,29 @@ private func buildMapScripts() -> [MapScriptManifest] {
             ]
         ),
         MapScriptManifest(
+            mapID: "ROUTE_22_GATE",
+            triggers: [
+                .init(
+                    id: "guard_blocks_upper_lane_without_boulder_badge",
+                    scriptID: "route_22_gate_guard_blocks_northbound_upper_lane",
+                    conditions: [
+                        .init(kind: "flagUnset", flagID: "EVENT_BEAT_BROCK"),
+                        .init(kind: "playerXEquals", intValue: 4),
+                        .init(kind: "playerYEquals", intValue: 2),
+                    ]
+                ),
+                .init(
+                    id: "guard_blocks_lower_lane_without_boulder_badge",
+                    scriptID: "route_22_gate_guard_blocks_northbound_lower_lane",
+                    conditions: [
+                        .init(kind: "flagUnset", flagID: "EVENT_BEAT_BROCK"),
+                        .init(kind: "playerXEquals", intValue: 5),
+                        .init(kind: "playerYEquals", intValue: 2),
+                    ]
+                ),
+            ]
+        ),
+        MapScriptManifest(
             mapID: "OAKS_LAB",
             triggers: [
                 .init(
@@ -3001,6 +3024,20 @@ private func buildScripts(repoRoot: URL, maps: [MapManifest]) throws -> [ScriptM
                 .init(action: "showDialogue", dialogueID: "viridian_mart_clerk_parcel_quest"),
                 .init(action: "addItem", stringValue: "OAKS_PARCEL", intValue: 1),
                 .init(action: "setFlag", flagID: "EVENT_GOT_OAKS_PARCEL"),
+            ]
+        ),
+        ScriptManifest(
+            id: "route_22_gate_guard_blocks_northbound_upper_lane",
+            steps: [
+                .init(action: "showDialogue", dialogueID: "route_22_gate_guard_no_boulder_badge"),
+                .init(action: "movePlayer", path: [.down]),
+            ]
+        ),
+        ScriptManifest(
+            id: "route_22_gate_guard_blocks_northbound_lower_lane",
+            steps: [
+                .init(action: "showDialogue", dialogueID: "route_22_gate_guard_no_boulder_badge"),
+                .init(action: "movePlayer", path: [.down]),
             ]
         ),
         ScriptManifest(

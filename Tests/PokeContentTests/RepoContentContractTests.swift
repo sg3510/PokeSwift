@@ -155,6 +155,17 @@ final class RepoContentContractTests: XCTestCase {
         XCTAssertEqual(loaded.map(id: "PEWTER_GYM")?.defaultMusicID, "MUSIC_GYM")
         XCTAssertEqual(loaded.map(id: "ROUTE_3")?.defaultMusicID, "MUSIC_ROUTES3")
         XCTAssertEqual(
+            loaded.mapScript(for: "ROUTE_22_GATE")?.triggers.map(\.scriptID),
+            [
+                "route_22_gate_guard_blocks_northbound_upper_lane",
+                "route_22_gate_guard_blocks_northbound_lower_lane",
+            ]
+        )
+        XCTAssertEqual(
+            loaded.script(id: "route_22_gate_guard_blocks_northbound_upper_lane")?.steps.map(\.action),
+            ["showDialogue", "movePlayer"]
+        )
+        XCTAssertEqual(
             loaded.gameplayManifest.playerStart.defaultBlackoutCheckpoint,
             .init(mapID: "PALLET_TOWN", position: .init(x: 5, y: 6), facing: .down)
         )
