@@ -9,6 +9,7 @@ extension GameRuntime {
         defaultName: String,
         completion: RuntimeNamingCompletionAction
     ) {
+        clearHeldFieldDirections()
         nicknameConfirmation = RuntimeNicknameConfirmationState(
             speciesID: speciesID,
             defaultName: defaultName,
@@ -169,6 +170,7 @@ extension GameRuntime {
         defaultName: String,
         completion: RuntimeNamingCompletionAction
     ) {
+        clearHeldFieldDirections()
         namingState = RuntimeNamingState(
             speciesID: speciesID,
             defaultName: defaultName,

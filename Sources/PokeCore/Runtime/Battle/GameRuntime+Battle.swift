@@ -236,6 +236,7 @@ extension GameRuntime {
             return
         }
 
+        clearHeldFieldDirections()
         let playerPokemon = clearBattleStatStages(
             gameplayState.playerParty.first ?? makePokemon(speciesID: chosenStarter, level: 5, nickname: chosenStarter.capitalized)
         )
@@ -322,6 +323,7 @@ extension GameRuntime {
 
     func startWildBattle(speciesID: String, level: Int) {
         guard var gameplayState else { return }
+        clearHeldFieldDirections()
         let playerPokemon = clearBattleStatStages(
             gameplayState.playerParty.first ?? makePokemon(
                 speciesID: gameplayState.chosenStarterSpeciesID ?? "SQUIRTLE",
@@ -440,6 +442,7 @@ extension GameRuntime {
 
     func performBlackout(sourceTrainerObjectID: String?) {
         guard var gameplayState else { return }
+        clearHeldFieldDirections()
         let previousMoney = gameplayState.money
         if let sourceTrainerObjectID {
             resetObjectStateToManifest(sourceTrainerObjectID, in: &gameplayState)

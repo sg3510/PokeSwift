@@ -206,6 +206,7 @@ extension GameRuntime {
             playTimeSeconds: envelope.snapshot.playTimeSeconds
         )
         reseedRuntimeRNG()
+        clearHeldFieldDirections()
         dialogueState = nil
         fieldPromptState = nil
         fieldHealingState = nil

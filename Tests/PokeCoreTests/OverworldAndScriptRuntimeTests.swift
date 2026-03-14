@@ -688,6 +688,95 @@ extension PokeCoreTests {
         try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
         XCTAssertTrue(runtime.canAcceptFieldDirectionalInput)
     }
+    func testHeldDirectionalInputContinuesWalkingAcrossCooldowns() async {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+
+        runtime.setDirectionalButton(.right, isPressed: true)
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
+
+        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
+
+        runtime.setDirectionalButton(.right, isPressed: false)
+    }
+    func testHeldDirectionalInputTurnsImmediatelyAfterCooldownUnlocks() async {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+
+        runtime.setDirectionalButton(.right, isPressed: true)
+        let halfStepNanoseconds = UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: halfStepNanoseconds)
+        runtime.setDirectionalButton(.down, isPressed: true)
+
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
+
+        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000))
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 5))
+
+        runtime.setDirectionalButton(.down, isPressed: false)
+        runtime.setDirectionalButton(.right, isPressed: false)
+    }
+    func testHeldDirectionalInputFallsBackToOlderHeldDirectionAfterRelease() async {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+
+        runtime.setDirectionalButton(.right, isPressed: true)
+        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000))
+        runtime.setDirectionalButton(.down, isPressed: true)
+        runtime.setDirectionalButton(.down, isPressed: false)
+
+        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000))
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
+        XCTAssertEqual(runtime.preferredHeldFieldDirection, .right)
+
+        runtime.setDirectionalButton(.right, isPressed: false)
+    }
+    func testHeldDirectionalInputClearsAcrossDialogueBoundary() async {
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+
+        runtime.setDirectionalButton(.right, isPressed: true)
+        runtime.showInlineDialogue(
+            id: "held_direction_dialogue",
+            pages: [.init(lines: ["Hold cleared."], waitsForPrompt: true)],
+            completion: .returnToField
+        )
+
+        XCTAssertNil(runtime.preferredHeldFieldDirection)
+
+        runtime.handle(button: .confirm)
+        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
+    }
+    func testHeldDirectionalInputClearsAcrossWarpBoundary() async throws {
+        let runtime = try makeRepoRuntime()
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
+        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
+        runtime.gameplayState?.facing = .down
+
+        runtime.setDirectionalButton(.down, isPressed: true)
+
+        let settledSnapshot = try await waitForSnapshot(runtime) {
+            $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
+        }
+        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
+        XCTAssertNil(runtime.preferredHeldFieldDirection)
+
+        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 6))
+    }
     func testRepoGeneratedPalletNorthExitStartsOakIntroFromSourceScript() async throws {
         let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let content = try FileSystemContentLoader(rootURL: contentRoot).load()

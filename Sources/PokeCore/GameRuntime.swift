@@ -10,7 +10,13 @@ public final class GameRuntime {
 
     public let content: LoadedContent
 
-    public internal(set) var scene: RuntimeScene = .launch
+    public internal(set) var scene: RuntimeScene = .launch {
+        didSet {
+            if scene != .field {
+                clearHeldFieldDirections()
+            }
+        }
+    }
     public internal(set) var focusedIndex = 0
     public internal(set) var placeholderTitle: String?
     public internal(set) var starterChoiceFocusedIndex = 0
@@ -61,6 +67,7 @@ public final class GameRuntime {
     var lastSaveResult: RuntimeSaveResult?
     var gameplaySessionStartedAt: Date?
     var playthroughID = UUID().uuidString
+    var heldFieldDirections: [FacingDirection] = []
 
     public init(
         content: LoadedContent,
@@ -378,6 +385,30 @@ public final class GameRuntime {
         publishSnapshot()
     }
 
+    public func setDirectionalButton(_ button: RuntimeButton, isPressed: Bool) {
+        guard let direction = facingDirection(for: button) else {
+            if isPressed {
+                handle(button: button)
+            }
+            return
+        }
+
+        guard scene == .field else {
+            if isPressed {
+                handle(button: button)
+            }
+            return
+        }
+
+        if isPressed {
+            record(button: button)
+            pressHeldFieldDirection(direction)
+            publishSnapshot()
+        } else {
+            releaseHeldFieldDirection(direction)
+        }
+    }
+
     public func updateWindowScale(_ scale: Int) {
         windowScale = max(1, scale)
         publishSnapshot()
@@ -399,4 +430,21 @@ public final class GameRuntime {
         }
     }
 
+}
+
+private extension GameRuntime {
+    func facingDirection(for button: RuntimeButton) -> FacingDirection? {
+        switch button {
+        case .up:
+            return .up
+        case .down:
+            return .down
+        case .left:
+            return .left
+        case .right:
+            return .right
+        case .confirm, .cancel, .start:
+            return nil
+        }
+    }
 }
