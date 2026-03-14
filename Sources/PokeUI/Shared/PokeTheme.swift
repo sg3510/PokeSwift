@@ -321,42 +321,42 @@ public enum PokeThemePalette {
         case .light, .system:
             return GameplayHDRProfile(
                 isEnabled: true,
-                outerGlowExposure: 1.28,
-                outerGlowOpacity: 0.2,
-                outerGlowPaddingMultiplier: 0.6,
-                outerGlowBlurMultiplier: 3.0,
-                innerGlowExposure: 1.14,
-                innerGlowOpacity: 0.1,
+                outerGlowExposure: 1.22,
+                outerGlowOpacity: 0.16,
+                outerGlowPaddingMultiplier: 0.55,
+                outerGlowBlurMultiplier: 2.8,
+                innerGlowExposure: 1.1,
+                innerGlowOpacity: 0.08,
                 innerGlowPaddingMultiplier: 0.75,
                 innerGlowBlurMultiplier: 1.5,
-                glowHeadroom: 1.45,
+                glowHeadroom: 1.35,
                 batteryExposure: 1.8,
                 batteryShadowExposure: 1.55,
                 batteryShadowOpacity: 0.5,
                 batteryHeadroom: 1.85,
                 contentHeadroom: 1.35,
-                fieldShaderBoost: 0.16,
-                battleShaderBoost: 0.12
+                fieldShaderBoost: 0.14,
+                battleShaderBoost: 0.1
             )
         case .retroDark:
             return GameplayHDRProfile(
                 isEnabled: true,
-                outerGlowExposure: 2.2,
-                outerGlowOpacity: 0.72,
-                outerGlowPaddingMultiplier: 1.0,
-                outerGlowBlurMultiplier: 4.0,
-                innerGlowExposure: 1.9,
-                innerGlowOpacity: 0.5,
-                innerGlowPaddingMultiplier: 1.0,
-                innerGlowBlurMultiplier: 2.0,
-                glowHeadroom: 2.2,
+                outerGlowExposure: 1.85,
+                outerGlowOpacity: 0.5,
+                outerGlowPaddingMultiplier: 0.9,
+                outerGlowBlurMultiplier: 3.6,
+                innerGlowExposure: 1.55,
+                innerGlowOpacity: 0.34,
+                innerGlowPaddingMultiplier: 0.9,
+                innerGlowBlurMultiplier: 1.8,
+                glowHeadroom: 1.9,
                 batteryExposure: 2.8,
                 batteryShadowExposure: 2.1,
                 batteryShadowOpacity: 0.8,
                 batteryHeadroom: 2.8,
                 contentHeadroom: 1.8,
-                fieldShaderBoost: 0.42,
-                battleShaderBoost: 0.34
+                fieldShaderBoost: 0.28,
+                battleShaderBoost: 0.22
             )
         }
     }
@@ -373,8 +373,8 @@ public enum PokeThemePalette {
             return (resolvedPalette.screenGlow, resolvedPalette.screenGlowInner)
         case .dmgAuthentic:
             return (
-                ThemeRGBA(red: 0.58, green: 0.74, blue: 0.18, alpha: resolvedPalette.screenGlow.alpha),
-                ThemeRGBA(red: 0.86, green: 0.94, blue: 0.52, alpha: resolvedPalette.screenGlowInner.alpha)
+                ThemeRGBA(red: 0.42, green: 0.55, blue: 0.18, alpha: resolvedPalette.screenGlow.alpha),
+                ThemeRGBA(red: 0.75, green: 0.79, blue: 0.41, alpha: resolvedPalette.screenGlowInner.alpha)
             )
         case .rawGrayscale:
             return (
@@ -614,14 +614,14 @@ private extension PokeThemeResolvedPalette {
         screenLabel: .init(red: 1, green: 1, blue: 1, alpha: 0.78),
         batteryIndicator: .init(red: 0.96, green: 0.23, blue: 0.2),
         screenRim: .init(red: 0.18, green: 0.28, blue: 0.08),
-        screenGlow: .init(red: 0.52, green: 0.78, blue: 0.46, alpha: 0.22),
-        screenGlowInner: .init(red: 0.92, green: 0.98, blue: 0.84, alpha: 0.14),
+        screenGlow: .init(red: 0.46, green: 0.67, blue: 0.34, alpha: 0.18),
+        screenGlowInner: .init(red: 0.84, green: 0.88, blue: 0.68, alpha: 0.12),
         accentBarMagenta: .init(red: 0.42, green: 0.07, blue: 0.27),
         accentBarBlue: .init(red: 0.16, green: 0.17, blue: 0.55),
-        battleEnemyTint: .init(red: 0.92, green: 0.96, blue: 0.84, alpha: 0.42),
-        battleEnemyBackground: .init(red: 1, green: 1, blue: 1, alpha: 0.18),
-        battlePlayerTint: .init(red: 0.78, green: 0.9, blue: 0.76, alpha: 0.46),
-        battlePlayerBackground: .init(red: 0.86, green: 0.93, blue: 0.8, alpha: 0.22),
+        battleEnemyTint: .init(red: 0.95, green: 0.98, blue: 0.9, alpha: 0.54),
+        battleEnemyBackground: .init(red: 1, green: 1, blue: 1, alpha: 0.26),
+        battlePlayerTint: .init(red: 0.82, green: 0.93, blue: 0.79, alpha: 0.62),
+        battlePlayerBackground: .init(red: 0.89, green: 0.96, blue: 0.84, alpha: 0.3),
         field: .init(
             ink: .init(red: 0.16, green: 0.18, blue: 0.12),
             outline: .init(red: 0, green: 0, blue: 0),
@@ -681,14 +681,14 @@ private extension PokeThemeResolvedPalette {
         screenLabel: .init(red: 0.87, green: 0.95, blue: 0.87, alpha: 0.72),
         batteryIndicator: .init(red: 0.95, green: 0.2, blue: 0.16),
         screenRim: .init(red: 0.34, green: 0.86, blue: 0.35),
-        screenGlow: .init(red: 0.22, green: 0.96, blue: 0.24, alpha: 0.38),
-        screenGlowInner: .init(red: 0.74, green: 1, blue: 0.72, alpha: 0.2),
+        screenGlow: .init(red: 0.34, green: 0.78, blue: 0.26, alpha: 0.28),
+        screenGlowInner: .init(red: 0.71, green: 0.87, blue: 0.58, alpha: 0.18),
         accentBarMagenta: .init(red: 0.45, green: 0.12, blue: 0.28),
         accentBarBlue: .init(red: 0.23, green: 0.28, blue: 0.62),
-        battleEnemyTint: .init(red: 0.11, green: 0.19, blue: 0.12, alpha: 0.62),
-        battleEnemyBackground: .init(red: 0.16, green: 0.26, blue: 0.16, alpha: 0.32),
-        battlePlayerTint: .init(red: 0.14, green: 0.28, blue: 0.16, alpha: 0.66),
-        battlePlayerBackground: .init(red: 0.18, green: 0.34, blue: 0.2, alpha: 0.38),
+        battleEnemyTint: .init(red: 0.16, green: 0.28, blue: 0.18, alpha: 0.72),
+        battleEnemyBackground: .init(red: 0.2, green: 0.31, blue: 0.2, alpha: 0.42),
+        battlePlayerTint: .init(red: 0.18, green: 0.38, blue: 0.22, alpha: 0.78),
+        battlePlayerBackground: .init(red: 0.22, green: 0.43, blue: 0.25, alpha: 0.48),
         field: .init(
             ink: .init(red: 0.89, green: 0.95, blue: 0.88),
             outline: .init(red: 0.76, green: 0.92, blue: 0.76, alpha: 0.24),

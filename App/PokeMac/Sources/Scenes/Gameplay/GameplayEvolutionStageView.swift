@@ -12,7 +12,7 @@ struct EvolutionStageView: View {
 
     var body: some View {
         BattleViewportStage(screenDisplayStyle: fieldDisplayStyle) {
-            EvolutionViewportCanvas(props: props)
+            EvolutionViewportCanvas(props: props, displayStyle: fieldDisplayStyle)
         } footer: {
             if props.textLines.isEmpty == false {
                 DialogueBoxView(title: "Evolution", lines: props.textLines)
@@ -25,11 +25,17 @@ struct EvolutionStageView: View {
 }
 
 private struct EvolutionViewportCanvas: View {
+    @Environment(\.pokeAppearanceMode) private var appearanceMode
+    @Environment(\.pokeGameplayHDREnabled) private var gameplayHDREnabled
+    @Environment(\.colorScheme) private var colorScheme
+
     let props: EvolutionViewportProps
+    let displayStyle: FieldDisplayStyle
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
+            let displayScale = viewportScale(for: size)
 
             ZStack {
                 EvolutionBackdrop(isAnimating: props.phase == "animating", animationStep: props.animationStep)
@@ -66,6 +72,11 @@ private struct EvolutionViewportCanvas: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .gameplayScreenEffect(
+                displayStyle: displayStyle,
+                displayScale: displayScale,
+                hdrBoost: fieldShaderHDRBoost
+            )
         }
     }
 
@@ -97,6 +108,31 @@ private struct EvolutionViewportCanvas: View {
 
     private var spriteBrightness: Double {
         props.phase == "animating" ? 0.08 : 0
+    }
+
+    private func viewportScale(for size: CGSize) -> CGFloat {
+        let rawScale = min(
+            size.width / CGFloat(FieldSceneRenderer.viewportPixelSize.width),
+            size.height / CGFloat(FieldSceneRenderer.viewportPixelSize.height)
+        )
+        guard rawScale.isFinite, rawScale > 0 else {
+            return 1
+        }
+        if rawScale >= 1 {
+            return max(1, floor(rawScale))
+        }
+        return rawScale
+    }
+
+    private var fieldShaderHDRBoost: Float {
+        Float(
+            PokeThemePalette.gameplayHDRProfile(
+                appearanceMode: appearanceMode,
+                colorScheme: colorScheme,
+                isEnabled: gameplayHDREnabled
+            )
+            .fieldShaderBoost
+        )
     }
 }
 

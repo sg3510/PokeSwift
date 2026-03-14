@@ -158,6 +158,50 @@ extension PokeUITests {
 
     XCTAssertNotNil(view)
   }
+  func testBattlePanelCanBeConstructedWithDisplayStyleAwareBattlefieldLayer() {
+    let view = BattlePanel(
+      trainerName: "BLUE",
+      kind: .trainer,
+      playerPokemon: .init(
+        speciesID: "BULBASAUR",
+        displayName: "Bulbasaur",
+        level: 5,
+        currentHP: 19,
+        maxHP: 19,
+        attack: 11,
+        defense: 10,
+        speed: 9,
+        special: 12,
+        moves: ["TACKLE", "GROWL"]
+      ),
+      enemyPokemon: .init(
+        speciesID: "CHARMANDER",
+        displayName: "Charmander",
+        level: 5,
+        currentHP: 18,
+        maxHP: 20,
+        attack: 10,
+        defense: 9,
+        speed: 11,
+        special: 10,
+        moves: ["SCRATCH", "GROWL"]
+      ),
+      trainerSpriteURL: nil,
+      playerTrainerFrontSpriteURL: nil,
+      playerTrainerBackSpriteURL: nil,
+      sendOutPoofSpriteURL: nil,
+      playerSpriteURL: nil,
+      enemySpriteURL: nil,
+      displayStyle: .dmgAuthentic,
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
+    )
+
+    XCTAssertNotNil(view)
+  }
   func testSidebarPropBuilderMapsEmptyPartyProfile() {
     let profile = GameplaySidebarPropsBuilder.makeProfile(
       trainerName: "RED",
@@ -1423,6 +1467,65 @@ extension PokeUITests {
     XCTAssertEqual(raw.inner.green, raw.inner.blue)
     XCTAssertNotEqual(raw.outer, tinted.outer)
     XCTAssertNotEqual(authentic.outer, tinted.outer)
+  }
+  func testGameplayScreenGlowPaletteUsesRetunedHardwareFriendlyValues() {
+    let tinted = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .dmgTinted,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+    let authentic = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .dmgAuthentic,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+
+    XCTAssertEqual(tinted.outer.red, 0.34, accuracy: 0.0001)
+    XCTAssertEqual(tinted.outer.green, 0.78, accuracy: 0.0001)
+    XCTAssertEqual(tinted.outer.blue, 0.26, accuracy: 0.0001)
+    XCTAssertEqual(tinted.inner.red, 0.71, accuracy: 0.0001)
+    XCTAssertEqual(tinted.inner.green, 0.87, accuracy: 0.0001)
+    XCTAssertEqual(tinted.inner.blue, 0.58, accuracy: 0.0001)
+
+    XCTAssertEqual(authentic.outer.red, 0.42, accuracy: 0.0001)
+    XCTAssertEqual(authentic.outer.green, 0.55, accuracy: 0.0001)
+    XCTAssertEqual(authentic.outer.blue, 0.18, accuracy: 0.0001)
+    XCTAssertEqual(authentic.inner.red, 0.75, accuracy: 0.0001)
+    XCTAssertEqual(authentic.inner.green, 0.79, accuracy: 0.0001)
+    XCTAssertEqual(authentic.inner.blue, 0.41, accuracy: 0.0001)
+  }
+  func testGameplayHDRProfileUsesModeratedScreenBoosts() {
+    let light = PokeThemePalette.gameplayHDRProfile(
+      appearanceMode: .light,
+      colorScheme: .light,
+      isEnabled: true
+    )
+    let dark = PokeThemePalette.gameplayHDRProfile(
+      appearanceMode: .retroDark,
+      colorScheme: .dark,
+      isEnabled: true
+    )
+
+    XCTAssertEqual(light.fieldShaderBoost, 0.14, accuracy: 0.0001)
+    XCTAssertEqual(light.battleShaderBoost, 0.1, accuracy: 0.0001)
+    XCTAssertEqual(dark.fieldShaderBoost, 0.28, accuracy: 0.0001)
+    XCTAssertEqual(dark.battleShaderBoost, 0.22, accuracy: 0.0001)
+    XCTAssertEqual(dark.outerGlowOpacity, 0.5, accuracy: 0.0001)
+    XCTAssertEqual(dark.innerGlowOpacity, 0.34, accuracy: 0.0001)
+  }
+  func testBattleCardPaletteUsesHigherContrastGlassValues() {
+    let light = PokeThemePalette.resolve(for: .light)
+    let dark = PokeThemePalette.resolve(for: .retroDark)
+
+    XCTAssertEqual(light.battleEnemyTint.alpha, 0.54, accuracy: 0.0001)
+    XCTAssertEqual(light.battleEnemyBackground.alpha, 0.26, accuracy: 0.0001)
+    XCTAssertEqual(light.battlePlayerTint.alpha, 0.62, accuracy: 0.0001)
+    XCTAssertEqual(light.battlePlayerBackground.alpha, 0.3, accuracy: 0.0001)
+
+    XCTAssertEqual(dark.battleEnemyTint.green, 0.28, accuracy: 0.0001)
+    XCTAssertEqual(dark.battleEnemyBackground.alpha, 0.42, accuracy: 0.0001)
+    XCTAssertEqual(dark.battlePlayerTint.green, 0.38, accuracy: 0.0001)
+    XCTAssertEqual(dark.battlePlayerBackground.alpha, 0.48, accuracy: 0.0001)
   }
   func testOptionsBuilderReflectsAppearanceWithoutChangingMusicState() {
     let systemOptions = GameplaySidebarPropsBuilder.makeOptionsSection(
