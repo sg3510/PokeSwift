@@ -271,6 +271,7 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.itemQuantity("OAKS_PARCEL"), 0)
         XCTAssertTrue(runtime.hasFlag("EVENT_OAK_GOT_PARCEL"))
         XCTAssertTrue(runtime.hasFlag("EVENT_GOT_POKEDEX"))
+        XCTAssertEqual(runtime.gameplayState?.objectStates["route_22_rival_1"]?.visible, true)
         XCTAssertEqual(runtime.scene, .field)
         XCTAssertNil(runtime.gameplayState?.activeScriptID)
         XCTAssertNil(runtime.gameplayState?.activeScriptStep)
@@ -286,6 +287,144 @@ extension PokeCoreTests {
 
         XCTAssertEqual(runtime.scene, .battle)
         XCTAssertEqual(runtime.currentSnapshot().battle?.kind, .wild)
+    }
+
+    func testRepoGeneratedBrockBattleAwardsBoulderBadgeAndTM34() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PEWTER_GYM"
+        runtime.gameplayState?.playerPosition = .init(x: 4, y: 2)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 20, nickname: "Squirtle")]
+        runtime.requestDefaultMapMusic()
+
+        let brock = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "pewter_gym_brock" })
+        runtime.interact(with: brock)
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "pewter_gym_brock_pre_battle")
+
+        advanceDialogueUntilComplete(runtime)
+
+        XCTAssertEqual(runtime.currentSnapshot().battle?.battleID, "opp_brock_1")
+
+        let battle = try XCTUnwrap(runtime.gameplayState?.battle)
+        runtime.finishBattle(battle: battle, won: true)
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "pewter_gym_brock_received_boulder_badge")
+
+        drainDialogueAndScripts(runtime, until: {
+            $0.scene == .field && runtime.hasFlag("EVENT_GOT_TM34") && runtime.gameplayState?.activeScriptID == nil
+        })
+
+        XCTAssertEqual(runtime.earnedBadgeIDs, Set(["boulder"]))
+        XCTAssertTrue(runtime.hasFlag("EVENT_BEAT_BROCK"))
+        XCTAssertTrue(runtime.hasFlag("EVENT_GOT_TM34"))
+        XCTAssertTrue(runtime.hasFlag("EVENT_BEAT_PEWTER_GYM_TRAINER_0"))
+        XCTAssertEqual(runtime.itemQuantity("TM_BIDE"), 1)
+        XCTAssertEqual(runtime.gameplayState?.objectStates["pewter_city_youngster"]?.visible, false)
+        XCTAssertEqual(runtime.gameplayState?.objectStates["route_22_rival_1"]?.visible, false)
+        XCTAssertEqual(runtime.currentSnapshot().audio?.trackID, "MUSIC_GYM")
+        XCTAssertEqual(runtime.currentSnapshot().audio?.reason, "mapDefault")
+    }
+
+    func testRepoGeneratedBrockRewardRetriesTM34AfterNoRoom() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PEWTER_GYM"
+        runtime.gameplayState?.playerPosition = .init(x: 4, y: 2)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.activeFlags.insert("EVENT_BEAT_BROCK")
+        runtime.gameplayState?.inventory = (0..<GameRuntime.bagItemCapacity).map { index in
+            .init(itemID: "ITEM_\(index)", quantity: 1)
+        }
+
+        let brock = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "pewter_gym_brock" })
+        runtime.interact(with: brock)
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "pewter_gym_brock_wait_take_this")
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "pewter_gym_tm34_no_room")
+
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertEqual(runtime.earnedBadgeIDs, Set(["boulder"]))
+        XCTAssertTrue(runtime.hasFlag("EVENT_BEAT_BROCK"))
+        XCTAssertFalse(runtime.hasFlag("EVENT_GOT_TM34"))
+        XCTAssertEqual(runtime.itemQuantity("TM_BIDE"), 0)
+
+        runtime.gameplayState?.inventory.removeLast()
+
+        let brockRetry = try XCTUnwrap(runtime.currentFieldObjects.first { $0.id == "pewter_gym_brock" })
+        runtime.interact(with: brockRetry)
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "pewter_gym_brock_wait_take_this")
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "pewter_gym_received_tm34")
+
+        advanceDialogueUntilComplete(runtime)
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertEqual(runtime.earnedBadgeIDs, Set(["boulder"]))
+        XCTAssertTrue(runtime.hasFlag("EVENT_GOT_TM34"))
+        XCTAssertEqual(runtime.itemQuantity("TM_BIDE"), 1)
+    }
+
+    func testRepoGeneratedRoute22FirstRivalTriggerStartsBattleAndClearsFlagsAfterWin() async throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_22"
+        runtime.gameplayState?.playerPosition = .init(x: 29, y: 4)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "CHARMANDER"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "CHARMANDER", level: 18, nickname: "Charmander")]
+        runtime.gameplayState?.activeFlags.formUnion(["EVENT_1ST_ROUTE22_RIVAL_BATTLE", "EVENT_ROUTE22_RIVAL_WANTS_BATTLE"])
+        runtime.gameplayState?.objectStates["route_22_rival_1"]?.visible = true
+        runtime.requestDefaultMapMusic()
+
+        runtime.evaluateMapScriptsIfNeeded()
+
+        XCTAssertEqual(runtime.gameplayState?.activeMapScriptTriggerID, "first_rival_upper_after_charmander")
+
+        let introSnapshot = try await waitForSnapshot(runtime, timeout: 3.0) {
+            $0.dialogue?.dialogueID == "route_22_rival_before_battle_1"
+        }
+
+        XCTAssertEqual(introSnapshot.audio?.trackID, "MUSIC_MEET_RIVAL")
+        XCTAssertEqual(introSnapshot.audio?.reason, "scriptOverride")
+
+        advanceDialogueUntilComplete(runtime)
+
+        XCTAssertEqual(runtime.currentSnapshot().battle?.battleID, "route_22_rival_1_4_upper")
+
+        let battle = try XCTUnwrap(runtime.gameplayState?.battle)
+        runtime.finishBattle(battle: battle, won: true)
+
+        advanceDialogueUntilComplete(runtime, maxInteractions: 12)
+
+        let settledSnapshot = try await waitForSnapshot(runtime, timeout: 3.0) {
+            $0.scene == .field &&
+                ($0.eventFlags?.activeFlags.contains("EVENT_BEAT_ROUTE22_RIVAL_1ST_BATTLE") ?? false) &&
+                ($0.eventFlags?.activeFlags.contains("EVENT_1ST_ROUTE22_RIVAL_BATTLE") ?? true) == false &&
+                ($0.eventFlags?.activeFlags.contains("EVENT_ROUTE22_RIVAL_WANTS_BATTLE") ?? true) == false &&
+                ($0.field?.objects.contains(where: { $0.id == "route_22_rival_1" }) ?? true) == false
+        }
+
+        XCTAssertEqual(settledSnapshot.field?.mapID, "ROUTE_22")
+        XCTAssertEqual(settledSnapshot.audio?.trackID, "MUSIC_ROUTES3")
+        XCTAssertEqual(settledSnapshot.audio?.reason, "mapDefault")
     }
 
     func testRepoGeneratedViridianMartClerkOpensShopAfterParcelHandoff() throws {

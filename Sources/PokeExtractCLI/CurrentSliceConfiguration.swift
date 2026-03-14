@@ -49,6 +49,14 @@ let currentGameplaySliceMaps: [CurrentGameplaySliceMapDefinition] = [
         isOutdoor: true
     ),
     .init(
+        mapID: "ROUTE_22",
+        displayName: "Route 22",
+        objectFile: "data/maps/objects/Route22.asm",
+        blockFile: "maps/Route22.blk",
+        parentMapID: nil,
+        isOutdoor: true
+    ),
+    .init(
         mapID: "ROUTE_2",
         displayName: "Route 2",
         objectFile: "data/maps/objects/Route2.asm",
@@ -113,6 +121,22 @@ let currentGameplaySliceMaps: [CurrentGameplaySliceMapDefinition] = [
         isOutdoor: false
     ),
     .init(
+        mapID: "PEWTER_CITY",
+        displayName: "Pewter City",
+        objectFile: "data/maps/objects/PewterCity.asm",
+        blockFile: "maps/PewterCity.blk",
+        parentMapID: nil,
+        isOutdoor: true
+    ),
+    .init(
+        mapID: "PEWTER_GYM",
+        displayName: "Pewter Gym",
+        objectFile: "data/maps/objects/PewterGym.asm",
+        blockFile: "maps/PewterGym.blk",
+        parentMapID: "PEWTER_CITY",
+        isOutdoor: false
+    ),
+    .init(
         mapID: "OAKS_LAB",
         displayName: "Oak's Lab",
         objectFile: "data/maps/objects/OaksLab.asm",
@@ -133,6 +157,7 @@ let currentGameplaySliceItemIDs = [
     "MOON_STONE",
     "HP_UP",
     "OAKS_PARCEL",
+    "TM_BIDE",
 ]
 
 struct CurrentGameplaySliceMartDefinition {
@@ -164,6 +189,10 @@ let currentGameplaySliceWildEncounterMaps: [CurrentGameplaySliceWildEncounterDef
     .init(
         mapID: "ROUTE_2",
         path: "data/wild/maps/Route2.asm"
+    ),
+    .init(
+        mapID: "ROUTE_22",
+        path: "data/wild/maps/Route22.asm"
     ),
     .init(
         mapID: "VIRIDIAN_FOREST",

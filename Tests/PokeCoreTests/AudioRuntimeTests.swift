@@ -374,6 +374,7 @@ extension PokeCoreTests {
             won: true,
             preventsBlackoutOnLoss: true,
             postBattleScriptID: "oaks_lab_rival_exit_after_battle",
+            runsPostBattleScriptOnLoss: true,
             sourceTrainerObjectID: nil
         )
 

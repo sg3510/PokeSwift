@@ -178,6 +178,21 @@ extension PokeUITests {
     XCTAssertTrue(party.pokemon.isEmpty)
     XCTAssertEqual(inventory.emptyStateTitle, "No items yet")
   }
+  func testSidebarPropBuilderNormalizesBadgeIdentifiersFromRuntimeAndSaveShapes() {
+    let profile = GameplaySidebarPropsBuilder.makeProfile(
+      trainerName: "RED",
+      locationName: "Pewter Gym",
+      scene: .field,
+      playerPosition: .init(x: 4, y: 2),
+      facing: .up,
+      portrait: .init(label: "RED", spriteURL: nil, spriteFrame: nil),
+      money: 1510,
+      ownedBadgeIDs: ["BOULDERBADGE", " Cascade_Badge ", "thunder"]
+    )
+
+    XCTAssertEqual(profile.badgeSummaryText, "3/8")
+    XCTAssertEqual(profile.badges.map(\.isEarned), [true, true, true, false, false, false, false, false])
+  }
   func testPokedexSidebarBuilderIncludesStructuredDetailFields() {
     let props = GameplaySidebarPropsBuilder.makePokedex(
       allSpecies: [

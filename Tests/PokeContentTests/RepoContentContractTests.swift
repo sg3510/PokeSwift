@@ -43,10 +43,13 @@ final class RepoContentContractTests: XCTestCase {
             [
                 .init(mapID: "OAKS_LAB", musicID: "MUSIC_OAKS_LAB"),
                 .init(mapID: "PALLET_TOWN", musicID: "MUSIC_PALLET_TOWN"),
+                .init(mapID: "PEWTER_CITY", musicID: "MUSIC_CITIES1"),
+                .init(mapID: "PEWTER_GYM", musicID: "MUSIC_GYM"),
                 .init(mapID: "REDS_HOUSE_1F", musicID: "MUSIC_PALLET_TOWN"),
                 .init(mapID: "REDS_HOUSE_2F", musicID: "MUSIC_PALLET_TOWN"),
                 .init(mapID: "ROUTE_1", musicID: "MUSIC_ROUTES1"),
                 .init(mapID: "ROUTE_2", musicID: "MUSIC_ROUTES1"),
+                .init(mapID: "ROUTE_22", musicID: "MUSIC_ROUTES3"),
                 .init(mapID: "VIRIDIAN_CITY", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "VIRIDIAN_FOREST", musicID: "MUSIC_DUNGEON2"),
                 .init(mapID: "VIRIDIAN_FOREST_NORTH_GATE", musicID: "MUSIC_CITIES1"),
