@@ -179,6 +179,9 @@ public struct BattleViewportStage<Content: View, Footer: View, OverlayContent: V
 }
 
 private struct GameplayDisplayShell<Content: View, Footer: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.pokeAppearanceMode) private var appearanceMode
+    @Environment(\.pokeGameBoyShellStyle) private var gameBoyShellStyle
     private let screenDisplayStyle: FieldDisplayStyle
     private let content: Content
     private let footer: Footer
@@ -221,9 +224,18 @@ private struct GameplayDisplayShell<Content: View, Footer: View>: View {
                     .font(.system(size: 30, weight: .light, design: .rounded))
                     .tracking(0.4)
             }
-            .foregroundStyle(PokeThemePalette.gameBoyWordmark)
+            .foregroundStyle(shellChrome.wordmark.color)
             .padding(.leading, 10)
+            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: shellChrome)
         }
+    }
+
+    private var shellChrome: GameBoyShellChromePalette {
+        PokeThemePalette.gameBoyShellChromePalette(
+            shellStyle: gameBoyShellStyle,
+            appearanceMode: appearanceMode,
+            colorScheme: colorScheme
+        )
     }
 }
 

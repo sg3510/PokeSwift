@@ -215,6 +215,16 @@ public struct GameBoyShellPalette: Equatable, Sendable {
     }
 }
 
+public struct GameBoyShellChromePalette: Equatable, Sendable {
+    public let shell: GameBoyShellPalette
+    public let wordmark: ThemeRGBA
+
+    public init(shell: GameBoyShellPalette, wordmark: ThemeRGBA) {
+        self.shell = shell
+        self.wordmark = wordmark
+    }
+}
+
 public struct PokeThemeFieldValues: Equatable, Sendable {
     public let ink: ThemeRGBA
     public let outline: ThemeRGBA
@@ -374,39 +384,66 @@ public enum PokeThemePalette {
         }
     }
 
+    public static func gameBoyShellChromePalette(
+        shellStyle: GameBoyShellStyle,
+        appearanceMode: AppAppearanceMode,
+        colorScheme: ColorScheme
+    ) -> GameBoyShellChromePalette {
+        switch shellStyle {
+        case .classic:
+            let resolvedAppearance = resolve(for: appearanceMode.resolved(for: colorScheme))
+            return GameBoyShellChromePalette(
+                shell: GameBoyShellPalette(
+                    backdrop: resolvedAppearance.field.shellBackdrop,
+                    shadow: resolvedAppearance.field.shellBackdropShadow
+                ),
+                wordmark: resolvedAppearance.gameBoyWordmark
+            )
+        case .kiwi:
+            return GameBoyShellChromePalette(
+                shell: GameBoyShellPalette(
+                    backdrop: .init(red: 0.64, green: 0.82, blue: 0.4),
+                    shadow: .init(red: 0.2, green: 0.32, blue: 0.08, alpha: 0.42)
+                ),
+                wordmark: .init(red: 0.24, green: 0.33, blue: 0.08)
+            )
+        case .dandelion:
+            return GameBoyShellChromePalette(
+                shell: GameBoyShellPalette(
+                    backdrop: .init(red: 0.95, green: 0.82, blue: 0.35),
+                    shadow: .init(red: 0.46, green: 0.3, blue: 0.05, alpha: 0.38)
+                ),
+                wordmark: .init(red: 0.45, green: 0.28, blue: 0.03)
+            )
+        case .teal:
+            return GameBoyShellChromePalette(
+                shell: GameBoyShellPalette(
+                    backdrop: .init(red: 0.34, green: 0.74, blue: 0.72),
+                    shadow: .init(red: 0.08, green: 0.28, blue: 0.27, alpha: 0.4)
+                ),
+                wordmark: .init(red: 0.04, green: 0.3, blue: 0.35)
+            )
+        case .grape:
+            return GameBoyShellChromePalette(
+                shell: GameBoyShellPalette(
+                    backdrop: .init(red: 0.64, green: 0.48, blue: 0.75),
+                    shadow: .init(red: 0.23, green: 0.15, blue: 0.3, alpha: 0.42)
+                ),
+                wordmark: .init(red: 0.26, green: 0.14, blue: 0.38)
+            )
+        }
+    }
+
     public static func gameBoyShellPalette(
         shellStyle: GameBoyShellStyle,
         appearanceMode: AppAppearanceMode,
         colorScheme: ColorScheme
     ) -> GameBoyShellPalette {
-        switch shellStyle {
-        case .classic:
-            let resolvedPalette = resolve(for: appearanceMode.resolved(for: colorScheme)).field
-            return GameBoyShellPalette(
-                backdrop: resolvedPalette.shellBackdrop,
-                shadow: resolvedPalette.shellBackdropShadow
-            )
-        case .kiwi:
-            return GameBoyShellPalette(
-                backdrop: .init(red: 0.64, green: 0.82, blue: 0.4),
-                shadow: .init(red: 0.2, green: 0.32, blue: 0.08, alpha: 0.42)
-            )
-        case .dandelion:
-            return GameBoyShellPalette(
-                backdrop: .init(red: 0.95, green: 0.82, blue: 0.35),
-                shadow: .init(red: 0.46, green: 0.3, blue: 0.05, alpha: 0.38)
-            )
-        case .teal:
-            return GameBoyShellPalette(
-                backdrop: .init(red: 0.34, green: 0.74, blue: 0.72),
-                shadow: .init(red: 0.08, green: 0.28, blue: 0.27, alpha: 0.4)
-            )
-        case .grape:
-            return GameBoyShellPalette(
-                backdrop: .init(red: 0.64, green: 0.48, blue: 0.75),
-                shadow: .init(red: 0.23, green: 0.15, blue: 0.3, alpha: 0.42)
-            )
-        }
+        gameBoyShellChromePalette(
+            shellStyle: shellStyle,
+            appearanceMode: appearanceMode,
+            colorScheme: colorScheme
+        ).shell
     }
 
     public static let primaryText = dynamic(\.primaryText)

@@ -1459,6 +1459,21 @@ extension PokeUITests {
     XCTAssertEqual(darkClassic.backdrop, PokeThemePalette.resolve(for: .retroDark).field.shellBackdrop)
     XCTAssertEqual(darkClassic.shadow, PokeThemePalette.resolve(for: .retroDark).field.shellBackdropShadow)
   }
+  func testClassicGameBoyShellChromeTracksAppearanceMode() {
+    let lightClassic = PokeThemePalette.gameBoyShellChromePalette(
+      shellStyle: .classic,
+      appearanceMode: .light,
+      colorScheme: .light
+    )
+    let darkClassic = PokeThemePalette.gameBoyShellChromePalette(
+      shellStyle: .classic,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+
+    XCTAssertEqual(lightClassic.wordmark, PokeThemePalette.resolve(for: .light).gameBoyWordmark)
+    XCTAssertEqual(darkClassic.wordmark, PokeThemePalette.resolve(for: .retroDark).gameBoyWordmark)
+  }
   func testExplicitGameBoyShellPalettesStayStableAcrossAppearanceModes() {
     for shellStyle in [GameBoyShellStyle.kiwi, .dandelion, .teal, .grape] {
       let lightPalette = PokeThemePalette.gameBoyShellPalette(
@@ -1474,6 +1489,23 @@ extension PokeUITests {
 
       XCTAssertEqual(lightPalette, darkPalette)
       XCTAssertNotEqual(lightPalette.backdrop, PokeThemePalette.resolve(for: .light).field.shellBackdrop)
+    }
+  }
+  func testExplicitGameBoyShellWordmarksStayStableAcrossAppearanceModes() {
+    for shellStyle in [GameBoyShellStyle.kiwi, .dandelion, .teal, .grape] {
+      let lightChrome = PokeThemePalette.gameBoyShellChromePalette(
+        shellStyle: shellStyle,
+        appearanceMode: .light,
+        colorScheme: .light
+      )
+      let darkChrome = PokeThemePalette.gameBoyShellChromePalette(
+        shellStyle: shellStyle,
+        appearanceMode: .retroDark,
+        colorScheme: .dark
+      )
+
+      XCTAssertEqual(lightChrome.wordmark, darkChrome.wordmark)
+      XCTAssertNotEqual(lightChrome.wordmark, PokeThemePalette.resolve(for: .light).gameBoyWordmark)
     }
   }
   func testOptionsSidebarContentWithShellPickerFitsSidebarWidth() {
