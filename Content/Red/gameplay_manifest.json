@@ -57107,6 +57107,12 @@
   ],
   "tilesets" : [
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/reds_house.bst",
@@ -57180,6 +57186,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/reds_house.bst",
@@ -57253,6 +57265,25 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+          {
+            "frameImagePaths" : [
+
+            ],
+            "tileID" : 20
+          },
+          {
+            "frameImagePaths" : [
+              "Assets/field/tileset_animations/flower/flower1.png",
+              "Assets/field/tileset_animations/flower/flower2.png",
+              "Assets/field/tileset_animations/flower/flower3.png"
+            ],
+            "tileID" : 3
+          }
+        ],
+        "kind" : "waterFlower"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/overworld.bst",
@@ -57338,6 +57369,17 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+          {
+            "frameImagePaths" : [
+
+            ],
+            "tileID" : 20
+          }
+        ],
+        "kind" : "water"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/cavern.bst",
@@ -57432,6 +57474,25 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+          {
+            "frameImagePaths" : [
+
+            ],
+            "tileID" : 20
+          },
+          {
+            "frameImagePaths" : [
+              "Assets/field/tileset_animations/flower/flower1.png",
+              "Assets/field/tileset_animations/flower/flower2.png",
+              "Assets/field/tileset_animations/flower/flower3.png"
+            ],
+            "tileID" : 3
+          }
+        ],
+        "kind" : "waterFlower"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/gym.bst",
@@ -57506,6 +57567,25 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+          {
+            "frameImagePaths" : [
+
+            ],
+            "tileID" : 20
+          },
+          {
+            "frameImagePaths" : [
+              "Assets/field/tileset_animations/flower/flower1.png",
+              "Assets/field/tileset_animations/flower/flower2.png",
+              "Assets/field/tileset_animations/flower/flower3.png"
+            ],
+            "tileID" : 3
+          }
+        ],
+        "kind" : "waterFlower"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/gym.bst",
@@ -57580,6 +57660,17 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+          {
+            "frameImagePaths" : [
+
+            ],
+            "tileID" : 20
+          }
+        ],
+        "kind" : "water"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/forest.bst",
@@ -57696,6 +57787,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/gate.bst",
@@ -57770,6 +57867,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/gate.bst",
@@ -57844,6 +57947,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/gate.bst",
@@ -57918,6 +58027,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/house.bst",
@@ -57992,6 +58107,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/pokecenter.bst",
@@ -58060,6 +58181,12 @@
       "sourceTileSize" : 8
     },
     {
+      "animation" : {
+        "animatedTiles" : [
+
+        ],
+        "kind" : "none"
+      },
       "blockTileHeight" : 4,
       "blockTileWidth" : 4,
       "blocksetPath" : "Assets/field/blocksets/pokecenter.bst",
