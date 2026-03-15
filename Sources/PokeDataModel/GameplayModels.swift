@@ -49,13 +49,46 @@ public struct WarpManifest: Codable, Equatable, Sendable {
     public let targetMapID: String
     public let targetPosition: TilePoint
     public let targetFacing: FacingDirection
+    public let targetWarpIndex: Int?
+    public let usesPreviousMapTarget: Bool
 
-    public init(id: String, origin: TilePoint, targetMapID: String, targetPosition: TilePoint, targetFacing: FacingDirection) {
+    public init(
+        id: String,
+        origin: TilePoint,
+        targetMapID: String,
+        targetPosition: TilePoint,
+        targetFacing: FacingDirection,
+        targetWarpIndex: Int? = nil,
+        usesPreviousMapTarget: Bool = false
+    ) {
         self.id = id
         self.origin = origin
         self.targetMapID = targetMapID
         self.targetPosition = targetPosition
         self.targetFacing = targetFacing
+        self.targetWarpIndex = targetWarpIndex
+        self.usesPreviousMapTarget = usesPreviousMapTarget
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case origin
+        case targetMapID
+        case targetPosition
+        case targetFacing
+        case targetWarpIndex
+        case usesPreviousMapTarget
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        origin = try container.decode(TilePoint.self, forKey: .origin)
+        targetMapID = try container.decode(String.self, forKey: .targetMapID)
+        targetPosition = try container.decode(TilePoint.self, forKey: .targetPosition)
+        targetFacing = try container.decode(FacingDirection.self, forKey: .targetFacing)
+        targetWarpIndex = try container.decodeIfPresent(Int.self, forKey: .targetWarpIndex)
+        usesPreviousMapTarget = try container.decodeIfPresent(Bool.self, forKey: .usesPreviousMapTarget) ?? false
     }
 }
 
@@ -688,6 +721,7 @@ public struct ScriptStep: Codable, Equatable, Sendable {
 
 public enum FieldInteractionKind: String, Codable, Equatable, Sendable {
     case pokemonCenterHealing
+    case paidAdmission
 }
 
 public enum FieldPromptKind: String, Codable, Equatable, Sendable {
@@ -723,6 +757,28 @@ public struct FieldHealingSequenceManifest: Codable, Equatable, Sendable {
     }
 }
 
+public struct FieldPaidAdmissionManifest: Codable, Equatable, Sendable {
+    public let price: Int
+    public let successFlagID: String
+    public let insufficientFundsDialogueID: String
+    public let purchaseSoundEffectID: String?
+    public let deniedExitPath: [FacingDirection]
+
+    public init(
+        price: Int,
+        successFlagID: String,
+        insufficientFundsDialogueID: String,
+        purchaseSoundEffectID: String? = nil,
+        deniedExitPath: [FacingDirection] = []
+    ) {
+        self.price = price
+        self.successFlagID = successFlagID
+        self.insufficientFundsDialogueID = insufficientFundsDialogueID
+        self.purchaseSoundEffectID = purchaseSoundEffectID
+        self.deniedExitPath = deniedExitPath
+    }
+}
+
 public struct FieldInteractionManifest: Codable, Equatable, Sendable {
     public let id: String
     public let kind: FieldInteractionKind
@@ -733,6 +789,7 @@ public struct FieldInteractionManifest: Codable, Equatable, Sendable {
     public let declinedDialogueID: String?
     public let farewellDialogueID: String
     public let healingSequence: FieldHealingSequenceManifest?
+    public let paidAdmission: FieldPaidAdmissionManifest?
 
     public init(
         id: String,
@@ -743,7 +800,8 @@ public struct FieldInteractionManifest: Codable, Equatable, Sendable {
         successDialogueID: String,
         declinedDialogueID: String? = nil,
         farewellDialogueID: String,
-        healingSequence: FieldHealingSequenceManifest? = nil
+        healingSequence: FieldHealingSequenceManifest? = nil,
+        paidAdmission: FieldPaidAdmissionManifest? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -754,6 +812,7 @@ public struct FieldInteractionManifest: Codable, Equatable, Sendable {
         self.declinedDialogueID = declinedDialogueID
         self.farewellDialogueID = farewellDialogueID
         self.healingSequence = healingSequence
+        self.paidAdmission = paidAdmission
     }
 }
 
@@ -1339,25 +1398,73 @@ public struct WildEncounterSlotManifest: Codable, Equatable, Sendable {
     }
 }
 
+public enum WildEncounterSurface: String, Codable, Equatable, Sendable {
+    case grass
+    case floor
+}
+
+public struct WildEncounterSuppressionZoneManifest: Codable, Equatable, Sendable {
+    public let id: String
+    public let conditions: [ScriptConditionManifest]
+    public let positions: [TilePoint]
+
+    public init(
+        id: String,
+        conditions: [ScriptConditionManifest],
+        positions: [TilePoint]
+    ) {
+        self.id = id
+        self.conditions = conditions
+        self.positions = positions
+    }
+}
+
 public struct WildEncounterTableManifest: Codable, Equatable, Sendable {
     public let mapID: String
+    public let landEncounterSurface: WildEncounterSurface
     public let grassEncounterRate: Int
     public let waterEncounterRate: Int
     public let grassSlots: [WildEncounterSlotManifest]
     public let waterSlots: [WildEncounterSlotManifest]
+    public let suppressionZones: [WildEncounterSuppressionZoneManifest]
 
     public init(
         mapID: String,
+        landEncounterSurface: WildEncounterSurface = .grass,
         grassEncounterRate: Int,
         waterEncounterRate: Int,
         grassSlots: [WildEncounterSlotManifest],
-        waterSlots: [WildEncounterSlotManifest]
+        waterSlots: [WildEncounterSlotManifest],
+        suppressionZones: [WildEncounterSuppressionZoneManifest] = []
     ) {
         self.mapID = mapID
+        self.landEncounterSurface = landEncounterSurface
         self.grassEncounterRate = grassEncounterRate
         self.waterEncounterRate = waterEncounterRate
         self.grassSlots = grassSlots
         self.waterSlots = waterSlots
+        self.suppressionZones = suppressionZones
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mapID
+        case landEncounterSurface
+        case grassEncounterRate
+        case waterEncounterRate
+        case grassSlots
+        case waterSlots
+        case suppressionZones
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mapID = try container.decode(String.self, forKey: .mapID)
+        landEncounterSurface = try container.decodeIfPresent(WildEncounterSurface.self, forKey: .landEncounterSurface) ?? .grass
+        grassEncounterRate = try container.decode(Int.self, forKey: .grassEncounterRate)
+        waterEncounterRate = try container.decode(Int.self, forKey: .waterEncounterRate)
+        grassSlots = try container.decode([WildEncounterSlotManifest].self, forKey: .grassSlots)
+        waterSlots = try container.decode([WildEncounterSlotManifest].self, forKey: .waterSlots)
+        suppressionZones = try container.decodeIfPresent([WildEncounterSuppressionZoneManifest].self, forKey: .suppressionZones) ?? []
     }
 }
 

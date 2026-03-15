@@ -8,10 +8,13 @@ struct BattleViewportCanvas: View {
     let kind: BattleKind
     let playerPokemon: PartyPokemonTelemetry
     let enemyPokemon: PartyPokemonTelemetry
+    let isEnemySpeciesOwned: Bool
     let trainerSpriteURL: URL?
     let playerTrainerFrontSpriteURL: URL?
     let playerTrainerBackSpriteURL: URL?
     let sendOutPoofSpriteURL: URL?
+    let battleAnimationManifest: BattleAnimationManifest
+    let battleAnimationTilesetURLs: [String: URL]
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
     let displayStyle: FieldDisplayStyle
@@ -20,6 +23,10 @@ struct BattleViewportCanvas: View {
 
     @State private var sendOutVisualState: BattleSendOutVisualState = .idle
     @State private var activeSendOutAnimationKey: String?
+    @State private var attackAnimationVisualState: BattleAttackAnimationVisualState = .idle
+    @State private var activeAttackAnimationKey: String?
+    @State private var applyingHitEffectVisualState: BattleApplyingHitEffectVisualState = .idle
+    @State private var activeApplyingHitEffectKey: String?
 
     var body: some View {
         GeometryReader { proxy in
@@ -37,6 +44,12 @@ struct BattleViewportCanvas: View {
             )
             .task(id: sendOutAnimationTriggerKey) {
                 await runSendOutAnimationSequence()
+            }
+            .task(id: attackAnimationTriggerKey) {
+                await runAttackAnimationSequence()
+            }
+            .task(id: applyingHitEffectTriggerKey) {
+                await runApplyingHitEffectSequence()
             }
         }
     }
@@ -99,6 +112,7 @@ struct BattleViewportCanvas: View {
                     Self.usesImplicitPokemonRevisionAnimation(
                         stage: presentation.stage,
                         activeSide: presentation.activeSide,
+                        attackAnimation: presentation.attackAnimation,
                         side: .enemy
                     ) ? spriteAnimation : nil,
                     value: presentation.revision
@@ -140,9 +154,25 @@ struct BattleViewportCanvas: View {
                     Self.usesImplicitPokemonRevisionAnimation(
                         stage: presentation.stage,
                         activeSide: presentation.activeSide,
+                        attackAnimation: presentation.attackAnimation,
                         side: .player
                     ) ? spriteAnimation : nil,
                     value: presentation.revision
+                )
+            }
+
+            if currentAttackAnimationState.overlayPlacements.isEmpty == false {
+                BattleAttackAnimationLayerView(
+                    placements: currentAttackAnimationState.overlayPlacements,
+                    tilesetURLs: battleAnimationTilesetURLs,
+                    displayScale: displayScale
+                )
+            }
+
+            if currentAttackAnimationState.particlePlacements.isEmpty == false {
+                BattleAttackAnimationParticleLayerView(
+                    placements: currentAttackAnimationState.particlePlacements,
+                    displayScale: displayScale
                 )
             }
 
@@ -155,6 +185,19 @@ struct BattleViewportCanvas: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .overlay {
+            Rectangle()
+                .fill(Color.white.opacity(currentAttackAnimationState.flashOpacity))
+                .blendMode(.plusLighter)
+        }
+        .overlay {
+            Rectangle()
+                .fill(Color.black.opacity(currentAttackAnimationState.darknessOpacity))
+        }
+        .offset(
+            x: combinedScreenShake.width * displayScale,
+            y: combinedScreenShake.height * displayScale
+        )
         .gameplayScreenEffect(
             displayStyle: displayStyle,
             displayScale: displayScale,
@@ -165,23 +208,33 @@ struct BattleViewportCanvas: View {
 
     @ViewBuilder
     private func hudLayer(layout: BattleViewportLayout) -> some View {
+        let sharedNameScale = BattleStatusCard.sharedNameScale(
+            enemyCardWidth: layout.enemyCardSize.width,
+            playerCardWidth: layout.playerCardSize.width,
+            enemyShowsCaughtIndicator: shouldShowEnemyCaughtIndicator
+        )
+
         BattleStatusCard(
             pokemon: enemyPokemon,
             chrome: .enemy,
+            showsCaughtIndicator: shouldShowEnemyCaughtIndicator,
             showsExperience: false,
-            presentation: presentation
+            presentation: presentation,
+            nameScale: sharedNameScale
         )
         .frame(width: layout.enemyCardSize.width, height: layout.enemyCardSize.height)
         .position(x: layout.enemyCardCenter.x, y: layout.enemyCardCenter.y)
         .opacity(enemyHudOpacity)
-        .offset(y: enemyHudOffset)
+        .offset(x: enemyHudOffset.width, y: enemyHudOffset.height)
         .animation(hudAnimation, value: presentation.revision)
 
         BattleStatusCard(
             pokemon: playerPokemon,
             chrome: .player,
+            showsCaughtIndicator: false,
             showsExperience: true,
-            presentation: presentation
+            presentation: presentation,
+            nameScale: sharedNameScale
         )
         .frame(width: layout.playerCardSize.width, height: layout.playerCardSize.height)
         .position(x: layout.playerCardCenter.x, y: layout.playerCardCenter.y)
@@ -196,6 +249,14 @@ struct BattleViewportCanvas: View {
 
     private var isWildBattle: Bool {
         kind == .wild
+    }
+
+    private var shouldShowEnemyCaughtIndicator: Bool {
+        BattleStatusCard.showsCaughtIndicator(
+            chrome: .enemy,
+            battleKind: kind,
+            isSpeciesOwned: isEnemySpeciesOwned
+        )
     }
 
     private var playerTrainerSpriteURL: URL? {
@@ -272,6 +333,31 @@ struct BattleViewportCanvas: View {
         )
     }
 
+    private var currentAttackAnimationState: BattleAttackAnimationVisualState {
+        Self.resolvedAttackAnimationState(
+            attackAnimation: presentation.attackAnimation,
+            attackAnimationVisualState: attackAnimationVisualState,
+            animationTriggerKey: attackAnimationTriggerKey,
+            activeAnimationKey: activeAttackAnimationKey
+        )
+    }
+
+    private var currentApplyingHitEffectState: BattleApplyingHitEffectVisualState {
+        Self.resolvedApplyingHitEffectState(
+            applyingHitEffect: presentation.applyingHitEffect,
+            applyingHitEffectVisualState: applyingHitEffectVisualState,
+            animationTriggerKey: applyingHitEffectTriggerKey,
+            activeAnimationKey: activeApplyingHitEffectKey
+        )
+    }
+
+    private var combinedScreenShake: CGSize {
+        CGSize(
+            width: currentAttackAnimationState.screenShake.width + currentApplyingHitEffectState.screenShake.width,
+            height: currentAttackAnimationState.screenShake.height + currentApplyingHitEffectState.screenShake.height
+        )
+    }
+
     private var sendOutPoofFrame: BattleSendOutPoofFrame? {
         let activeSide = presentation.activeSide ?? .player
         guard let frameIndex = currentSendOutState.poofFrameIndex,
@@ -287,6 +373,14 @@ struct BattleViewportCanvas: View {
 
     private var sendOutAnimationTriggerKey: String {
         "\(presentation.stage)-\(String(describing: presentation.activeSide))-\(presentation.revision)"
+    }
+
+    private var attackAnimationTriggerKey: String {
+        presentation.attackAnimation?.playbackID ?? "attack-idle-\(presentation.revision)"
+    }
+
+    private var applyingHitEffectTriggerKey: String {
+        presentation.applyingHitEffect?.playbackID ?? "hit-idle-\(presentation.revision)"
     }
 
     private var sendOutPoofSequence: [Int] {
@@ -338,8 +432,12 @@ struct BattleViewportCanvas: View {
         return 1
     }
 
-    private var enemyHudOffset: CGFloat {
-        enemyHudOpacity > 0 ? 0 : 14
+    private var enemyHudOffset: CGSize {
+        let hiddenOffset: CGFloat = enemyHudOpacity > 0 ? 0 : 14
+        return .init(
+            width: currentAttackAnimationState.enemyHUDOffset.width,
+            height: hiddenOffset + currentAttackAnimationState.enemyHUDOffset.height
+        )
     }
 
     private var playerHudOffset: CGFloat {
@@ -362,29 +460,39 @@ struct BattleViewportCanvas: View {
     }
 
     private var enemySpriteScale: CGFloat {
+        let baseScale: CGFloat
         switch presentation.stage {
         case .introReveal where isTrainerBattle:
-            return 0.34
+            baseScale = 0.34
         case .enemySendOut where presentation.activeSide == .enemy:
-            return currentSendOutState.pokemonScale
-        case .attackImpact where presentation.activeSide == .enemy:
-            return 1.04
+            baseScale = currentSendOutState.pokemonScale
+        case .attackImpact
+            where presentation.activeSide == .enemy &&
+            presentation.attackAnimation == nil &&
+            presentation.applyingHitEffect == nil:
+            baseScale = 1.04
         default:
-            return enemyPokemon.currentHP == 0 ? 0.18 : 1
+            baseScale = enemyPokemon.currentHP == 0 ? 0.18 : 1
         }
+        return baseScale * currentAttackAnimationState.enemyScale
     }
 
     private var playerSpriteScale: CGFloat {
+        let baseScale: CGFloat
         switch presentation.stage {
         case .introReveal where isTrainerBattle:
-            return 0.34
+            baseScale = 0.34
         case .enemySendOut where presentation.activeSide == .player:
-            return currentSendOutState.pokemonScale
-        case .attackImpact where presentation.activeSide == .player:
-            return 1.04
+            baseScale = currentSendOutState.pokemonScale
+        case .attackImpact
+            where presentation.activeSide == .player &&
+            presentation.attackAnimation == nil &&
+            presentation.applyingHitEffect == nil:
+            baseScale = 1.04
         default:
-            return playerPokemon.currentHP == 0 ? 0.18 : 1
+            baseScale = playerPokemon.currentHP == 0 ? 0.18 : 1
         }
+        return baseScale * currentAttackAnimationState.playerScale
     }
 
     private var enemyPokemonOpacity: Double {
@@ -398,7 +506,7 @@ struct BattleViewportCanvas: View {
         } else {
             visibility = 1
         }
-        return visibility
+        return visibility * currentAttackAnimationState.enemyOpacity * currentApplyingHitEffectState.enemyOpacity
     }
 
     private var playerPokemonOpacity: Double {
@@ -430,7 +538,7 @@ struct BattleViewportCanvas: View {
         } else {
             visibility = playerPokemon.currentHP == 0 ? 0 : 1
         }
-        return visibility
+        return visibility * currentAttackAnimationState.playerOpacity * currentApplyingHitEffectState.playerOpacity
     }
 
     private var enemyPokemonRotation: Angle {
@@ -495,14 +603,23 @@ struct BattleViewportCanvas: View {
             return sendOutAnchor
         case .enemySendOut where presentation.activeSide == .enemy:
             return currentSendOutState.usesSendOutAnchor ? sendOutAnchor : settled
-        case .attackWindup where presentation.activeSide == .enemy:
+        case .attackWindup where presentation.activeSide == .enemy && presentation.attackAnimation == nil:
             return CGPoint(x: settled.x - layout.size.width * 0.07, y: settled.y + 2)
-        case .attackImpact where presentation.activeSide == .enemy:
+        case .attackImpact
+            where presentation.activeSide == .enemy &&
+            presentation.attackAnimation == nil &&
+            presentation.applyingHitEffect == nil:
             return CGPoint(x: settled.x + layout.size.width * 0.02, y: settled.y)
-        case .attackImpact where presentation.activeSide == .player:
+        case .attackImpact
+            where presentation.activeSide == .player &&
+            presentation.attackAnimation == nil &&
+            presentation.applyingHitEffect == nil:
             return CGPoint(x: settled.x + layout.size.width * 0.03, y: settled.y - 2)
         default:
-            return settled
+            return CGPoint(
+                x: settled.x + currentAttackAnimationState.enemyOffset.width,
+                y: settled.y + currentAttackAnimationState.enemyOffset.height
+            )
         }
     }
 
@@ -514,14 +631,23 @@ struct BattleViewportCanvas: View {
             return sendOutAnchor
         case .enemySendOut where presentation.activeSide == .player:
             return currentSendOutState.usesSendOutAnchor ? sendOutAnchor : settled
-        case .attackWindup where presentation.activeSide == .player:
+        case .attackWindup where presentation.activeSide == .player && presentation.attackAnimation == nil:
             return CGPoint(x: settled.x + layout.size.width * 0.09, y: settled.y - 4)
-        case .attackImpact where presentation.activeSide == .player:
+        case .attackImpact
+            where presentation.activeSide == .player &&
+            presentation.attackAnimation == nil &&
+            presentation.applyingHitEffect == nil:
             return CGPoint(x: settled.x - layout.size.width * 0.02, y: settled.y)
-        case .attackImpact where presentation.activeSide == .enemy:
+        case .attackImpact
+            where presentation.activeSide == .enemy &&
+            presentation.attackAnimation == nil &&
+            presentation.applyingHitEffect == nil:
             return CGPoint(x: settled.x - layout.size.width * 0.03, y: settled.y + 2)
         default:
-            return settled
+            return CGPoint(
+                x: settled.x + currentAttackAnimationState.playerOffset.width,
+                y: settled.y + currentAttackAnimationState.playerOffset.height
+            )
         }
     }
 
@@ -575,12 +701,16 @@ struct BattleViewportCanvas: View {
     static func usesImplicitPokemonRevisionAnimation(
         stage: BattlePresentationStage,
         activeSide: BattlePresentationSide?,
+        attackAnimation: BattleAttackAnimationPlaybackTelemetry?,
         side: BattlePresentationSide
     ) -> Bool {
         // Send-out reveal beats are driven by local sendOutVisualState. Letting
         // the stage revision animate the whole sprite causes SwiftUI to tween
         // more than just scale/opacity, which reads as the Pokemon drifting.
-        !(stage == .enemySendOut && activeSide == side)
+        if stage == .enemySendOut && activeSide == side {
+            return false
+        }
+        return !(attackAnimation != nil && activeSide == side)
     }
 
     static func resolvedSendOutState(
@@ -593,6 +723,30 @@ struct BattleViewportCanvas: View {
             return .idle
         }
         return sendOutVisualState
+    }
+
+    static func resolvedAttackAnimationState(
+        attackAnimation: BattleAttackAnimationPlaybackTelemetry?,
+        attackAnimationVisualState: BattleAttackAnimationVisualState,
+        animationTriggerKey: String,
+        activeAnimationKey: String?
+    ) -> BattleAttackAnimationVisualState {
+        guard attackAnimation != nil, activeAnimationKey == animationTriggerKey else {
+            return .idle
+        }
+        return attackAnimationVisualState
+    }
+
+    static func resolvedApplyingHitEffectState(
+        applyingHitEffect: BattleApplyingHitEffectTelemetry?,
+        applyingHitEffectVisualState: BattleApplyingHitEffectVisualState,
+        animationTriggerKey: String,
+        activeAnimationKey: String?
+    ) -> BattleApplyingHitEffectVisualState {
+        guard applyingHitEffect != nil, activeAnimationKey == animationTriggerKey else {
+            return .idle
+        }
+        return applyingHitEffectVisualState
     }
 
     @MainActor
@@ -634,8 +788,57 @@ struct BattleViewportCanvas: View {
         }
     }
 
+    @MainActor
+    private func runAttackAnimationSequence() async {
+        guard let attackAnimation = presentation.attackAnimation else {
+            activeAttackAnimationKey = nil
+            attackAnimationVisualState = .idle
+            return
+        }
+
+        let keyframes = BattleAttackAnimationTimeline.sequence(
+            for: attackAnimation,
+            manifest: battleAnimationManifest
+        )
+        activeAttackAnimationKey = attackAnimationTriggerKey
+        attackAnimationVisualState = .idle
+
+        for keyframe in keyframes {
+            attackAnimationVisualState = keyframe.state
+            guard await sleepForAttackStep(keyframe.duration) else { return }
+        }
+
+        attackAnimationVisualState = .idle
+    }
+
+    @MainActor
+    private func runApplyingHitEffectSequence() async {
+        guard let applyingHitEffect = presentation.applyingHitEffect else {
+            activeApplyingHitEffectKey = nil
+            applyingHitEffectVisualState = .idle
+            return
+        }
+
+        let keyframes = BattleApplyingHitEffectTimeline.sequence(for: applyingHitEffect)
+        activeApplyingHitEffectKey = applyingHitEffectTriggerKey
+        applyingHitEffectVisualState = .idle
+
+        for keyframe in keyframes {
+            applyingHitEffectVisualState = keyframe.state
+            guard await sleepForAttackStep(keyframe.duration) else { return }
+        }
+
+        applyingHitEffectVisualState = .idle
+    }
+
     private func sleepForSendOutStep(_ duration: TimeInterval) async -> Bool {
         let nanoseconds = UInt64(duration * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: nanoseconds)
+        return Task.isCancelled == false
+    }
+
+    private func sleepForAttackStep(_ duration: TimeInterval) async -> Bool {
+        let nanoseconds = UInt64(max(0, duration) * 1_000_000_000)
         try? await Task.sleep(nanoseconds: nanoseconds)
         return Task.isCancelled == false
     }
@@ -677,23 +880,6 @@ struct BattleViewportCanvas: View {
             return max(1, floor(rawScale))
         }
         return rawScale
-    }
-}
-
-private struct BattlePokeballToken: View {
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.95))
-            Circle()
-                .stroke(Color.black.opacity(0.82), lineWidth: 1.5)
-            Rectangle()
-                .fill(Color.black.opacity(0.82))
-                .frame(height: 1.5)
-            Circle()
-                .fill(Color.black.opacity(0.82))
-                .frame(width: 4, height: 4)
-        }
     }
 }
 
@@ -740,7 +926,7 @@ private struct BattleSendOutPoofView: View {
     }
 }
 
-private struct BattleSpriteSheetFrameView: View {
+struct BattleSpriteSheetFrameView: View {
     let url: URL
     let frameRect: CGRect
     let label: String
@@ -870,6 +1056,84 @@ private struct BattleSpriteSheetFrameView: View {
             shouldInterpolate: false,
             intent: .defaultIntent
         )
+    }
+}
+
+private struct BattleAttackAnimationLayerView: View {
+    let placements: [BattleAttackAnimationTilePlacement]
+    let tilesetURLs: [String: URL]
+    let displayScale: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(placements.enumerated()), id: \.offset) { _, placement in
+                if let tilesetURL = tilesetURLs[placement.tilesetID] {
+                    BattleSpriteSheetFrameView(
+                        url: tilesetURL,
+                        frameRect: placement.atlasFrame,
+                        label: "Attack Animation Tile",
+                        whiteIsTransparent: true,
+                        flipHorizontal: placement.flipH,
+                        flipVertical: placement.flipV
+                    )
+                    .frame(
+                        width: BattleAttackAnimationTimeline.tileSize.cgFloat * displayScale,
+                        height: BattleAttackAnimationTimeline.tileSize.cgFloat * displayScale
+                    )
+                    .offset(
+                        x: placement.x.cgFloat * displayScale,
+                        y: placement.y.cgFloat * displayScale
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct BattleAttackAnimationParticleLayerView: View {
+    let placements: [BattleAttackAnimationParticlePlacement]
+    let displayScale: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(placements.enumerated()), id: \.offset) { _, placement in
+                particleView(for: placement)
+                    .frame(
+                        width: placement.width * displayScale,
+                        height: placement.height * displayScale
+                    )
+                    .rotationEffect(.degrees(placement.rotationDegrees))
+                    .opacity(placement.opacity)
+                    .offset(
+                        x: placement.x * displayScale,
+                        y: placement.y * displayScale
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func particleView(
+        for placement: BattleAttackAnimationParticlePlacement
+    ) -> some View {
+        switch placement.kind {
+        case .orb:
+            Circle()
+                .fill(Color(white: 0.2))
+                .overlay {
+                    Circle()
+                        .stroke(Color(white: 0.85), lineWidth: max(1, 0.8 * displayScale))
+                }
+        case .droplet:
+            Capsule(style: .circular)
+                .fill(Color(white: 0.78))
+        case .leaf:
+            Capsule(style: .circular)
+                .fill(Color(white: 0.32))
+        case .petal:
+            Ellipse()
+                .fill(Color(white: 0.68))
+        }
     }
 }
 

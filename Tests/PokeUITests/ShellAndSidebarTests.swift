@@ -11,6 +11,28 @@ import XCTest
 
 @MainActor
 extension PokeUITests {
+  func testGameplayScreenGlowPaletteKeepsLegacyTintedGlowInLightAppearance() {
+    let glowPalette = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .dmgTinted,
+      appearanceMode: .light,
+      colorScheme: .light
+    )
+
+    XCTAssertEqual(glowPalette.outer, ThemeRGBA(red: 0.52, green: 0.78, blue: 0.46, alpha: 0.22))
+    XCTAssertEqual(glowPalette.inner, ThemeRGBA(red: 0.92, green: 0.98, blue: 0.84, alpha: 0.14))
+  }
+
+  func testGameplayScreenGlowPaletteKeepsLegacyTintedGlowInRetroDarkAppearance() {
+    let glowPalette = PokeThemePalette.gameplayScreenGlowPalette(
+      displayStyle: .dmgTinted,
+      appearanceMode: .retroDark,
+      colorScheme: .dark
+    )
+
+    XCTAssertEqual(glowPalette.outer, ThemeRGBA(red: 0.22, green: 0.96, blue: 0.24, alpha: 0.38))
+    XCTAssertEqual(glowPalette.inner, ThemeRGBA(red: 0.74, green: 1, blue: 0.72, alpha: 0.2))
+  }
+
   func testTitleMenuPanelCanBeConstructed() {
     let view = TitleMenuPanel(
       entries: [.init(id: "newGame", label: "New Game", isEnabled: true)], focusedIndex: 0)
@@ -186,10 +208,13 @@ extension PokeUITests {
         special: 10,
         moves: ["SCRATCH", "GROWL"]
       ),
+      isEnemySpeciesOwned: false,
       trainerSpriteURL: nil,
       playerTrainerFrontSpriteURL: nil,
       playerTrainerBackSpriteURL: nil,
       sendOutPoofSpriteURL: nil,
+      battleAnimationManifest: .empty,
+      battleAnimationTilesetURLs: [:],
       playerSpriteURL: nil,
       enemySpriteURL: nil,
       displayStyle: .dmgAuthentic,
@@ -201,6 +226,46 @@ extension PokeUITests {
     )
 
     XCTAssertNotNil(view)
+  }
+  func testBattleStatusCardSharedNameScaleFitsTenCharacterNamesOnCompactViewport() {
+    let layout = BattleViewportLayout(size: CGSize(width: 320, height: 288))
+    let nameScale = BattleStatusCard.sharedNameScale(
+      enemyCardWidth: layout.enemyCardSize.width,
+      playerCardWidth: layout.playerCardSize.width,
+      enemyShowsCaughtIndicator: true
+    )
+    let availableWidth = BattleStatusCard.availableNameWidth(
+      cardWidth: layout.enemyCardSize.width,
+      showsCaughtIndicator: true
+    )
+
+    XCTAssertLessThan(nameScale, BattleStatusCard.preferredNameScale)
+    XCTAssertLessThanOrEqual(
+      BattleStatusCard.requiredNameWidth(scale: nameScale),
+      availableWidth + 0.001
+    )
+  }
+  func testBattleStatusCardSharedNameScaleKeepsPreferredSizeOnRoomyViewport() {
+    let layout = BattleViewportLayout(size: CGSize(width: 640, height: 576))
+    let nameScale = BattleStatusCard.sharedNameScale(
+      enemyCardWidth: layout.enemyCardSize.width,
+      playerCardWidth: layout.playerCardSize.width
+    )
+
+    XCTAssertEqual(nameScale, BattleStatusCard.preferredNameScale, accuracy: 0.001)
+  }
+  func testBattleStatusCardCaughtIndicatorShowsOnlyForOwnedEnemy() {
+    XCTAssertTrue(BattleStatusCard.showsCaughtIndicator(chrome: .enemy, battleKind: .wild, isSpeciesOwned: true))
+    XCTAssertFalse(BattleStatusCard.showsCaughtIndicator(chrome: .enemy, battleKind: .wild, isSpeciesOwned: false))
+    XCTAssertFalse(BattleStatusCard.showsCaughtIndicator(chrome: .enemy, battleKind: .trainer, isSpeciesOwned: true))
+    XCTAssertFalse(BattleStatusCard.showsCaughtIndicator(chrome: .player, battleKind: .wild, isSpeciesOwned: true))
+  }
+  func testBattleStatusCardCaughtIndicatorUsesVisibleAccessorySize() {
+    XCTAssertGreaterThan(BattleStatusCard.caughtIndicatorDiameter(scale: BattleStatusCard.metadataScale), 0)
+    XCTAssertGreaterThan(
+      BattleStatusCard.caughtIndicatorReservedWidth(scale: BattleStatusCard.metadataScale),
+      BattleStatusCard.caughtIndicatorDiameter(scale: BattleStatusCard.metadataScale)
+    )
   }
   func testSidebarPropBuilderMapsEmptyPartyProfile() {
     let profile = GameplaySidebarPropsBuilder.makeProfile(
@@ -257,6 +322,52 @@ extension PokeUITests {
     XCTAssertEqual(entry.detailFields.map(\.id), ["height", "weight", "encounters"])
     XCTAssertEqual(entry.detailFields.last?.label, "ENCOUNTERS")
     XCTAssertEqual(entry.detailFields.last?.value, "3")
+  }
+
+  func testPokedexSidebarBuilderExposesOwnedEvolutionAndLearnsetDetails() {
+    let props = GameplaySidebarPropsBuilder.makePokedex(
+      allSpecies: [
+        .init(
+          id: "IVYSAUR",
+          dexNumber: 2,
+          displayName: "Ivysaur",
+          primaryType: "GRASS",
+          secondaryType: "POISON",
+          spriteURL: nil,
+          speciesCategory: "Seed",
+          heightText: "3'03\"",
+          weightText: "28.7 LB",
+          descriptionText: "When the bulb grows large, it appears to lose the ability to stand on its hind legs.",
+          preEvolution: .init(id: "BULBASAUR", displayName: "Bulbasaur", triggerText: "Lv 16"),
+          evolutions: [
+            .init(id: "VENUSAUR", displayName: "Venusaur", triggerText: "Lv 32")
+          ],
+          learnedMoves: [
+            .init(id: "IVYSAUR-LEECH_SEED-7", levelText: "Lv 7", displayName: "Leech Seed"),
+            .init(id: "IVYSAUR-VINE_WHIP-13", levelText: "Lv 13", displayName: "Vine Whip")
+          ],
+          baseHP: 60,
+          baseAttack: 62,
+          baseDefense: 63,
+          baseSpeed: 60,
+          baseSpecial: 80
+        )
+      ],
+      ownedSpeciesIDs: ["IVYSAUR"],
+      seenSpeciesIDs: ["IVYSAUR"]
+    )
+
+    guard let entry = props.entries.first else {
+      XCTFail("Expected a Pokedex entry")
+      return
+    }
+
+    XCTAssertEqual(entry.preEvolution?.displayName, "Bulbasaur")
+    XCTAssertEqual(entry.preEvolution?.triggerText, "Lv 16")
+    XCTAssertEqual(entry.evolutions.map(\.displayName), ["Venusaur"])
+    XCTAssertEqual(entry.evolutions.map(\.triggerText), ["Lv 32"])
+    XCTAssertEqual(entry.learnedMoves.map(\.levelText), ["Lv 7", "Lv 13"])
+    XCTAssertEqual(entry.learnedMoves.map(\.displayName), ["Leech Seed", "Vine Whip"])
   }
 
   func testPokedexSidebarBuilderCarriesSelectedEntryID() {
@@ -334,6 +445,9 @@ extension PokeUITests {
     XCTAssertNil(entry.heightText)
     XCTAssertNil(entry.weightText)
     XCTAssertNil(entry.descriptionText)
+    XCTAssertNil(entry.preEvolution)
+    XCTAssertTrue(entry.evolutions.isEmpty)
+    XCTAssertTrue(entry.learnedMoves.isEmpty)
     XCTAssertTrue(entry.detailFields.isEmpty)
     XCTAssertEqual(entry.baseHP, 0)
     XCTAssertEqual(entry.baseAttack, 0)
@@ -618,7 +732,12 @@ extension PokeUITests {
       ],
       focusedMoveIndex: 1,
       canRun: true,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
 
     XCTAssertEqual(props.actionRows.map(\.kind), [.move, .move, .run])
@@ -672,7 +791,12 @@ extension PokeUITests {
           accuracy: 100
         )
       ],
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
 
     let moveAction = try XCTUnwrap(props.actionRows.first)
@@ -732,6 +856,232 @@ extension PokeUITests {
     XCTAssertFalse(props.shouldForceCombatSectionOpen)
     XCTAssertTrue(props.actionRows.isEmpty)
   }
+  func testBattleSidebarPropsRevealCombatantsAlongsidePresentationTiming() {
+    func makeProps(kind: BattleKind, presentation: BattlePresentationTelemetry) -> BattleSidebarProps {
+      BattleSidebarProps(
+        trainerName: "BLUE",
+        kind: kind,
+        phase: "turnText",
+        promptText: "Battle intro text.",
+        playerPokemon: .init(
+          speciesID: "BULBASAUR",
+          displayName: "Bulbasaur",
+          level: 5,
+          currentHP: 19,
+          maxHP: 19,
+          attack: 11,
+          defense: 10,
+          speed: 9,
+          special: 12,
+          moves: ["TACKLE", "GROWL"]
+        ),
+        enemyPokemon: .init(
+          speciesID: "CHARMANDER",
+          displayName: "Charmander",
+          level: 5,
+          currentHP: 18,
+          maxHP: 20,
+          attack: 10,
+          defense: 9,
+          speed: 11,
+          special: 10,
+          moves: ["SCRATCH", "GROWL"]
+        ),
+        moveSlots: [],
+        focusedMoveIndex: 0,
+        canRun: false,
+        party: .init(pokemon: []),
+        presentation: presentation
+      )
+    }
+
+    let trainerIntroProps = makeProps(
+      kind: .trainer,
+      presentation: .init(
+        stage: .introReveal,
+        revision: 1,
+        uiVisibility: .visible
+      )
+    )
+    XCTAssertFalse(trainerIntroProps.showsEnemyCombatantStatus)
+    XCTAssertFalse(trainerIntroProps.showsPlayerCombatantStatus)
+
+    let trainerEnemySendOutProps = makeProps(
+      kind: .trainer,
+      presentation: .init(
+        stage: .enemySendOut,
+        revision: 2,
+        uiVisibility: .visible,
+        activeSide: .enemy
+      )
+    )
+    XCTAssertTrue(trainerEnemySendOutProps.showsEnemyCombatantStatus)
+    XCTAssertFalse(trainerEnemySendOutProps.showsPlayerCombatantStatus)
+
+    let trainerPlayerSendOutProps = makeProps(
+      kind: .trainer,
+      presentation: .init(
+        stage: .enemySendOut,
+        revision: 3,
+        uiVisibility: .visible,
+        activeSide: .player
+      )
+    )
+    XCTAssertTrue(trainerPlayerSendOutProps.showsEnemyCombatantStatus)
+    XCTAssertTrue(trainerPlayerSendOutProps.showsPlayerCombatantStatus)
+
+    let wildIntroProps = makeProps(
+      kind: .wild,
+      presentation: .init(
+        stage: .introReveal,
+        revision: 4,
+        uiVisibility: .visible
+      )
+    )
+    XCTAssertTrue(wildIntroProps.showsEnemyCombatantStatus)
+    XCTAssertFalse(wildIntroProps.showsPlayerCombatantStatus)
+
+    let wildPlayerSendOutProps = makeProps(
+      kind: .wild,
+      presentation: .init(
+        stage: .enemySendOut,
+        revision: 5,
+        uiVisibility: .visible,
+        activeSide: .player
+      )
+    )
+    XCTAssertTrue(wildPlayerSendOutProps.showsEnemyCombatantStatus)
+    XCTAssertTrue(wildPlayerSendOutProps.showsPlayerCombatantStatus)
+  }
+  func testBattleSidebarActionRowsOnlyAppearWhenBattleInputIsReady() {
+    func makeProps(
+      phase: String,
+      presentation: BattlePresentationTelemetry,
+      learnMovePrompt: BattleLearnMovePromptTelemetry? = nil
+    ) -> BattleSidebarProps {
+      BattleSidebarProps(
+        trainerName: "PIDGEY",
+        kind: .wild,
+        phase: phase,
+        promptText: "Pick the next move.",
+        playerPokemon: .init(
+          speciesID: "BULBASAUR",
+          displayName: "Bulbasaur",
+          level: 5,
+          currentHP: 19,
+          maxHP: 19,
+          attack: 11,
+          defense: 10,
+          speed: 9,
+          special: 12,
+          moves: ["TACKLE", "GROWL"]
+        ),
+        enemyPokemon: .init(
+          speciesID: "PIDGEY",
+          displayName: "Pidgey",
+          level: 3,
+          currentHP: 12,
+          maxHP: 12,
+          attack: 8,
+          defense: 8,
+          speed: 10,
+          special: 7,
+          moves: ["TACKLE"]
+        ),
+        learnMovePrompt: learnMovePrompt,
+        moveSlots: [
+          .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true),
+          .init(moveID: "GROWL", displayName: "Growl", currentPP: 40, maxPP: 40, isSelectable: true),
+        ],
+        focusedMoveIndex: 0,
+        canRun: true,
+        party: .init(pokemon: []),
+        presentation: presentation
+      )
+    }
+
+    let introProps = makeProps(
+      phase: "introText",
+      presentation: .init(
+        stage: .introReveal,
+        revision: 1,
+        uiVisibility: .visible
+      )
+    )
+    let sendOutProps = makeProps(
+      phase: "moveSelection",
+      presentation: .init(
+        stage: .enemySendOut,
+        revision: 2,
+        uiVisibility: .visible,
+        activeSide: .player
+      )
+    )
+    let turnTextProps = makeProps(
+      phase: "turnText",
+      presentation: .init(
+        stage: .resultText,
+        revision: 3,
+        uiVisibility: .visible,
+        activeSide: .player
+      )
+    )
+    let bagSelectionProps = makeProps(
+      phase: "bagSelection",
+      presentation: .init(
+        stage: .commandReady,
+        revision: 4,
+        uiVisibility: .visible
+      )
+    )
+    let commandReadyProps = makeProps(
+      phase: "moveSelection",
+      presentation: .init(
+        stage: .commandReady,
+        revision: 5,
+        uiVisibility: .visible
+      )
+    )
+    let learnPromptProps = makeProps(
+      phase: "learnMoveDecision",
+      presentation: .init(
+        stage: .resultText,
+        revision: 6,
+        uiVisibility: .visible
+      ),
+      learnMovePrompt: .init(
+        pokemonName: "Bulbasaur",
+        moveID: "VINE_WHIP",
+        moveDisplayName: "VINE WHIP",
+        stage: .confirm
+      )
+    )
+    let trainerDecisionProps = BattleSidebarProps(
+      trainerName: "BUG CATCHER",
+      kind: .trainer,
+      phase: "trainerAboutToUseDecision",
+      promptText: "Will RED change #MON?",
+      playerPokemon: commandReadyProps.playerPokemon,
+      enemyPokemon: commandReadyProps.enemyPokemon,
+      moveSlots: commandReadyProps.moveSlots,
+      focusedMoveIndex: 0,
+      canRun: false,
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .resultText,
+        revision: 7,
+        uiVisibility: .visible
+      )
+    )
+
+    XCTAssertTrue(introProps.actionRows.isEmpty)
+    XCTAssertTrue(sendOutProps.actionRows.isEmpty)
+    XCTAssertTrue(turnTextProps.actionRows.isEmpty)
+    XCTAssertTrue(bagSelectionProps.actionRows.isEmpty)
+    XCTAssertEqual(commandReadyProps.actionRows.map(\.kind), [.move, .move, .run])
+    XCTAssertEqual(learnPromptProps.actionRows.map(\.kind), [.learn, .skip])
+    XCTAssertEqual(trainerDecisionProps.actionRows.map(\.kind), [.confirm, .deny])
+  }
   func testBattleSidebarActionRowsFocusRunOnlyForWildBattles() {
     let wildProps = BattleSidebarProps(
       trainerName: "PIDGEY",
@@ -769,7 +1119,12 @@ extension PokeUITests {
       ],
       focusedMoveIndex: 2,
       canRun: true,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
     let trainerProps = BattleSidebarProps(
       trainerName: "BLUE",
@@ -781,7 +1136,12 @@ extension PokeUITests {
       moveSlots: wildProps.moveSlots,
       focusedMoveIndex: 1,
       canRun: false,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 2,
+        uiVisibility: .visible
+      )
     )
 
     XCTAssertEqual(wildProps.actionRows.map(\.kind), [.move, .move, .run])
@@ -826,7 +1186,12 @@ extension PokeUITests {
       canRun: true,
       canUseBag: true,
       bagItemCount: 3,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
 
     XCTAssertEqual(props.actionRows.map(\.kind), [.move, .move, .bag, .run])
@@ -879,6 +1244,11 @@ extension PokeUITests {
           .init(id: "bulbasaur-0", speciesID: "BULBASAUR", displayName: "Bulbasaur", level: 5, currentHP: 19, maxHP: 19, isLead: true),
           .init(id: "pidgey-1", speciesID: "PIDGEY", displayName: "Pidgey", level: 3, currentHP: 12, maxHP: 12, isLead: false),
         ]
+      ),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
       )
     )
 
@@ -1424,7 +1794,7 @@ extension PokeUITests {
     XCTAssertTrue(save.actions.allSatisfy { $0.isEnabled == false })
     XCTAssertEqual(
       options.rows.map(\.title), ["Appearance", "HDR Effects", "Text Speed", "Battle Scene", "Battle Style", "Music"])
-    XCTAssertEqual(options.rows.map(\.isEnabled), [true, true, false, false, false, true])
+    XCTAssertEqual(options.rows.map(\.isEnabled), [true, true, true, true, true, true])
     XCTAssertEqual(options.shellPickerTitle, "GB Shell")
     XCTAssertEqual(options.shellOptions.map(\.shellStyle), [.classic, .kiwi, .dandelion, .teal, .grape])
     XCTAssertEqual(options.shellOptions.filter(\.isSelected).map(\.shellStyle), [.classic])
@@ -1468,7 +1838,7 @@ extension PokeUITests {
     XCTAssertNotEqual(raw.outer, tinted.outer)
     XCTAssertNotEqual(authentic.outer, tinted.outer)
   }
-  func testGameplayScreenGlowPaletteUsesRetunedHardwareFriendlyValues() {
+  func testGameplayScreenGlowPaletteUsesRestoredTintedValues() {
     let tinted = PokeThemePalette.gameplayScreenGlowPalette(
       displayStyle: .dmgTinted,
       appearanceMode: .retroDark,
@@ -1480,12 +1850,12 @@ extension PokeUITests {
       colorScheme: .dark
     )
 
-    XCTAssertEqual(tinted.outer.red, 0.34, accuracy: 0.0001)
-    XCTAssertEqual(tinted.outer.green, 0.78, accuracy: 0.0001)
-    XCTAssertEqual(tinted.outer.blue, 0.26, accuracy: 0.0001)
-    XCTAssertEqual(tinted.inner.red, 0.71, accuracy: 0.0001)
-    XCTAssertEqual(tinted.inner.green, 0.87, accuracy: 0.0001)
-    XCTAssertEqual(tinted.inner.blue, 0.58, accuracy: 0.0001)
+    XCTAssertEqual(tinted.outer.red, 0.22, accuracy: 0.0001)
+    XCTAssertEqual(tinted.outer.green, 0.96, accuracy: 0.0001)
+    XCTAssertEqual(tinted.outer.blue, 0.24, accuracy: 0.0001)
+    XCTAssertEqual(tinted.inner.red, 0.74, accuracy: 0.0001)
+    XCTAssertEqual(tinted.inner.green, 1.0, accuracy: 0.0001)
+    XCTAssertEqual(tinted.inner.blue, 0.72, accuracy: 0.0001)
 
     XCTAssertEqual(authentic.outer.red, 0.42, accuracy: 0.0001)
     XCTAssertEqual(authentic.outer.green, 0.55, accuracy: 0.0001)

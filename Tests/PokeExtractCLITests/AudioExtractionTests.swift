@@ -2,17 +2,22 @@ import XCTest
 import PokeDataModel
 
 final class AudioExtractionTests: XCTestCase {
+    private static let repoManifest: AudioManifest = {
+        try! makeFreshManifest()
+    }()
+
     func testAudioExtractorBuildsEarlyM4ManifestFromRepoSources() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         XCTAssertEqual(manifest.variant, .red)
         XCTAssertEqual(manifest.titleTrackID, "MUSIC_TITLE_SCREEN")
         XCTAssertEqual(
             manifest.mapRoutes,
             [
+                .init(mapID: "MT_MOON_1F", musicID: "MUSIC_DUNGEON3"),
+                .init(mapID: "MT_MOON_B1F", musicID: "MUSIC_DUNGEON3"),
+                .init(mapID: "MT_MOON_B2F", musicID: "MUSIC_DUNGEON3"),
+                .init(mapID: "MT_MOON_POKECENTER", musicID: "MUSIC_POKECENTER"),
                 .init(mapID: "MUSEUM_1F", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "MUSEUM_2F", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "OAKS_LAB", musicID: "MUSIC_OAKS_LAB"),
@@ -30,6 +35,7 @@ final class AudioExtractionTests: XCTestCase {
                 .init(mapID: "ROUTE_22", musicID: "MUSIC_ROUTES3"),
                 .init(mapID: "ROUTE_22_GATE", musicID: "MUSIC_DUNGEON2"),
                 .init(mapID: "ROUTE_3", musicID: "MUSIC_ROUTES3"),
+                .init(mapID: "ROUTE_4", musicID: "MUSIC_ROUTES3"),
                 .init(mapID: "VIRIDIAN_CITY", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "VIRIDIAN_FOREST", musicID: "MUSIC_DUNGEON2"),
                 .init(mapID: "VIRIDIAN_FOREST_NORTH_GATE", musicID: "MUSIC_CITIES1"),
@@ -68,6 +74,7 @@ final class AudioExtractionTests: XCTestCase {
             "MUSIC_ROUTES3",
             "MUSIC_CITIES1",
             "MUSIC_DUNGEON2",
+            "MUSIC_DUNGEON3",
             "MUSIC_GYM",
             "MUSIC_POKECENTER",
             "MUSIC_MEET_PROF_OAK",
@@ -98,10 +105,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorQuantizesOakLabLeadToEngineFrameDurations() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let oakLabTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_OAKS_LAB" })
         let channelOne = try XCTUnwrap(
@@ -120,10 +124,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorAppliesTrackTempoToSecondaryChannels() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let titleTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_TITLE_SCREEN" })
         let channelTwo = try XCTUnwrap(
@@ -135,10 +136,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorIncludesTitleScreenDrumPreludeEvents() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let titleTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_TITLE_SCREEN" })
         let channelFour = try XCTUnwrap(
@@ -154,10 +152,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorCarriesPitchSlideTargetsIntoPkmnHealedLead() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let healTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_PKMN_HEALED" })
         let channelOne = try XCTUnwrap(
@@ -179,10 +174,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorUsesASMFrequencyTableForPerfectPitchSquareChannel() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let oakIntroTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_MEET_PROF_OAK" })
         let channelOne = try XCTUnwrap(
@@ -195,10 +187,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorUsesWaveChannelFrequencyFormulaForOakIntroCounterline() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let oakIntroTrack = try XCTUnwrap(manifest.tracks.first { $0.id == "MUSIC_MEET_PROF_OAK" })
         let channelThree = try XCTUnwrap(
@@ -211,10 +200,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorMapsLevelUpSFXChannelsToToneHardware() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let levelUp = try XCTUnwrap(manifest.soundEffects.first { $0.id == "SFX_LEVEL_UP" })
         let channelFive = try XCTUnwrap(levelUp.channels.first { $0.channelNumber == 5 })
@@ -227,10 +213,7 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testAudioExtractorCarriesPitchSweepIntoBallPoofSquareChannel() throws {
-        let manifest = try extractAudioManifest(
-            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
-            titleTrackID: "MUSIC_TITLE_SCREEN"
-        )
+        let manifest = Self.repoManifest
 
         let ballPoof = try XCTUnwrap(manifest.soundEffects.first { $0.id == "SFX_BALL_POOF" })
         let channelFive = try XCTUnwrap(ballPoof.channels.first { $0.channelNumber == 5 })
@@ -247,26 +230,28 @@ final class AudioExtractionTests: XCTestCase {
     }
 
     func testExtractorWritesDeterministicAudioManifestJSON() throws {
-        let repoRoot = PokeExtractCLITestSupport.repoRoot()
-        let firstOutputRoot = try PokeExtractCLITestSupport.temporaryDirectory()
-        let secondOutputRoot = try PokeExtractCLITestSupport.temporaryDirectory()
-
-        try RedContentExtractor.extract(
-            configuration: .init(repoRoot: repoRoot, outputRoot: firstOutputRoot)
-        )
-        try RedContentExtractor.extract(
-            configuration: .init(repoRoot: repoRoot, outputRoot: secondOutputRoot)
-        )
-
-        let first = try Data(contentsOf: firstOutputRoot.appendingPathComponent("Red/audio_manifest.json"))
-        let second = try Data(contentsOf: secondOutputRoot.appendingPathComponent("Red/audio_manifest.json"))
+        let first = try Self.encodeJSON(Self.makeFreshManifest())
+        let second = try Self.encodeJSON(Self.makeFreshManifest())
         XCTAssertEqual(first, second)
 
         let decoded = try JSONDecoder().decode(AudioManifest.self, from: first)
         XCTAssertEqual(decoded.titleTrackID, "MUSIC_TITLE_SCREEN")
-        XCTAssertEqual(decoded.mapRoutes.count, 25)
+        XCTAssertEqual(decoded.mapRoutes.count, 30)
         XCTAssertEqual(decoded.cues.count, 13)
-        XCTAssertEqual(decoded.tracks.count, 19)
+        XCTAssertEqual(decoded.tracks.count, 20)
         XCTAssertNotNil(decoded.tracks.first { $0.id == "MUSIC_MEET_RIVAL" }?.entries.first { $0.id == "alternateStart" })
+    }
+
+    private static func makeFreshManifest() throws -> AudioManifest {
+        try extractAudioManifest(
+            source: SourceTree(repoRoot: PokeExtractCLITestSupport.repoRoot()),
+            titleTrackID: "MUSIC_TITLE_SCREEN"
+        )
+    }
+
+    private static func encodeJSON<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value) + Data("\n".utf8)
     }
 }

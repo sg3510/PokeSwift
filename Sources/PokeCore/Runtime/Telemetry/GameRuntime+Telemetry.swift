@@ -136,7 +136,9 @@ extension GameRuntime {
                 activeSide: battle.presentation.activeSide,
                 hidePlayerPokemon: battle.presentation.hidePlayerPokemon,
                 transitionStyle: battle.presentation.transitionStyle,
-                meterAnimation: battle.presentation.meterAnimation
+                meterAnimation: battle.presentation.meterAnimation,
+                attackAnimation: battle.presentation.attackAnimation,
+                applyingHitEffect: battle.presentation.applyingHitEffect
             )
         )
     }

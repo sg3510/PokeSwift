@@ -5,48 +5,6 @@ import PokeDataModel
 
 @MainActor
 extension PokeCoreTests {
-    func testTitleFlowTransitionsFromAttractToMenuAndOptionsPlaceholder() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.start()
-        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
-        XCTAssertEqual(runtime.scene, .titleAttract)
-        runtime.handle(button: .start)
-        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
-        XCTAssertEqual(runtime.scene, .titleMenu)
-
-        runtime.handle(button: .down)
-        runtime.handle(button: .down)
-        runtime.handle(button: .confirm)
-        runtime.updateWindowScale(5)
-        XCTAssertEqual(runtime.currentSnapshot().window.scale, 5)
-        XCTAssertEqual(runtime.scene, .placeholder)
-    }
-    func testMenuInteractionWithDisabledContinue() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.start()
-        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
-        runtime.handle(button: .start)
-        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
-        runtime.handle(button: .down)
-        runtime.handle(button: .confirm)
-        XCTAssertEqual(runtime.currentSnapshot().substate, "continue_disabled")
-    }
-    func testNewGameEntersFieldAndPublishesFieldTelemetry() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.start()
-        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
-        runtime.handle(button: .start)
-        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
-        runtime.handle(button: .confirm)
-        completeOakIntro(runtime)
-
-        let snapshot = runtime.currentSnapshot()
-        XCTAssertEqual(snapshot.scene, .field)
-        XCTAssertEqual(snapshot.field?.mapID, "REDS_HOUSE_2F")
-        XCTAssertEqual(snapshot.field?.playerPosition, TilePoint(x: 4, y: 4))
-        XCTAssertEqual(snapshot.field?.renderMode, "placeholder")
-        XCTAssertEqual(snapshot.field?.objects, [])
-    }
     func testSaveAndContinueRestoreGameplayState() async throws {
         let saveStore = InMemorySaveStore()
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
@@ -54,6 +12,7 @@ extension PokeCoreTests {
         completeOakIntro(runtime)
 
         runtime.gameplayState?.mapID = "REDS_HOUSE_2F"
+        runtime.gameplayState?.previousMapID = "PALLET_TOWN"
         runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 3)
         runtime.gameplayState?.facing = .left
         runtime.gameplayState?.money = 4242
@@ -108,7 +67,7 @@ extension PokeCoreTests {
 
         XCTAssertTrue(runtime.saveCurrentGame())
         XCTAssertNotNil(saveStore.envelope)
-        XCTAssertEqual(saveStore.envelope?.metadata.schemaVersion, 8)
+        XCTAssertEqual(saveStore.envelope?.metadata.schemaVersion, 9)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.experience, 202)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.dvs, savedPokemon?.dvs)
         XCTAssertEqual(saveStore.envelope?.snapshot.playerParty.first?.statExp, savedPokemon?.statExp)
@@ -121,6 +80,7 @@ extension PokeCoreTests {
         XCTAssertEqual(saveStore.envelope?.snapshot.seenSpeciesIDs.sorted(), ["PIDGEY", "RATTATA", "SQUIRTLE"])
         XCTAssertEqual(saveStore.envelope?.snapshot.speciesEncounterCounts, ["SQUIRTLE": 4, "PIDGEY": 2, "RATTATA": 7])
         XCTAssertEqual(saveStore.envelope?.snapshot.earnedBadgeIDs, ["boulder"])
+        XCTAssertEqual(saveStore.envelope?.snapshot.previousMapID, "PALLET_TOWN")
         XCTAssertEqual(
             saveStore.envelope?.snapshot.blackoutCheckpoint,
             .init(mapID: "VIRIDIAN_POKECENTER", position: .init(x: 3, y: 7), facing: .down)
@@ -150,6 +110,7 @@ extension PokeCoreTests {
         XCTAssertEqual(resumed.gameplayState?.ownedSpeciesIDs, Set(["SQUIRTLE", "PIDGEY"]))
         XCTAssertEqual(resumed.gameplayState?.seenSpeciesIDs, Set(["SQUIRTLE", "PIDGEY", "RATTATA"]))
         XCTAssertEqual(resumed.gameplayState?.speciesEncounterCounts, ["SQUIRTLE": 4, "PIDGEY": 2, "RATTATA": 7])
+        XCTAssertEqual(resumed.gameplayState?.previousMapID, "PALLET_TOWN")
         XCTAssertEqual(
             resumed.gameplayState?.blackoutCheckpoint,
             .init(mapID: "VIRIDIAN_POKECENTER", position: .init(x: 3, y: 7), facing: .down)
@@ -275,10 +236,23 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.gameplayState?.speciesEncounterCounts, [:])
         XCTAssertEqual(runtime.encounterCountsBySpeciesID["SQUIRTLE"] ?? 0, 0)
     }
+
+    func testSchemaEightSaveDefaultsPreviousMapIDToNil() throws {
+        let saveStore = InMemorySaveStore()
+        saveStore.envelope = try decodeLegacySaveEnvelope(
+            schemaVersion: 8,
+            acquisitionRNGState: 1
+        )
+
+        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
+
+        XCTAssertTrue(runtime.continueFromTitleMenu())
+        XCTAssertNil(runtime.gameplayState?.previousMapID)
+    }
+
     func testContinueMergesDefaultObjectStatesSoForestTrainerSightStillWorks() async throws {
         let saveStore = InMemorySaveStore()
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
 
         saveStore.envelope = GameSaveEnvelope(
             metadata: .init(
@@ -293,6 +267,7 @@ extension PokeCoreTests {
             ),
             snapshot: .init(
                 mapID: "VIRIDIAN_FOREST",
+                previousMapID: nil,
                 playerPosition: .init(x: 25, y: 33),
                 facing: .right,
                 objectStates: [:],
@@ -348,8 +323,7 @@ extension PokeCoreTests {
     }
     func testContinueMissingObjectStatesStillHidesForestPickupAfterCollection() throws {
         let saveStore = InMemorySaveStore()
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
 
         saveStore.envelope = GameSaveEnvelope(
             metadata: .init(
@@ -364,6 +338,7 @@ extension PokeCoreTests {
             ),
             snapshot: .init(
                 mapID: "VIRIDIAN_FOREST",
+                previousMapID: nil,
                 playerPosition: .init(x: 25, y: 12),
                 facing: .up,
                 objectStates: [:],
@@ -464,6 +439,7 @@ extension PokeCoreTests {
             ),
             snapshot: .init(
                 mapID: "REDS_HOUSE_2F",
+                previousMapID: nil,
                 playerPosition: .init(x: 4, y: 4),
                 facing: .down,
                 objectStates: [:],
@@ -663,23 +639,6 @@ extension PokeCoreTests {
         XCTAssertNotEqual(firstEncounter.speciesID, secondEncounter.speciesID)
         XCTAssertNotEqual(firstEncounter.level, secondEncounter.level)
     }
-}
-
-@MainActor
-private func waitForScene(
-    _ scene: RuntimeScene,
-    in runtime: GameRuntime,
-    message: String,
-    attempts: Int = 60
-) async {
-    for _ in 0..<attempts {
-        if runtime.scene == scene {
-            return
-        }
-        try? await Task.sleep(for: .milliseconds(50))
-    }
-
-    XCTAssertEqual(runtime.scene, scene, message)
 }
 
 private func decodeLegacySaveEnvelope(

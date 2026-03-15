@@ -19,6 +19,12 @@ enum GameplayFieldMetrics {
     static let partyCompactRowPadding = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
     static let partyCompactMetricLabelWidth: CGFloat = 24
     static let partyCompactMetricBarHeight: CGFloat = 7
+    static let battleSectionSpacing: CGFloat = 12
+    static let battleSummarySpacing: CGFloat = 12
+    static let battleActionSpacing: CGFloat = 8
+    static let battleStatusRowPadding = EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10)
+    static let battleStatusBarHeight: CGFloat = 8
+    static let battleExperienceBarHeight: CGFloat = 6
 }
 
 enum FieldRetroPalette {

@@ -4,6 +4,10 @@ import PokeDataModel
 struct BattleSummaryContent: View {
     let props: BattleSidebarProps
 
+    private var trainerSubtitle: String? {
+        props.kind == .wild ? nil : "TRAINER BATTLE"
+    }
+
     private var phaseTitle: String {
         if props.showsInterface == false {
             return "Intro"
@@ -29,49 +33,59 @@ struct BattleSummaryContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: GameplayFieldMetrics.battleSummarySpacing) {
+            HStack(alignment: .top, spacing: 6) {
+                VStack(alignment: .leading, spacing: trainerSubtitle == nil ? 0 : 4) {
                     Text(props.trainerName.uppercased())
-                        .font(.system(size: 18, weight: .bold, design: .monospaced))
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink)
-                    Text(props.kind == .wild ? "WILD ENCOUNTER" : "TRAINER BATTLE")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.56))
+
+                    if let trainerSubtitle {
+                        Text(trainerSubtitle)
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(FieldRetroPalette.ink.opacity(0.56))
+                    }
                 }
 
                 Spacer(minLength: 8)
 
                 GameplaySidebarChipSurface(tint: FieldRetroPalette.accentGlassTint) {
                     Text(phaseTitle.uppercased())
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink.opacity(0.82))
                 }
             }
 
-            if props.showsInterface {
+            if props.showsEnemyCombatantStatus {
                 BattleCombatantStatusRow(
                     title: "FOE",
                     pokemon: props.enemyPokemon,
                     accentFill: FieldRetroPalette.slotFill.opacity(0.82),
                     showsExperience: false
                 )
+                .transition(battleSidebarStatusTransition)
+            }
 
-                BattleCombatantStatusRow(
-                    title: "YOU",
-                    pokemon: props.playerPokemon,
-                    accentFill: FieldRetroPalette.leadSlotFill,
-                    showsExperience: true
-                )
+            if props.showsPlayerCombatantStatus {
+                Group {
+                    BattleCombatantStatusRow(
+                        title: "YOU",
+                        pokemon: props.playerPokemon,
+                        accentFill: FieldRetroPalette.leadSlotFill,
+                        showsExperience: true
+                    )
 
-                Text(props.promptText.uppercased())
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(props.promptText.uppercased())
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .transition(battleSidebarStatusTransition)
             } else {
                 Text("BATTLE STARTING...")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
+                    .transition(battleSidebarStatusTransition)
             }
         }
     }
@@ -81,20 +95,9 @@ struct BattleActionContent: View {
     let props: BattleSidebarProps
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if props.showsInterface == false {
-                EmptyView()
-            } else if props.actionRows.isEmpty {
-                Text("NO MOVE CHOICES AVAILABLE IN THIS PHASE.")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(FieldRetroPalette.ink.opacity(0.62))
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
+        VStack(alignment: .leading, spacing: GameplayFieldMetrics.battleActionSpacing) {
+            if props.actionRows.isEmpty == false {
                 ForEach(props.actionRows) { action in
-                    if action.kind == .run {
-                        BattleActionDivider()
-                    }
-
                     if let moveCardProps = props.moveCardProps(for: action) {
                         GameplayMoveCard(
                             props: moveCardProps,
@@ -111,6 +114,7 @@ struct BattleActionContent: View {
                         )
                     }
                 }
+                .transition(battleSidebarActionsTransition)
             }
         }
     }
@@ -123,40 +127,50 @@ struct BattleCombatantStatusRow: View {
     let showsExperience: Bool
 
     var body: some View {
-        GameplaySidebarInsetSurface(tint: FieldRetroPalette.accentGlassTint) {
-            VStack(alignment: .leading, spacing: 8) {
+        GameplaySidebarInsetSurface(
+            padding: GameplayFieldMetrics.battleStatusRowPadding,
+            tint: FieldRetroPalette.accentGlassTint
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(title)
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink.opacity(0.54))
                     Text(pokemon.displayName.uppercased())
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                     Spacer(minLength: 8)
                     Text("LV\(pokemon.level)")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink.opacity(0.68))
                 }
 
-                HStack(spacing: 10) {
-                    PartyHPBar(currentHP: pokemon.currentHP, maxHP: pokemon.maxHP)
+                HStack(spacing: 8) {
+                    PartyHPBar(
+                        currentHP: pokemon.currentHP,
+                        maxHP: pokemon.maxHP,
+                        height: GameplayFieldMetrics.battleStatusBarHeight
+                    )
                         .frame(maxWidth: .infinity)
                     Text("\(pokemon.currentHP)/\(pokemon.maxHP)")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
                 }
 
                 if showsExperience {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         ExperienceBar(
                             totalExperience: pokemon.experience.total,
                             levelStartExperience: pokemon.experience.levelStart,
-                            nextLevelExperience: pokemon.experience.nextLevel
+                            nextLevelExperience: pokemon.experience.nextLevel,
+                            height: GameplayFieldMetrics.battleExperienceBarHeight
                         )
                         .frame(maxWidth: .infinity)
 
                         Text(experienceSummary)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
                             .foregroundStyle(FieldRetroPalette.ink.opacity(0.72))
                     }
                 }
@@ -171,6 +185,18 @@ struct BattleCombatantStatusRow: View {
         return "EXP \(progress)/\(needed)"
     }
 }
+
+@MainActor
+private let battleSidebarStatusTransition = AnyTransition.asymmetric(
+    insertion: .opacity.combined(with: .move(edge: .top)),
+    removal: .opacity
+)
+
+@MainActor
+private let battleSidebarActionsTransition = AnyTransition.asymmetric(
+    insertion: .opacity.combined(with: .move(edge: .top)),
+    removal: .opacity.combined(with: .move(edge: .top))
+)
 
 struct BattleActionSidebarRow: View {
     let title: String

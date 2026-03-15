@@ -6,7 +6,8 @@ import PokeDataModel
 @MainActor
 func fixtureContent(
     gameplayManifest: GameplayManifest? = nil,
-    audioManifest: AudioManifest? = nil
+    audioManifest: AudioManifest? = nil,
+    battleAnimationManifest: BattleAnimationManifest = .empty
 ) -> LoadedContent {
     LoadedContent(
         rootURL: URL(fileURLWithPath: "/tmp", isDirectory: true),
@@ -27,7 +28,8 @@ func fixtureContent(
             timings: .init(launchFadeSeconds: 0.4, splashDurationSeconds: 1.2, attractPromptDelaySeconds: 0.8)
         ),
         audioManifest: audioManifest ?? fixtureAudioManifest(),
-        gameplayManifest: gameplayManifest ?? fixtureGameplayManifest()
+        gameplayManifest: gameplayManifest ?? fixtureGameplayManifest(),
+        battleAnimationManifest: battleAnimationManifest
     )
 }
 
@@ -232,6 +234,36 @@ func fixtureAudioManifest() -> AudioManifest {
                 sourceLabel: "SFX_Collision",
                 sourceFile: "audio/sfx/collision.asm",
                 bank: 2,
+                priority: 0,
+                order: 0,
+                requestedChannels: [5],
+                channels: []
+            ),
+            .init(
+                id: "SFX_DAMAGE",
+                sourceLabel: "SFX_Damage",
+                sourceFile: "audio/sfx/damage.asm",
+                bank: 8,
+                priority: 0,
+                order: 0,
+                requestedChannels: [5],
+                channels: []
+            ),
+            .init(
+                id: "SFX_NOT_VERY_EFFECTIVE",
+                sourceLabel: "SFX_Not_Very_Effective",
+                sourceFile: "audio/sfx/not_very_effective.asm",
+                bank: 8,
+                priority: 0,
+                order: 0,
+                requestedChannels: [5],
+                channels: []
+            ),
+            .init(
+                id: "SFX_SUPER_EFFECTIVE",
+                sourceLabel: "SFX_Super_Effective",
+                sourceFile: "audio/sfx/super_effective.asm",
+                bank: 8,
                 priority: 0,
                 order: 0,
                 requestedChannels: [5],
@@ -513,13 +545,36 @@ func repoRoot() -> URL {
 }
 
 @MainActor
+private var cachedRepoContent: LoadedContent?
+
+@MainActor
+func loadRepoContent() throws -> LoadedContent {
+    if let cachedRepoContent {
+        return cachedRepoContent
+    }
+
+    let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
+    let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+    cachedRepoContent = content
+    return content
+}
+
+@MainActor
+func makeRepoRuntime(
+    content: LoadedContent,
+    telemetryPublisher: (any TelemetryPublisher)? = nil,
+    audioPlayer: RuntimeAudioPlaying? = nil
+) -> GameRuntime {
+    GameRuntime(content: content, telemetryPublisher: telemetryPublisher, audioPlayer: audioPlayer)
+}
+
+@MainActor
 func makeRepoRuntime(
     telemetryPublisher: (any TelemetryPublisher)? = nil,
     audioPlayer: RuntimeAudioPlaying? = nil
 ) throws -> GameRuntime {
-    let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-    let content = try FileSystemContentLoader(rootURL: contentRoot).load()
-    return GameRuntime(content: content, telemetryPublisher: telemetryPublisher, audioPlayer: audioPlayer)
+    let content = try loadRepoContent()
+    return makeRepoRuntime(content: content, telemetryPublisher: telemetryPublisher, audioPlayer: audioPlayer)
 }
 
 @MainActor
@@ -529,12 +584,12 @@ func findConnectionStart(
     expecting targetMapID: String,
     requiredFlags: [String] = []
 ) throws -> TilePoint {
-    let probe = try makeRepoRuntime()
-    let map = try XCTUnwrap(probe.content.map(id: sourceMapID))
+    let content = try loadRepoContent()
+    let map = try XCTUnwrap(content.map(id: sourceMapID))
 
     for y in 0..<map.stepHeight {
         for x in 0..<map.stepWidth {
-            let probe = try makeRepoRuntime()
+            let probe = makeRepoRuntime(content: content)
             probe.gameplayState = probe.makeInitialGameplayState()
             probe.scene = .field
             probe.substate = "field"
@@ -566,6 +621,27 @@ func findGrassTile(in runtime: GameRuntime, mapID: String) throws -> TilePoint {
     }
 
     XCTFail("failed to find grass in \(mapID)")
+    return .init(x: 0, y: 0)
+}
+
+@MainActor
+func findLandEncounterFloorTile(
+    in runtime: GameRuntime,
+    mapID: String,
+    excluding excludedPositions: [TilePoint] = []
+) throws -> TilePoint {
+    let map = try XCTUnwrap(runtime.content.map(id: mapID))
+    for y in 0..<map.stepHeight {
+        for x in 0..<map.stepWidth {
+            let point = TilePoint(x: x, y: y)
+            if runtime.isStandingOnLandEncounterFloor(in: map, position: point),
+               excludedPositions.contains(point) == false {
+                return point
+            }
+        }
+    }
+
+    XCTFail("failed to find encounter floor in \(mapID)")
     return .init(x: 0, y: 0)
 }
 

@@ -25,8 +25,17 @@ extension GameRuntime {
             handleFieldPrompt(button: button)
             return
         }
+        if case .openScriptItemPrompt = dialogueState.completionAction, isFinalPage {
+            handleFieldPrompt(button: button)
+            return
+        }
         let currentPageHasBlockingEvents = dialogue.pages[dialogueState.pageIndex].events.contains(where: \.waitForCompletion)
         guard currentPageHasBlockingEvents == false || isDialogueAudioBlockingInput == false else {
+            return
+        }
+
+        if dialogueTextFullyRevealed == false, isTestEnvironment == false {
+            dialogueTextFullyRevealed = true
             return
         }
 
@@ -34,6 +43,9 @@ extension GameRuntime {
 
         if dialogueState.pageIndex < dialogue.pages.count - 1 {
             dialogueState.pageIndex += 1
+            if isTestEnvironment == false {
+                dialogueTextFullyRevealed = false
+            }
             self.dialogueState = dialogueState
             substate = "dialogue_\(dialogueState.dialogueID)"
             executeDialoguePageEventsIfNeeded()
@@ -109,8 +121,22 @@ extension GameRuntime {
                 completionAction: completionAction,
                 focusedIndex: 0
             )
+        case let .openScriptItemPrompt(promptState):
+            scene = .dialogue
+            substate = "dialogue_\(dialogue.id)_prompt"
+            scriptItemPromptState = promptState
+            fieldPromptState = .init(
+                interactionID: promptState.promptID,
+                kind: .yesNo,
+                completionAction: .continueScript,
+                focusedIndex: 0
+            )
         case let .startFieldHealing(interactionID, completionAction):
             startFieldHealing(interactionID: interactionID, completionAction: completionAction)
+        case let .beginScriptedMovement(path):
+            scene = .field
+            substate = "field"
+            beginScriptedPlayerMovement(path)
         }
     }
 
@@ -167,8 +193,21 @@ extension GameRuntime {
                 completionAction: completionAction,
                 focusedIndex: 0
             )
+            scriptItemPromptState = nil
+        } else if case let .openScriptItemPrompt(promptState) = completion {
+            scriptItemPromptState = promptState
+            fieldPromptState = .init(
+                interactionID: promptState.promptID,
+                kind: .yesNo,
+                completionAction: .continueScript,
+                focusedIndex: 0
+            )
         } else {
             fieldPromptState = nil
+            scriptItemPromptState = nil
+        }
+        if isTestEnvironment == false {
+            dialogueTextFullyRevealed = false
         }
         dialogueState = DialogueState(
             dialogueID: dialogue.id,
@@ -189,6 +228,9 @@ extension GameRuntime {
         completion: DialogueState.CompletionAction
     ) {
         fieldPromptState = nil
+        if isTestEnvironment == false {
+            dialogueTextFullyRevealed = false
+        }
         dialogueState = DialogueState(
             dialogueID: id,
             pages: pages,

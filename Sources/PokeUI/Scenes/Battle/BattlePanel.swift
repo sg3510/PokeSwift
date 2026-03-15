@@ -11,10 +11,13 @@ public struct BattlePanel: View {
     let kind: BattleKind
     let playerPokemon: PartyPokemonTelemetry
     let enemyPokemon: PartyPokemonTelemetry
+    let isEnemySpeciesOwned: Bool
     let trainerSpriteURL: URL?
     let playerTrainerFrontSpriteURL: URL?
     let playerTrainerBackSpriteURL: URL?
     let sendOutPoofSpriteURL: URL?
+    let battleAnimationManifest: BattleAnimationManifest
+    let battleAnimationTilesetURLs: [String: URL]
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
     let displayStyle: FieldDisplayStyle
@@ -25,10 +28,13 @@ public struct BattlePanel: View {
         kind: BattleKind,
         playerPokemon: PartyPokemonTelemetry,
         enemyPokemon: PartyPokemonTelemetry,
+        isEnemySpeciesOwned: Bool,
         trainerSpriteURL: URL?,
         playerTrainerFrontSpriteURL: URL?,
         playerTrainerBackSpriteURL: URL?,
         sendOutPoofSpriteURL: URL?,
+        battleAnimationManifest: BattleAnimationManifest,
+        battleAnimationTilesetURLs: [String: URL],
         playerSpriteURL: URL?,
         enemySpriteURL: URL?,
         displayStyle: FieldDisplayStyle,
@@ -38,10 +44,13 @@ public struct BattlePanel: View {
         self.kind = kind
         self.playerPokemon = playerPokemon
         self.enemyPokemon = enemyPokemon
+        self.isEnemySpeciesOwned = isEnemySpeciesOwned
         self.trainerSpriteURL = trainerSpriteURL
         self.playerTrainerFrontSpriteURL = playerTrainerFrontSpriteURL
         self.playerTrainerBackSpriteURL = playerTrainerBackSpriteURL
         self.sendOutPoofSpriteURL = sendOutPoofSpriteURL
+        self.battleAnimationManifest = battleAnimationManifest
+        self.battleAnimationTilesetURLs = battleAnimationTilesetURLs
         self.playerSpriteURL = playerSpriteURL
         self.enemySpriteURL = enemySpriteURL
         self.displayStyle = displayStyle
@@ -60,10 +69,13 @@ public struct BattlePanel: View {
                 kind: kind,
                 playerPokemon: playerPokemon,
                 enemyPokemon: enemyPokemon,
+                isEnemySpeciesOwned: isEnemySpeciesOwned,
                 trainerSpriteURL: trainerSpriteURL,
                 playerTrainerFrontSpriteURL: playerTrainerFrontSpriteURL,
                 playerTrainerBackSpriteURL: playerTrainerBackSpriteURL,
                 sendOutPoofSpriteURL: sendOutPoofSpriteURL,
+                battleAnimationManifest: battleAnimationManifest,
+                battleAnimationTilesetURLs: battleAnimationTilesetURLs,
                 playerSpriteURL: playerSpriteURL,
                 enemySpriteURL: enemySpriteURL,
                 displayStyle: displayStyle,

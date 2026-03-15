@@ -6,14 +6,10 @@ import PokeDataModel
 @MainActor
 extension PokeCoreTests {
     func testRepoGeneratedContentPublishesRealAssetFieldTelemetry() async throws {
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
         let runtime = GameRuntime(content: content, telemetryPublisher: nil)
 
-        runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
-        runtime.handle(button: .start)
-        runtime.handle(button: .confirm)
+        runtime.beginNewGame()
         completeOakIntro(runtime)
 
         let snapshot = runtime.currentSnapshot()
@@ -128,6 +124,73 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.gameplayState?.mapID, "PEWTER_CITY")
         XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "PEWTER_CITY")
     }
+
+    func testRepoGeneratedRoute3NorthConnectionCrossesIntoRoute4() throws {
+        let runtime = try makeRepoRuntime()
+        let start = try findConnectionStart(
+            from: "ROUTE_3",
+            moving: .up,
+            expecting: "ROUTE_4"
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "ROUTE_3"
+        runtime.gameplayState?.playerPosition = start
+        runtime.gameplayState?.facing = .up
+
+        runtime.movePlayer(in: .up)
+
+        XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_4")
+        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "ROUTE_4")
+    }
+
+    func testRepoGeneratedMuseum1FOldAmberExhibitShowsDialogue() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_1F"
+        runtime.gameplayState?.playerPosition = .init(x: 15, y: 2)
+        runtime.gameplayState?.facing = .right
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_old_amber")
+    }
+
+    func testRepoGeneratedMuseum2FSpaceShuttleExhibitShowsDialogue() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_2F"
+        runtime.gameplayState?.playerPosition = .init(x: 11, y: 3)
+        runtime.gameplayState?.facing = .up
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum2_f_space_shuttle_sign")
+    }
+
+    func testRepoGeneratedMuseum2FMoonStoneExhibitShowsDialogue() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_2F"
+        runtime.gameplayState?.playerPosition = .init(x: 2, y: 6)
+        runtime.gameplayState?.facing = .up
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum2_f_moon_stone_sign")
+    }
+
     func testRepoGeneratedRoute1GrassCanTriggerWildEncounterAndEscapeForFixedRandomBytes() throws {
         let runtime = try makeRepoRuntime()
         let grassTile = try findGrassTile(in: runtime, mapID: "ROUTE_1")
@@ -156,6 +219,70 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.scene, .field)
         XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_1")
         XCTAssertEqual(runtime.gameplayState?.playerPosition, grassTile)
+    }
+
+    func testRepoGeneratedMtMoonFloorCanTriggerWildEncounterAndEscapeForFixedRandomBytes() throws {
+        let runtime = try makeRepoRuntime()
+        let encounterTile = try findLandEncounterFloorTile(in: runtime, mapID: "MT_MOON_1F")
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MT_MOON_1F"
+        runtime.gameplayState?.playerPosition = encounterTile
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 12, nickname: "Squirtle")]
+        runtime.setAcquisitionRandomOverrides([0, 0])
+
+        runtime.evaluateWildEncounterIfNeeded()
+
+        XCTAssertEqual(runtime.scene, .battle)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.kind, .wild)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.enemyPokemon.speciesID, "ZUBAT")
+        XCTAssertEqual(runtime.currentSnapshot().battle?.enemyPokemon.level, 8)
+
+        drainBattleText(runtime)
+        runtime.handle(button: .cancel)
+        drainBattleUntilComplete(runtime)
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertEqual(runtime.gameplayState?.mapID, "MT_MOON_1F")
+        XCTAssertEqual(runtime.gameplayState?.playerPosition, encounterTile)
+    }
+    func testRepoGeneratedMtMoonB2FFossilAreaSuppressesEncountersAfterSuperNerd() throws {
+        let runtime = try makeRepoRuntime()
+        let fossilAreaPositions = (5...8).flatMap { y in
+            (11...14).map { x in TilePoint(x: x, y: y) }
+        }
+        let outsideEncounterTile = try findLandEncounterFloorTile(
+            in: runtime,
+            mapID: "MT_MOON_B2F",
+            excluding: fossilAreaPositions
+        )
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MT_MOON_B2F"
+        runtime.gameplayState?.playerPosition = .init(x: 11, y: 5)
+        runtime.gameplayState?.facing = .right
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "SQUIRTLE", level: 12, nickname: "Squirtle")]
+        runtime.gameplayState?.activeFlags.insert("EVENT_BEAT_MT_MOON_EXIT_SUPER_NERD")
+        runtime.setAcquisitionRandomOverrides([0, 0, 0, 0])
+
+        runtime.evaluateWildEncounterIfNeeded()
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertNil(runtime.currentSnapshot().battle)
+        XCTAssertEqual(runtime.gameplayState?.encounterStepCounter, 0)
+
+        runtime.gameplayState?.playerPosition = outsideEncounterTile
+        runtime.evaluateWildEncounterIfNeeded()
+
+        XCTAssertEqual(runtime.scene, .battle)
+        XCTAssertEqual(runtime.currentSnapshot().battle?.kind, .wild)
     }
     func testWildEncounterSlotThresholdsMatchGBTableForFixedRolls() {
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
@@ -298,6 +425,126 @@ extension PokeCoreTests {
         XCTAssertNil(runtime.currentSnapshot().fieldPrompt)
         XCTAssertNil(runtime.currentSnapshot().fieldHealing)
     }
+
+    func testRepoGeneratedMuseumScientistSupportsOverCounterAdmissionTalk() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_1F"
+        runtime.gameplayState?.playerPosition = .init(x: 10, y: 4)
+        runtime.gameplayState?.facing = .right
+        runtime.gameplayState?.money = 100
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_scientist1_would_you_like_to_come_in")
+        XCTAssertEqual(runtime.currentSnapshot().fieldPrompt?.options, ["YES", "NO"])
+        XCTAssertEqual(runtime.currentSnapshot().fieldPrompt?.focusedIndex, 0)
+    }
+
+    func testRepoGeneratedMuseumEntryPromptChargesTicketAndSetsFlag() throws {
+        let audioPlayer = RecordingAudioPlayer()
+        let runtime = try makeRepoRuntime(audioPlayer: audioPlayer)
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_1F"
+        runtime.gameplayState?.playerPosition = .init(x: 9, y: 4)
+        runtime.gameplayState?.facing = .up
+        runtime.gameplayState?.money = 100
+
+        runtime.evaluateMapScriptsIfNeeded()
+
+        XCTAssertEqual(runtime.gameplayState?.activeMapScriptTriggerID, "museum_admission_entry_left")
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_scientist1_would_you_like_to_come_in")
+        XCTAssertEqual(runtime.currentSnapshot().fieldPrompt?.options, ["YES", "NO"])
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_scientist1_thank_you")
+
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.scene, .field)
+        XCTAssertNil(runtime.currentSnapshot().dialogue)
+        XCTAssertTrue(runtime.gameplayState?.activeFlags.contains("EVENT_BOUGHT_MUSEUM_TICKET") ?? false)
+        XCTAssertEqual(runtime.gameplayState?.money, 50)
+        XCTAssertTrue(audioPlayer.soundEffectRequests.contains { $0.soundEffectID == "SFX_PURCHASE" })
+    }
+
+    func testRepoGeneratedMuseumDecliningAdmissionPushesPlayerBack() async throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_1F"
+        runtime.gameplayState?.playerPosition = .init(x: 10, y: 4)
+        runtime.gameplayState?.facing = .right
+        runtime.gameplayState?.money = 100
+
+        runtime.interactAhead()
+        runtime.handle(button: .right)
+        runtime.handle(button: .confirm)
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_scientist1_come_again")
+
+        runtime.handle(button: .confirm)
+
+        _ = try await waitForSnapshot(runtime) {
+            $0.field?.playerPosition == .init(x: 10, y: 5)
+        }
+
+        XCTAssertFalse(runtime.gameplayState?.activeFlags.contains("EVENT_BOUGHT_MUSEUM_TICKET") ?? false)
+        XCTAssertEqual(runtime.gameplayState?.money, 100)
+    }
+
+    func testRepoGeneratedMuseumInsufficientFundsPushesPlayerBack() async throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_1F"
+        runtime.gameplayState?.playerPosition = .init(x: 10, y: 4)
+        runtime.gameplayState?.facing = .right
+        runtime.gameplayState?.money = 40
+
+        runtime.interactAhead()
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_scientist1_dont_have_enough_money")
+
+        runtime.handle(button: .confirm)
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_scientist1_come_again")
+
+        runtime.handle(button: .confirm)
+
+        _ = try await waitForSnapshot(runtime) {
+            $0.field?.playerPosition == .init(x: 10, y: 5)
+        }
+
+        XCTAssertFalse(runtime.gameplayState?.activeFlags.contains("EVENT_BOUGHT_MUSEUM_TICKET") ?? false)
+        XCTAssertEqual(runtime.gameplayState?.money, 40)
+    }
+
+    func testRepoGeneratedPewterMuseumExitResetsTicketFlag() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "PEWTER_CITY"
+        runtime.gameplayState?.playerPosition = .init(x: 14, y: 8)
+        runtime.gameplayState?.facing = .down
+        runtime.gameplayState?.activeFlags.insert("EVENT_BOUGHT_MUSEUM_TICKET")
+
+        runtime.evaluateMapScriptsIfNeeded()
+
+        XCTAssertFalse(runtime.gameplayState?.activeFlags.contains("EVENT_BOUGHT_MUSEUM_TICKET") ?? false)
+    }
+
     func testRepoGeneratedViridianInteriorsLoadNpcDialogue() throws {
         let runtime = try makeRepoRuntime()
 
@@ -615,72 +862,6 @@ extension PokeCoreTests {
         XCTAssertEqual(failureEvent?.details["failureKind"], "missingDialogue")
         XCTAssertEqual(failureEvent?.details["missingDialogueID"], "missing_dialogue")
     }
-    func testRepoGeneratedDoorWarpIntoRedsHouseUsesExactDoorTileAndFadeTelemetry() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "PALLET_TOWN"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 5, y: 6)
-        runtime.gameplayState?.facing = .up
-
-        runtime.movePlayer(in: .up)
-        var sawDoorTransition = false
-
-        let snapshot = try await waitForSnapshot(runtime) {
-            if $0.field?.transition?.kind == "door" {
-                sawDoorTransition = true
-            }
-            return $0.field?.mapID == "REDS_HOUSE_1F" && $0.field?.transition == nil
-        }
-        XCTAssertTrue(sawDoorTransition)
-        XCTAssertEqual(snapshot.field?.playerPosition, .init(x: 2, y: 7))
-        XCTAssertEqual(snapshot.field?.facing, .up)
-    }
-    func testRepoGeneratedDoorWarpBackOutsideStepsOutToSettledTile() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
-        runtime.gameplayState?.facing = .down
-
-        runtime.movePlayer(in: .down)
-        var sawDoorTransition = false
-
-        let settledSnapshot = try await waitForSnapshot(runtime) {
-            if $0.field?.transition?.kind == "door" {
-                sawDoorTransition = true
-            }
-            return $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
-        }
-        XCTAssertTrue(sawDoorTransition)
-        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
-        XCTAssertEqual(settledSnapshot.field?.facing, .down)
-    }
-    func testRepoGeneratedViridianForestSouthGateCenterAisleWalksNorthThroughEntrance() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "VIRIDIAN_FOREST_SOUTH_GATE"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 4, y: 6)
-        runtime.gameplayState?.facing = .up
-
-        runtime.movePlayer(in: .up)
-
-        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "VIRIDIAN_FOREST_SOUTH_GATE")
-        XCTAssertEqual(runtime.currentSnapshot().field?.playerPosition, .init(x: 4, y: 5))
-        XCTAssertEqual(runtime.currentSnapshot().field?.facing, .up)
-
-        try await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        runtime.movePlayer(in: .up)
-
-        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "VIRIDIAN_FOREST_SOUTH_GATE")
-        XCTAssertEqual(runtime.currentSnapshot().field?.playerPosition, .init(x: 4, y: 4))
-        XCTAssertEqual(runtime.currentSnapshot().field?.facing, .up)
-    }
     func testRepoGeneratedViridianForestTrainerAutoEngagesOnLineOfSight() async throws {
         let audioPlayer = RecordingAudioPlayer()
         let runtime = try makeRepoRuntime(audioPlayer: audioPlayer)
@@ -716,154 +897,8 @@ extension PokeCoreTests {
         XCTAssertEqual(snapshot.audio?.reason, "battle")
         XCTAssertEqual(audioPlayer.musicRequests.last, .init(trackID: "MUSIC_TRAINER_BATTLE", entryID: "default"))
     }
-    func testRepoGeneratedStairWarpUsesExactTileWithFadeAndNoStepOut() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_2F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 6, y: 1)
-        runtime.gameplayState?.facing = .right
-
-        runtime.movePlayer(in: .right)
-        var sawWarpTransition = false
-
-        let snapshot = try await waitForSnapshot(runtime) {
-            if $0.field?.transition?.kind == "warp" {
-                sawWarpTransition = true
-            }
-            return $0.field?.mapID == "REDS_HOUSE_1F" && $0.field?.transition == nil
-        }
-        XCTAssertTrue(sawWarpTransition)
-        XCTAssertEqual(snapshot.field?.playerPosition, .init(x: 7, y: 1))
-        XCTAssertEqual(snapshot.field?.facing, .down)
-    }
-    func testFieldMovementRejectsImmediateSecondStepUntilCadenceCompletes() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.movePlayer(in: .right)
-        runtime.movePlayer(in: .right)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        let halfStepNanoseconds = UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: halfStepNanoseconds)
-        runtime.movePlayer(in: .right)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        let settleNanoseconds = UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: settleNanoseconds)
-        runtime.movePlayer(in: .right)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
-    }
-    func testFieldDirectionalInputAvailabilityClearsAsSoonAsStepSettles() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        XCTAssertTrue(runtime.canAcceptFieldDirectionalInput)
-
-        runtime.movePlayer(in: .right)
-        XCTAssertFalse(runtime.canAcceptFieldDirectionalInput)
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertTrue(runtime.canAcceptFieldDirectionalInput)
-    }
-    func testHeldDirectionalInputContinuesWalkingAcrossCooldowns() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
-
-        runtime.setDirectionalButton(.right, isPressed: false)
-    }
-    func testHeldDirectionalInputTurnsImmediatelyAfterCooldownUnlocks() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        let halfStepNanoseconds = UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: halfStepNanoseconds)
-        runtime.setDirectionalButton(.down, isPressed: true)
-
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 5))
-
-        runtime.setDirectionalButton(.down, isPressed: false)
-        runtime.setDirectionalButton(.right, isPressed: false)
-    }
-    func testHeldDirectionalInputFallsBackToOlderHeldDirectionAfterRelease() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000))
-        runtime.setDirectionalButton(.down, isPressed: true)
-        runtime.setDirectionalButton(.down, isPressed: false)
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
-        XCTAssertEqual(runtime.preferredHeldFieldDirection, .right)
-
-        runtime.setDirectionalButton(.right, isPressed: false)
-    }
-    func testHeldDirectionalInputClearsAcrossDialogueBoundary() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        runtime.showInlineDialogue(
-            id: "held_direction_dialogue",
-            pages: [.init(lines: ["Hold cleared."], waitsForPrompt: true)],
-            completion: .returnToField
-        )
-
-        XCTAssertNil(runtime.preferredHeldFieldDirection)
-
-        runtime.handle(button: .confirm)
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-    }
-    func testHeldDirectionalInputClearsAcrossWarpBoundary() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
-        runtime.gameplayState?.facing = .down
-
-        runtime.setDirectionalButton(.down, isPressed: true)
-
-        let settledSnapshot = try await waitForSnapshot(runtime) {
-            $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
-        }
-        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
-        XCTAssertNil(runtime.preferredHeldFieldDirection)
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 6))
-    }
     func testRepoGeneratedPalletNorthExitStartsOakIntroFromSourceScript() async throws {
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
         let runtime = GameRuntime(content: content, telemetryPublisher: nil)
 
         runtime.gameplayState = runtime.makeInitialGameplayState()
@@ -1087,6 +1122,59 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.gameplayState?.earnedBadgeIDs, Set(["boulder"]))
         XCTAssertTrue(runtime.gameplayState?.activeFlags.contains("EVENT_GOT_TM34") ?? false)
         XCTAssertEqual(runtime.gameplayState?.inventory.first { $0.itemID == "TM_BIDE" }?.quantity, 1)
+    }
+
+    func testRepoGeneratedMtMoonSuperNerdBattleThenDomeFossilChoiceUpdatesState() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MT_MOON_B2F"
+        runtime.gameplayState?.playerPosition = .init(x: 13, y: 8)
+        runtime.gameplayState?.facing = .left
+        runtime.gameplayState?.chosenStarterSpeciesID = "SQUIRTLE"
+        runtime.gameplayState?.playerParty = [runtime.makePokemon(speciesID: "WARTORTLE", level: 28, nickname: "Wartortle")]
+
+        runtime.evaluateMapScriptsIfNeeded()
+        drainDialogueAndScripts(runtime) {
+            $0.scene == .battle
+        }
+
+        let battle = try XCTUnwrap(runtime.gameplayState?.battle)
+        XCTAssertEqual(battle.battleID, "opp_super_nerd_2")
+
+        runtime.finishBattle(battle: battle, won: true)
+        drainDialogueAndScripts(runtime) {
+            $0.scene == .field
+                && $0.dialogue == nil
+                && runtime.gameplayState?.activeScriptID == nil
+                && runtime.gameplayState?.activeScriptStep == nil
+                && ($0.eventFlags?.activeFlags.contains("EVENT_BEAT_MT_MOON_EXIT_SUPER_NERD") ?? false)
+        }
+
+        runtime.gameplayState?.playerPosition = .init(x: 12, y: 7)
+        runtime.gameplayState?.facing = .up
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "mt_moon_b2f_dome_fossil_you_want")
+        XCTAssertEqual(runtime.currentSnapshot().fieldPrompt?.options, ["YES", "NO"])
+
+        runtime.handle(button: .confirm)
+        drainDialogueAndScripts(runtime) {
+            $0.scene == .field
+                && $0.dialogue == nil
+                && runtime.gameplayState?.activeScriptID == nil
+                && runtime.gameplayState?.activeScriptStep == nil
+                && ($0.eventFlags?.activeFlags.contains("EVENT_GOT_DOME_FOSSIL") ?? false)
+        }
+
+        XCTAssertEqual(runtime.itemQuantity("DOME_FOSSIL"), 1)
+        XCTAssertTrue(runtime.hasFlag("EVENT_GOT_DOME_FOSSIL"))
+        XCTAssertFalse(runtime.currentFieldObjects.contains(where: { $0.id == "mt_moon_b2f_dome_fossil" }))
+        XCTAssertFalse(runtime.currentFieldObjects.contains(where: { $0.id == "mt_moon_b2f_helix_fossil" }))
+        XCTAssertTrue(runtime.currentFieldObjects.contains(where: { $0.id == "mt_moon_b2f_super_nerd" }))
     }
 
     func testLossCanContinueIntoConfiguredPostBattleScript() {

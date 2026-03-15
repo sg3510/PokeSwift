@@ -1,4 +1,5 @@
 import AppKit
+import PokeDataModel
 import SwiftUI
 import PokeRender
 
@@ -540,6 +541,10 @@ private struct PokeGameplayHDREnabledKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct PokeTextSpeedKey: EnvironmentKey {
+    static let defaultValue: TextSpeed = .medium
+}
+
 private struct PokeGameBoyShellStyleKey: EnvironmentKey {
     static let defaultValue: GameBoyShellStyle = .classic
 }
@@ -555,6 +560,11 @@ public extension EnvironmentValues {
         set { self[PokeGameplayHDREnabledKey.self] = newValue }
     }
 
+    var pokeTextSpeed: TextSpeed {
+        get { self[PokeTextSpeedKey.self] }
+        set { self[PokeTextSpeedKey.self] = newValue }
+    }
+
     var pokeGameBoyShellStyle: GameBoyShellStyle {
         get { self[PokeGameBoyShellStyleKey.self] }
         set { self[PokeGameBoyShellStyleKey.self] = newValue }
@@ -568,6 +578,10 @@ public extension View {
 
     func pokeGameplayHDREnabled(_ isEnabled: Bool) -> some View {
         environment(\.pokeGameplayHDREnabled, isEnabled)
+    }
+
+    func pokeTextSpeed(_ speed: TextSpeed) -> some View {
+        environment(\.pokeTextSpeed, speed)
     }
 
     func pokeGameBoyShellStyle(_ shellStyle: GameBoyShellStyle) -> some View {
@@ -614,8 +628,8 @@ private extension PokeThemeResolvedPalette {
         screenLabel: .init(red: 1, green: 1, blue: 1, alpha: 0.78),
         batteryIndicator: .init(red: 0.96, green: 0.23, blue: 0.2),
         screenRim: .init(red: 0.18, green: 0.28, blue: 0.08),
-        screenGlow: .init(red: 0.46, green: 0.67, blue: 0.34, alpha: 0.18),
-        screenGlowInner: .init(red: 0.84, green: 0.88, blue: 0.68, alpha: 0.12),
+        screenGlow: .init(red: 0.52, green: 0.78, blue: 0.46, alpha: 0.22),
+        screenGlowInner: .init(red: 0.92, green: 0.98, blue: 0.84, alpha: 0.14),
         accentBarMagenta: .init(red: 0.42, green: 0.07, blue: 0.27),
         accentBarBlue: .init(red: 0.16, green: 0.17, blue: 0.55),
         battleEnemyTint: .init(red: 0.95, green: 0.98, blue: 0.9, alpha: 0.54),
@@ -681,8 +695,8 @@ private extension PokeThemeResolvedPalette {
         screenLabel: .init(red: 0.87, green: 0.95, blue: 0.87, alpha: 0.72),
         batteryIndicator: .init(red: 0.95, green: 0.2, blue: 0.16),
         screenRim: .init(red: 0.34, green: 0.86, blue: 0.35),
-        screenGlow: .init(red: 0.34, green: 0.78, blue: 0.26, alpha: 0.28),
-        screenGlowInner: .init(red: 0.71, green: 0.87, blue: 0.58, alpha: 0.18),
+        screenGlow: .init(red: 0.22, green: 0.96, blue: 0.24, alpha: 0.38),
+        screenGlowInner: .init(red: 0.74, green: 1, blue: 0.72, alpha: 0.2),
         accentBarMagenta: .init(red: 0.45, green: 0.12, blue: 0.28),
         accentBarBlue: .init(red: 0.23, green: 0.28, blue: 0.62),
         battleEnemyTint: .init(red: 0.16, green: 0.28, blue: 0.18, alpha: 0.72),

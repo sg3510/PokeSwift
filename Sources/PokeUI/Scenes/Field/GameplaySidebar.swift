@@ -173,10 +173,11 @@ private struct BattleModeSidebarContent: View {
             ) {
                 onActivateSection(.battleCombat)
             } content: {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: GameplayFieldMetrics.battleSectionSpacing) {
                     BattleSummaryContent(props: props)
                     BattleActionContent(props: props)
                 }
+                .animation(.snappy(duration: 0.24, extraBounce: 0), value: battlePresentationAnimationKey)
             }
 
             AccordionSidebarCard(
@@ -214,6 +215,19 @@ private struct BattleModeSidebarContent: View {
         default:
             return "Battle"
         }
+    }
+
+    private var battlePresentationAnimationKey: String {
+        let actionRowIDs = props.actionRows.map(\.id).joined(separator: "|")
+        return [
+            props.presentation.stage.rawValue,
+            props.presentation.activeSide?.rawValue ?? "none",
+            props.phase,
+            props.learnMovePrompt?.stage.rawValue ?? "none",
+            props.showsEnemyCombatantStatus.description,
+            props.showsPlayerCombatantStatus.description,
+            actionRowIDs,
+        ].joined(separator: ":")
     }
 }
 

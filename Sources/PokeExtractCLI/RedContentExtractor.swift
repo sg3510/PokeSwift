@@ -4,9 +4,14 @@ import PokeDataModel
 public enum RedContentExtractor {
     public static let extractorVersion = "0.1.0"
     private static let sendOutPoofAssetPath = "Assets/battle/effects/send_out_poof.png"
+    private static let battleAnimationAssetMap: [(source: String, destination: String)] = [
+        ("gfx/battle/move_anim_0.png", "Assets/battle/animations/move_anim_0.png"),
+        ("gfx/battle/move_anim_1.png", "Assets/battle/animations/move_anim_1.png"),
+    ]
     private static let fieldAssetMap: [(source: String, destination: String)] = [
         ("gfx/tilesets/reds_house.png", "Assets/field/tilesets/reds_house.png"),
         ("gfx/tilesets/overworld.png", "Assets/field/tilesets/overworld.png"),
+        ("gfx/tilesets/cavern.png", "Assets/field/tilesets/cavern.png"),
         ("gfx/tilesets/forest.png", "Assets/field/tilesets/forest.png"),
         ("gfx/tilesets/gym.png", "Assets/field/tilesets/gym.png"),
         ("gfx/tilesets/gate.png", "Assets/field/tilesets/gate.png"),
@@ -33,12 +38,23 @@ public enum RedContentExtractor {
         ("gfx/sprites/cooltrainer_m.png", "Assets/field/sprites/cooltrainer_m.png"),
         ("gfx/sprites/nurse.png", "Assets/field/sprites/nurse.png"),
         ("gfx/sprites/gentleman.png", "Assets/field/sprites/gentleman.png"),
+        ("gfx/sprites/fairy.png", "Assets/field/sprites/fairy.png"),
+        ("gfx/sprites/gramps.png", "Assets/field/sprites/gramps.png"),
+        ("gfx/sprites/guard.png", "Assets/field/sprites/guard.png"),
+        ("gfx/sprites/hiker.png", "Assets/field/sprites/hiker.png"),
         ("gfx/sprites/gym_guide.png", "Assets/field/sprites/gym_guide.png"),
+        ("gfx/sprites/little_boy.png", "Assets/field/sprites/little_boy.png"),
         ("gfx/sprites/link_receptionist.png", "Assets/field/sprites/link_receptionist.png"),
+        ("gfx/sprites/middle_aged_man.png", "Assets/field/sprites/middle_aged_man.png"),
+        ("gfx/sprites/monster.png", "Assets/field/sprites/monster.png"),
+        ("gfx/sprites/old_amber.png", "Assets/field/sprites/old_amber.png"),
         ("gfx/sprites/poke_ball.png", "Assets/field/sprites/poke_ball.png"),
         ("gfx/sprites/pokedex.png", "Assets/field/sprites/pokedex.png"),
+        ("gfx/sprites/rocket.png", "Assets/field/sprites/rocket.png"),
+        ("gfx/sprites/fossil.png", "Assets/field/sprites/fossil.png"),
         ("gfx/blocksets/reds_house.bst", "Assets/field/blocksets/reds_house.bst"),
         ("gfx/blocksets/overworld.bst", "Assets/field/blocksets/overworld.bst"),
+        ("gfx/blocksets/cavern.bst", "Assets/field/blocksets/cavern.bst"),
         ("gfx/blocksets/forest.bst", "Assets/field/blocksets/forest.bst"),
         ("gfx/blocksets/gym.bst", "Assets/field/blocksets/gym.bst"),
         ("gfx/blocksets/gate.bst", "Assets/field/blocksets/gate.bst"),
@@ -66,6 +82,7 @@ public enum RedContentExtractor {
         let titleManifest = try parseTitleManifest(source: source)
         let gameManifest = makeGameManifest(source: source)
         let gameplayManifest = try extractGameplayManifest(source: source)
+        let battleAnimationManifest = try extractBattleAnimationManifest(source: source)
         let audioManifest = try extractAudioManifest(source: source, titleTrackID: constants.musicTrack)
 
         try writeJSON(gameManifest, to: variantRoot.appendingPathComponent("game_manifest.json"))
@@ -73,6 +90,7 @@ public enum RedContentExtractor {
         try writeJSON(charmap, to: variantRoot.appendingPathComponent("charmap.json"))
         try writeJSON(titleManifest, to: variantRoot.appendingPathComponent("title_manifest.json"))
         try writeJSON(gameplayManifest, to: variantRoot.appendingPathComponent("gameplay_manifest.json"))
+        try writeJSON(battleAnimationManifest, to: variantRoot.appendingPathComponent("battle_animation_manifest.json"))
         try writeJSON(audioManifest, to: variantRoot.appendingPathComponent("audio_manifest.json"))
 
         for (sourcePath, destination) in source.assetMap.sorted(by: { $0.key < $1.key }) {
@@ -90,6 +108,11 @@ public enum RedContentExtractor {
             let destinationURL = variantRoot.appendingPathComponent(battleAsset.destination)
             try copyAsset(from: sourceURL, to: destinationURL)
         }
+        for battleAnimationAsset in battleAnimationAssetMap {
+            let sourceURL = configuration.repoRoot.appendingPathComponent(battleAnimationAsset.source)
+            let destinationURL = variantRoot.appendingPathComponent(battleAnimationAsset.destination)
+            try copyAsset(from: sourceURL, to: destinationURL)
+        }
         try copyAsset(
             from: configuration.repoRoot.appendingPathComponent("gfx/battle/move_anim_0.png"),
             to: variantRoot.appendingPathComponent(sendOutPoofAssetPath)
@@ -105,12 +128,14 @@ public enum RedContentExtractor {
             "charmap.json",
             "title_manifest.json",
             "gameplay_manifest.json",
+            "battle_animation_manifest.json",
             "audio_manifest.json",
             "Assets/title/pokemon_logo.png",
             "Assets/title/player.png",
             "Assets/splash/gamefreak_logo.png",
             "Assets/field/tilesets/reds_house.png",
             "Assets/field/tilesets/overworld.png",
+            "Assets/field/tilesets/cavern.png",
             "Assets/field/tilesets/forest.png",
             "Assets/field/tilesets/gym.png",
             "Assets/field/tilesets/gate.png",
@@ -137,17 +162,30 @@ public enum RedContentExtractor {
             "Assets/field/sprites/cooltrainer_m.png",
             "Assets/field/sprites/nurse.png",
             "Assets/field/sprites/gentleman.png",
+            "Assets/field/sprites/fairy.png",
+            "Assets/field/sprites/gramps.png",
+            "Assets/field/sprites/guard.png",
+            "Assets/field/sprites/hiker.png",
             "Assets/field/sprites/gym_guide.png",
+            "Assets/field/sprites/little_boy.png",
             "Assets/field/sprites/link_receptionist.png",
+            "Assets/field/sprites/middle_aged_man.png",
+            "Assets/field/sprites/monster.png",
+            "Assets/field/sprites/old_amber.png",
             "Assets/field/sprites/poke_ball.png",
             "Assets/field/sprites/pokedex.png",
+            "Assets/field/sprites/rocket.png",
+            "Assets/field/sprites/fossil.png",
             "Assets/field/blocksets/reds_house.bst",
             "Assets/field/blocksets/overworld.bst",
+            "Assets/field/blocksets/cavern.bst",
             "Assets/field/blocksets/forest.bst",
             "Assets/field/blocksets/gym.bst",
             "Assets/field/blocksets/gate.bst",
             "Assets/field/blocksets/house.bst",
             "Assets/field/blocksets/pokecenter.bst",
+            "Assets/battle/animations/move_anim_0.png",
+            "Assets/battle/animations/move_anim_1.png",
             sendOutPoofAssetPath,
         ]
 
@@ -163,6 +201,7 @@ public enum RedContentExtractor {
         _ = try decoder.decode(CharmapManifest.self, from: Data(contentsOf: variantRoot.appendingPathComponent("charmap.json")))
         _ = try decoder.decode(TitleSceneManifest.self, from: Data(contentsOf: variantRoot.appendingPathComponent("title_manifest.json")))
         let gameplayManifest = try decoder.decode(GameplayManifest.self, from: Data(contentsOf: variantRoot.appendingPathComponent("gameplay_manifest.json")))
+        _ = try decoder.decode(BattleAnimationManifest.self, from: Data(contentsOf: variantRoot.appendingPathComponent("battle_animation_manifest.json")))
         _ = try decoder.decode(AudioManifest.self, from: Data(contentsOf: variantRoot.appendingPathComponent("audio_manifest.json")))
 
         for battleAsset in battleAssetMap(from: gameplayManifest) {
@@ -412,6 +451,9 @@ struct SourceTree {
             "gfx/font/AB.png": "Assets/font/AB.png",
             "gfx/font/P.png": "Assets/font/P.png",
             "gfx/font/ED.png": "Assets/font/ED.png",
+            "gfx/tilesets/cavern.png": "Assets/field/tilesets/cavern.png",
+            "gfx/sprites/fossil.png": "Assets/field/sprites/fossil.png",
+            "gfx/sprites/rocket.png": "Assets/field/sprites/rocket.png",
         ]
         manifestSources = [
             .init(path: "constants/charmap.asm", purpose: "font/text token mapping"),

@@ -8,24 +8,102 @@ final class RepoContentContractTests: XCTestCase {
         let loaded = try FileSystemContentLoader(rootURL: root).load()
 
         let tileset = try XCTUnwrap(loaded.tileset(id: "OVERWORLD"))
+        let cavernTileset = try XCTUnwrap(loaded.tileset(id: "CAVERN"))
         let sprite = try XCTUnwrap(loaded.overworldSprite(id: "SPRITE_RED"))
+        let rocketSprite = try XCTUnwrap(loaded.overworldSprite(id: "SPRITE_ROCKET"))
+        let fossilSprite = try XCTUnwrap(loaded.overworldSprite(id: "SPRITE_FOSSIL"))
         let oaksLab = try XCTUnwrap(loaded.map(id: "OAKS_LAB"))
         let sendOutPoofURL = root.appendingPathComponent("Assets/battle/effects/send_out_poof.png")
+        let moveAnim0URL = root.appendingPathComponent("Assets/battle/animations/move_anim_0.png")
+        let moveAnim1URL = root.appendingPathComponent("Assets/battle/animations/move_anim_1.png")
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(tileset.imagePath).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(tileset.blocksetPath).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(cavernTileset.imagePath).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(cavernTileset.blocksetPath).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(sprite.imagePath).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(rocketSprite.imagePath).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(fossilSprite.imagePath).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sendOutPoofURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: moveAnim0URL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: moveAnim1URL.path))
         let sendOutPoofSource = try XCTUnwrap(CGImageSourceCreateWithURL(sendOutPoofURL as CFURL, nil))
         let sendOutPoofImage = try XCTUnwrap(CGImageSourceCreateImageAtIndex(sendOutPoofSource, 0, nil))
         XCTAssertEqual(sendOutPoofImage.width, 128)
         XCTAssertEqual(sendOutPoofImage.height, 40)
+        XCTAssertEqual(loaded.battleAnimationManifest.tilesets.map(\.imagePath), [
+            "Assets/battle/animations/move_anim_0.png",
+            "Assets/battle/animations/move_anim_1.png",
+            "Assets/battle/animations/move_anim_0.png",
+        ])
+        XCTAssertEqual(
+            loaded.battleAnimation(moveID: "POUND")?.commands,
+            [
+                .init(
+                    kind: .subanimation,
+                    soundMoveID: "POUND",
+                    subanimationID: "SUBANIM_0_STAR_TWICE",
+                    specialEffectID: nil,
+                    tilesetID: "MOVE_ANIM_TILESET_0",
+                    delayFrames: 8
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            loaded.battleAnimation(moveID: "THUNDERPUNCH")?.commands,
+            [
+                .init(
+                    kind: .subanimation,
+                    soundMoveID: "THUNDERPUNCH",
+                    subanimationID: "SUBANIM_0_STAR_THRICE",
+                    specialEffectID: nil,
+                    tilesetID: "MOVE_ANIM_TILESET_0",
+                    delayFrames: 6
+                ),
+                .init(
+                    kind: .specialEffect,
+                    soundMoveID: nil,
+                    subanimationID: nil,
+                    specialEffectID: "SE_DARK_SCREEN_PALETTE",
+                    tilesetID: nil,
+                    delayFrames: nil
+                ),
+                .init(
+                    kind: .subanimation,
+                    soundMoveID: nil,
+                    subanimationID: "SUBANIM_1_LIGHTNING",
+                    specialEffectID: nil,
+                    tilesetID: "MOVE_ANIM_TILESET_1",
+                    delayFrames: 6
+                ),
+                .init(
+                    kind: .specialEffect,
+                    soundMoveID: nil,
+                    subanimationID: nil,
+                    specialEffectID: "SE_RESET_SCREEN_PALETTE",
+                    tilesetID: nil,
+                    delayFrames: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(loaded.battleAnimationSubanimation(id: "SUBANIM_0_STAR_TWICE")?.steps.count, 2)
+        XCTAssertEqual(loaded.battleAnimationFrameBlock(id: "FRAMEBLOCK_06")?.tiles.count, 12)
+        XCTAssertEqual(loaded.battleAnimationBaseCoordinate(id: "BASECOORD_30"), .init(id: "BASECOORD_30", x: 0x28, y: 0x58))
+        XCTAssertEqual(loaded.battleAnimationSpecialEffect(id: "SE_SHAKE_SCREEN")?.routine, "AnimationShakeScreen")
         XCTAssertTrue(
             loaded.fieldRenderIssues(
                 map: oaksLab,
                 spriteIDs: ["SPRITE_RED", "SPRITE_OAK", "SPRITE_BLUE", "SPRITE_SCIENTIST", "SPRITE_POKE_BALL", "SPRITE_POKEDEX"]
             ).isEmpty
         )
+        for map in loaded.gameplayManifest.maps {
+            XCTAssertEqual(Set(map.objects.map(\.id)).count, map.objects.count, "duplicate object ids in \(map.id)")
+            let spriteIDs = Array(Set(map.objects.map(\.sprite))).sorted()
+            XCTAssertTrue(
+                loaded.fieldRenderIssues(map: map, spriteIDs: spriteIDs).isEmpty,
+                "field render issues for \(map.id): \(loaded.fieldRenderIssues(map: map, spriteIDs: spriteIDs))"
+            )
+        }
     }
 
     func testLoaderReadsRepoGeneratedAudioContract() throws {
@@ -49,6 +127,10 @@ final class RepoContentContractTests: XCTestCase {
         XCTAssertEqual(
             loaded.audioManifest.mapRoutes,
             [
+                .init(mapID: "MT_MOON_1F", musicID: "MUSIC_DUNGEON3"),
+                .init(mapID: "MT_MOON_B1F", musicID: "MUSIC_DUNGEON3"),
+                .init(mapID: "MT_MOON_B2F", musicID: "MUSIC_DUNGEON3"),
+                .init(mapID: "MT_MOON_POKECENTER", musicID: "MUSIC_POKECENTER"),
                 .init(mapID: "MUSEUM_1F", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "MUSEUM_2F", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "OAKS_LAB", musicID: "MUSIC_OAKS_LAB"),
@@ -66,6 +148,7 @@ final class RepoContentContractTests: XCTestCase {
                 .init(mapID: "ROUTE_22", musicID: "MUSIC_ROUTES3"),
                 .init(mapID: "ROUTE_22_GATE", musicID: "MUSIC_DUNGEON2"),
                 .init(mapID: "ROUTE_3", musicID: "MUSIC_ROUTES3"),
+                .init(mapID: "ROUTE_4", musicID: "MUSIC_ROUTES3"),
                 .init(mapID: "VIRIDIAN_CITY", musicID: "MUSIC_CITIES1"),
                 .init(mapID: "VIRIDIAN_FOREST", musicID: "MUSIC_DUNGEON2"),
                 .init(mapID: "VIRIDIAN_FOREST_NORTH_GATE", musicID: "MUSIC_CITIES1"),
@@ -92,6 +175,9 @@ final class RepoContentContractTests: XCTestCase {
         let squirtle = try XCTUnwrap(loaded.species(id: "SQUIRTLE"))
         let brock = try XCTUnwrap(loaded.trainerBattle(id: "opp_brock_1"))
         let route3Youngster = try XCTUnwrap(loaded.trainerBattle(id: "opp_youngster_1"))
+        let superNerd = try XCTUnwrap(loaded.trainerBattle(id: "opp_super_nerd_2"))
+        let mtMoon1FEncounters = try XCTUnwrap(loaded.wildEncounterTable(mapID: "MT_MOON_1F"))
+        let mtMoonB2FEncounters = try XCTUnwrap(loaded.wildEncounterTable(mapID: "MT_MOON_B2F"))
 
         XCTAssertEqual(viridianMart.mapID, "VIRIDIAN_MART")
         XCTAssertEqual(viridianMart.clerkObjectID, "viridian_mart_clerk")
@@ -128,6 +214,41 @@ final class RepoContentContractTests: XCTestCase {
         XCTAssertEqual(brock.party, [.init(speciesID: "GEODUDE", level: 12), .init(speciesID: "ONIX", level: 14)])
         XCTAssertEqual(brock.trainerSpritePath, "Assets/battle/trainers/brock.png")
         XCTAssertEqual(route3Youngster.trainerSpritePath, "Assets/battle/trainers/youngster.png")
+        XCTAssertEqual(superNerd.trainerSpritePath, "Assets/battle/trainers/supernerd.png")
+        XCTAssertEqual(superNerd.completionFlagID, "EVENT_BEAT_MT_MOON_EXIT_SUPER_NERD")
+        XCTAssertEqual(mtMoon1FEncounters.landEncounterSurface, .floor)
+        XCTAssertEqual(mtMoon1FEncounters.grassEncounterRate, 10)
+        XCTAssertEqual(mtMoonB2FEncounters.suppressionZones.map(\.id), ["mt_moon_b2f_post_super_nerd_fossil_area"])
+        XCTAssertEqual(mtMoonB2FEncounters.suppressionZones.first?.positions.count, 16)
+    }
+
+    func testLoaderReadsRepoGeneratedMuseumExhibitContracts() throws {
+        let root = PokeContentTestSupport.repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
+        let loaded = try FileSystemContentLoader(rootURL: root).load()
+
+        let museum1F = try XCTUnwrap(loaded.map(id: "MUSEUM_1F"))
+        let museum2F = try XCTUnwrap(loaded.map(id: "MUSEUM_2F"))
+
+        XCTAssertEqual(
+            museum1F.objects.first { $0.id == "museum1_f_old_amber" }?.interactionDialogueID,
+            "museum1_f_old_amber"
+        )
+        XCTAssertEqual(
+            museum2F.backgroundEvents.map(\.dialogueID),
+            ["museum2_f_space_shuttle_sign", "museum2_f_moon_stone_sign"]
+        )
+        XCTAssertEqual(
+            loaded.dialogue(id: "museum1_f_old_amber")?.pages.first?.lines,
+            ["The AMBER is", "clear and gold!"]
+        )
+        XCTAssertEqual(
+            loaded.dialogue(id: "museum2_f_space_shuttle_sign")?.pages.first?.lines,
+            ["SPACE SHUTTLE", "COLUMBIA"]
+        )
+        XCTAssertEqual(
+            loaded.dialogue(id: "museum2_f_moon_stone_sign")?.pages.first?.lines,
+            ["Meteorite that", "fell on MT.MOON.", "(MOON STONE?)"]
+        )
     }
 
     func testLoaderReadsRepoGeneratedPokemonCenterInteractionContract() throws {
@@ -136,6 +257,7 @@ final class RepoContentContractTests: XCTestCase {
 
         let interaction = try XCTUnwrap(loaded.fieldInteraction(id: "pokemon_center_healing"))
         let pewterInteraction = try XCTUnwrap(loaded.fieldInteraction(id: "pewter_pokecenter_pokemon_center_healing"))
+        let mtMoonInteraction = try XCTUnwrap(loaded.fieldInteraction(id: "mt_moon_pokecenter_pokemon_center_healing"))
         XCTAssertEqual(interaction.kind, .pokemonCenterHealing)
         XCTAssertEqual(interaction.introDialogueID, "pokemon_center_welcome")
         XCTAssertEqual(interaction.prompt.dialogueID, "pokemon_center_shall_we_heal")
@@ -152,8 +274,22 @@ final class RepoContentContractTests: XCTestCase {
             pewterInteraction.healingSequence?.blackoutCheckpoint,
             .init(mapID: "PEWTER_CITY", position: .init(x: 13, y: 26), facing: .down)
         )
+        XCTAssertEqual(
+            mtMoonInteraction.healingSequence?.blackoutCheckpoint,
+            .init(mapID: "ROUTE_4", position: .init(x: 11, y: 6), facing: .down)
+        )
         XCTAssertEqual(loaded.map(id: "PEWTER_GYM")?.defaultMusicID, "MUSIC_GYM")
         XCTAssertEqual(loaded.map(id: "ROUTE_3")?.defaultMusicID, "MUSIC_ROUTES3")
+        XCTAssertEqual(loaded.map(id: "MT_MOON_POKECENTER")?.warps.allSatisfy { $0.usesPreviousMapTarget == false }, true)
+        XCTAssertEqual(loaded.map(id: "REDS_HOUSE_1F")?.warps.prefix(2).allSatisfy { $0.usesPreviousMapTarget == false }, true)
+        XCTAssertEqual(
+            loaded.mapScript(for: "MT_MOON_B2F")?.triggers.map(\.scriptID),
+            ["mt_moon_b2f_super_nerd_battle"]
+        )
+        XCTAssertEqual(
+            loaded.script(id: "mt_moon_b2f_take_dome_fossil")?.steps.map(\.action),
+            ["promptItemPickup", "moveObject", "showDialogue", "setObjectVisibility"]
+        )
         XCTAssertEqual(
             loaded.mapScript(for: "ROUTE_22_GATE")?.triggers.map(\.scriptID),
             [

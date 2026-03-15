@@ -52,7 +52,10 @@ enum GameplayScenePropsFactory {
                         isMusicEnabled: runtime.isMusicEnabled,
                         appearanceMode: appearanceMode,
                         gameBoyShellStyle: gameBoyShellStyle,
-                        gameplayHDREnabled: gameplayHDREnabled
+                        gameplayHDREnabled: gameplayHDREnabled,
+                        textSpeed: runtime.optionsTextSpeed,
+                        battleAnimation: runtime.optionsBattleAnimation,
+                        battleStyle: runtime.optionsBattleStyle
                     ),
                     preferredExpandedSection: runtime.scene == .evolution ? .party : (
                         runtime.captureAftermathPokedexSelectionID == nil ? nil : .pokedex
@@ -94,6 +97,8 @@ enum GameplayScenePropsFactory {
                         fieldTransition: fieldState.transition,
                         fieldAlert: fieldState.fieldAlert,
                         dialogueLines: runtime.currentDialoguePage?.lines,
+                        dialogueInstantReveal: runtime.dialogueTextFullyRevealed,
+                        onDialogueRevealed: { [weak runtime] in runtime?.dialogueTextFullyRevealed = true },
                         fieldPrompt: fieldState.fieldPrompt,
                         fieldHealing: fieldState.fieldHealing,
                         shop: fieldState.shop,
@@ -122,6 +127,7 @@ enum GameplayScenePropsFactory {
         case .battle:
             let battleState = runtime.currentBattleSceneState()
             guard let battle = battleState.battle else { return nil }
+            let isEnemySpeciesOwned = runtime.ownedSpeciesIDs.contains(battle.enemyPokemon.speciesID)
 
             let playerSpriteURL = runtime.content.species(id: battle.playerPokemon.speciesID)?
                 .battleSprite
@@ -135,6 +141,11 @@ enum GameplayScenePropsFactory {
             let playerTrainerFrontSpriteURL = runtime.content.rootURL.appendingPathComponent("Assets/battle/trainers/red.png")
             let playerTrainerBackSpriteURL = runtime.content.rootURL.appendingPathComponent("Assets/battle/trainers/redb.png")
             let sendOutPoofSpriteURL = runtime.content.rootURL.appendingPathComponent("Assets/battle/effects/send_out_poof.png")
+            let battleAnimationTilesetURLs = Dictionary(
+                uniqueKeysWithValues: runtime.content.battleAnimationManifest.tilesets.map {
+                    ($0.id, runtime.content.rootURL.appendingPathComponent($0.imagePath))
+                }
+            )
             let promptText = GameplayBattlePrompts.promptText(
                 textLines: battle.textLines,
                 battleMessage: battle.battleMessage,
@@ -150,10 +161,13 @@ enum GameplayScenePropsFactory {
                         textLines: battle.textLines,
                         playerPokemon: battle.playerPokemon,
                         enemyPokemon: battle.enemyPokemon,
+                        isEnemySpeciesOwned: isEnemySpeciesOwned,
                         trainerSpriteURL: trainerSpriteURL,
                         playerTrainerFrontSpriteURL: playerTrainerFrontSpriteURL,
                         playerTrainerBackSpriteURL: playerTrainerBackSpriteURL,
                         sendOutPoofSpriteURL: sendOutPoofSpriteURL,
+                        battleAnimationManifest: runtime.content.battleAnimationManifest,
+                        battleAnimationTilesetURLs: battleAnimationTilesetURLs,
                         playerSpriteURL: playerSpriteURL,
                         enemySpriteURL: enemySpriteURL,
                         bagItems: battle.bagItems,
@@ -316,6 +330,13 @@ struct GameplaySidebarManifestIndex {
     let pokedexSpeciesList: [GameplaySidebarPropsBuilder.PokedexSpeciesData]
 
     init(runtime: GameRuntime) {
+        let speciesByID = Dictionary(
+            uniqueKeysWithValues: runtime.content.gameplayManifest.species.map { ($0.id, $0) }
+        )
+        let itemNamesByID = Dictionary(
+            uniqueKeysWithValues: runtime.content.gameplayManifest.items.map { ($0.id, $0.displayName) }
+        )
+
         speciesDetailsByID = Dictionary(
             uniqueKeysWithValues: runtime.content.gameplayManifest.species.map { species in
                 (
@@ -329,7 +350,7 @@ struct GameplaySidebarManifestIndex {
             }
         )
 
-        moveDetailsByID = Dictionary(
+        let moveDetailsByID = Dictionary(
             uniqueKeysWithValues: runtime.content.gameplayManifest.moves.map { move in
                 (
                     move.id,
@@ -343,6 +364,19 @@ struct GameplaySidebarManifestIndex {
                 )
             }
         )
+        self.moveDetailsByID = moveDetailsByID
+
+        let preEvolutionBySpeciesID = runtime.content.gameplayManifest.species.reduce(
+            into: [String: PokedexSidebarEvolutionProps]()
+        ) { result, species in
+            for evolution in species.evolutions {
+                result[evolution.targetSpeciesID] = PokedexSidebarEvolutionProps(
+                    id: species.id,
+                    displayName: species.displayName,
+                    triggerText: Self.evolutionTriggerText(for: evolution.trigger, itemNamesByID: itemNamesByID)
+                )
+            }
+        }
 
         pokedexSpeciesList = runtime.content.gameplayManifest.species.compactMap { species -> GameplaySidebarPropsBuilder.PokedexSpeciesData? in
             guard let dexNumber = species.dexNumber else { return nil }
@@ -358,6 +392,29 @@ struct GameplaySidebarManifestIndex {
             } else {
                 weightText = nil
             }
+            let evolutions = species.evolutions.map { evolution in
+                PokedexSidebarEvolutionProps(
+                    id: evolution.targetSpeciesID,
+                    displayName: speciesByID[evolution.targetSpeciesID]?.displayName
+                        ?? Self.fallbackDisplayName(for: evolution.targetSpeciesID),
+                    triggerText: Self.evolutionTriggerText(for: evolution.trigger, itemNamesByID: itemNamesByID)
+                )
+            }
+            let learnedMoves = species.levelUpLearnset
+                .sorted {
+                    if $0.level == $1.level {
+                        return $0.moveID.localizedCompare($1.moveID) == .orderedAscending
+                    }
+                    return $0.level < $1.level
+                }
+                .map { move in
+                    PokedexSidebarLearnedMoveProps(
+                        id: "\(species.id)-\(move.moveID)-\(move.level)",
+                        levelText: "Lv \(move.level)",
+                        displayName: moveDetailsByID[move.moveID]?.displayName
+                            ?? Self.fallbackDisplayName(for: move.moveID)
+                    )
+                }
             return GameplaySidebarPropsBuilder.PokedexSpeciesData(
                 id: species.id,
                 dexNumber: dexNumber,
@@ -369,6 +426,9 @@ struct GameplaySidebarManifestIndex {
                 heightText: heightText,
                 weightText: weightText,
                 descriptionText: species.pokedexEntryText,
+                preEvolution: preEvolutionBySpeciesID[species.id],
+                evolutions: evolutions,
+                learnedMoves: learnedMoves,
                 baseHP: species.baseHP,
                 baseAttack: species.baseAttack,
                 baseDefense: species.baseDefense,
@@ -376,5 +436,40 @@ struct GameplaySidebarManifestIndex {
                 baseSpecial: species.baseSpecial
             )
         }.sorted { $0.dexNumber < $1.dexNumber }
+    }
+
+    private static func evolutionTriggerText(
+        for trigger: EvolutionTriggerManifest,
+        itemNamesByID: [String: String]
+    ) -> String {
+        switch trigger.kind {
+        case .level:
+            if let level = trigger.level ?? trigger.minimumLevel {
+                return "Lv \(level)"
+            }
+            return "Level Up"
+        case .item:
+            let itemName = trigger.itemID
+                .flatMap { itemNamesByID[$0] }
+                ?? trigger.itemID.map(fallbackDisplayName(for:))
+                ?? "Item"
+            if let minimumLevel = trigger.minimumLevel {
+                return "\(itemName) (Lv \(minimumLevel)+)"
+            }
+            return itemName
+        case .trade:
+            if let minimumLevel = trigger.minimumLevel {
+                return "Trade (Lv \(minimumLevel)+)"
+            }
+            return "Trade"
+        }
+    }
+
+    private static func fallbackDisplayName(for identifier: String) -> String {
+        identifier
+            .lowercased()
+            .split(separator: "_")
+            .map { $0.capitalized }
+            .joined(separator: " ")
     }
 }

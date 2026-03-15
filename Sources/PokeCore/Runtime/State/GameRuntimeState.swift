@@ -369,6 +369,8 @@ struct RuntimeBattlePresentationState {
     var hidePlayerPokemon: Bool
     var transitionStyle: BattleTransitionStyle
     var meterAnimation: BattleMeterAnimationTelemetry?
+    var attackAnimation: BattleAttackAnimationPlaybackTelemetry?
+    var applyingHitEffect: BattleApplyingHitEffectTelemetry?
 
     init(
         stage: BattlePresentationStage = .idle,
@@ -377,7 +379,9 @@ struct RuntimeBattlePresentationState {
         activeSide: BattlePresentationSide? = nil,
         hidePlayerPokemon: Bool = false,
         transitionStyle: BattleTransitionStyle = .none,
-        meterAnimation: BattleMeterAnimationTelemetry? = nil
+        meterAnimation: BattleMeterAnimationTelemetry? = nil,
+        attackAnimation: BattleAttackAnimationPlaybackTelemetry? = nil,
+        applyingHitEffect: BattleApplyingHitEffectTelemetry? = nil
     ) {
         self.stage = stage
         self.revision = revision
@@ -386,6 +390,8 @@ struct RuntimeBattlePresentationState {
         self.hidePlayerPokemon = hidePlayerPokemon
         self.transitionStyle = transitionStyle
         self.meterAnimation = meterAnimation
+        self.attackAnimation = attackAnimation
+        self.applyingHitEffect = applyingHitEffect
     }
 }
 
@@ -398,6 +404,8 @@ struct RuntimeBattlePresentationBeat {
     let requiresConfirmAfterDisplay: Bool
     let transitionStyle: BattleTransitionStyle
     let meterAnimation: BattleMeterAnimationTelemetry?
+    let attackAnimation: BattleAttackAnimationPlaybackTelemetry?
+    let applyingHitEffect: BattleApplyingHitEffectTelemetry?
     let message: String?
     let phase: RuntimeBattlePhase?
     var pendingAction: RuntimeBattlePendingAction?
@@ -423,6 +431,8 @@ struct RuntimeBattlePresentationBeat {
         requiresConfirmAfterDisplay: Bool = false,
         transitionStyle: BattleTransitionStyle = .none,
         meterAnimation: BattleMeterAnimationTelemetry? = nil,
+        attackAnimation: BattleAttackAnimationPlaybackTelemetry? = nil,
+        applyingHitEffect: BattleApplyingHitEffectTelemetry? = nil,
         message: String? = nil,
         phase: RuntimeBattlePhase? = nil,
         pendingAction: RuntimeBattlePendingAction? = nil,
@@ -447,6 +457,8 @@ struct RuntimeBattlePresentationBeat {
         self.requiresConfirmAfterDisplay = requiresConfirmAfterDisplay
         self.transitionStyle = transitionStyle
         self.meterAnimation = meterAnimation
+        self.attackAnimation = attackAnimation
+        self.applyingHitEffect = applyingHitEffect
         self.message = message
         self.phase = phase
         self.pendingAction = pendingAction
@@ -604,6 +616,8 @@ struct DialogueState {
         case continueCaptureAftermath(RuntimeCaptureAftermathState)
         case fieldPrompt(interactionID: String, completionAction: CompletionAction)
         case startFieldHealing(interactionID: String, completionAction: CompletionAction)
+        case beginScriptedMovement(path: [FacingDirection])
+        case openScriptItemPrompt(RuntimeScriptItemPromptState)
     }
 
     let dialogueID: String
@@ -618,6 +632,15 @@ struct RuntimeFieldPromptState {
     let kind: FieldPromptKind
     let completionAction: DialogueState.CompletionAction
     var focusedIndex: Int
+}
+
+struct RuntimeScriptItemPromptState {
+    let promptID: String
+    let itemID: String
+    let targetObjectID: String?
+    let successFlagID: String?
+    let successDialogueID: String
+    let failureDialogueID: String?
 }
 
 enum RuntimeFieldHealingPhase: String {
@@ -801,6 +824,7 @@ struct RuntimeFieldAlertState: Equatable {
 
 struct GameplayState {
     var mapID: String
+    var previousMapID: String?
     var playerPosition: TilePoint
     var facing: FacingDirection
     var blackoutCheckpoint: BlackoutCheckpointManifest?

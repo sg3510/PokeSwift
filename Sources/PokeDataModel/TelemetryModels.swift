@@ -13,6 +13,7 @@ public enum RuntimeScene: String, Codable, Sendable {
     case evolution
     case naming
     case oakIntro
+    case titleOptions
     case placeholder
 }
 
@@ -433,6 +434,53 @@ public struct BattleMeterAnimationTelemetry: Codable, Equatable, Sendable {
     }
 }
 
+public struct BattleAttackAnimationPlaybackTelemetry: Codable, Equatable, Sendable {
+    public let playbackID: String
+    public let moveID: String
+    public let attackerSide: BattlePresentationSide
+    public let totalDuration: TimeInterval
+
+    public init(
+        playbackID: String,
+        moveID: String,
+        attackerSide: BattlePresentationSide,
+        totalDuration: TimeInterval
+    ) {
+        self.playbackID = playbackID
+        self.moveID = moveID
+        self.attackerSide = attackerSide
+        self.totalDuration = totalDuration
+    }
+}
+
+public enum BattleApplyingHitEffectKind: String, Codable, Equatable, Sendable {
+    case shakeScreenVertical
+    case shakeScreenHorizontalHeavy
+    case shakeScreenHorizontalLight
+    case shakeScreenHorizontalSlow
+    case shakeScreenHorizontalSlow2
+    case blinkDefender
+}
+
+public struct BattleApplyingHitEffectTelemetry: Codable, Equatable, Sendable {
+    public let playbackID: String
+    public let kind: BattleApplyingHitEffectKind
+    public let attackerSide: BattlePresentationSide
+    public let totalDuration: TimeInterval
+
+    public init(
+        playbackID: String,
+        kind: BattleApplyingHitEffectKind,
+        attackerSide: BattlePresentationSide,
+        totalDuration: TimeInterval
+    ) {
+        self.playbackID = playbackID
+        self.kind = kind
+        self.attackerSide = attackerSide
+        self.totalDuration = totalDuration
+    }
+}
+
 public struct BattlePresentationTelemetry: Codable, Equatable, Sendable {
     public let stage: BattlePresentationStage
     public let revision: Int
@@ -441,6 +489,8 @@ public struct BattlePresentationTelemetry: Codable, Equatable, Sendable {
     public let hidePlayerPokemon: Bool
     public let transitionStyle: BattleTransitionStyle
     public let meterAnimation: BattleMeterAnimationTelemetry?
+    public let attackAnimation: BattleAttackAnimationPlaybackTelemetry?
+    public let applyingHitEffect: BattleApplyingHitEffectTelemetry?
 
     public init(
         stage: BattlePresentationStage,
@@ -449,7 +499,9 @@ public struct BattlePresentationTelemetry: Codable, Equatable, Sendable {
         activeSide: BattlePresentationSide? = nil,
         hidePlayerPokemon: Bool = false,
         transitionStyle: BattleTransitionStyle = .none,
-        meterAnimation: BattleMeterAnimationTelemetry? = nil
+        meterAnimation: BattleMeterAnimationTelemetry? = nil,
+        attackAnimation: BattleAttackAnimationPlaybackTelemetry? = nil,
+        applyingHitEffect: BattleApplyingHitEffectTelemetry? = nil
     ) {
         self.stage = stage
         self.revision = revision
@@ -458,6 +510,29 @@ public struct BattlePresentationTelemetry: Codable, Equatable, Sendable {
         self.hidePlayerPokemon = hidePlayerPokemon
         self.transitionStyle = transitionStyle
         self.meterAnimation = meterAnimation
+        self.attackAnimation = attackAnimation
+        self.applyingHitEffect = applyingHitEffect
+    }
+}
+
+public enum BattleApplyingHitEffectPlaybackDefaults {
+    public static let framesPerSecond: Double = 60
+
+    public static func frameCount(for kind: BattleApplyingHitEffectKind) -> Int {
+        switch kind {
+        case .shakeScreenVertical:
+            return 48
+        case .shakeScreenHorizontalHeavy:
+            return 72
+        case .shakeScreenHorizontalLight:
+            return 18
+        case .shakeScreenHorizontalSlow:
+            return 48
+        case .shakeScreenHorizontalSlow2:
+            return 24
+        case .blinkDefender:
+            return 78
+        }
     }
 }
 

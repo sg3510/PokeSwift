@@ -10,6 +10,7 @@ extension GameRuntime {
         }
 
         fieldPromptState = nil
+        scriptItemPromptState = nil
         fieldHealingState = nil
 
         switch interaction.kind {
@@ -24,12 +25,51 @@ extension GameRuntime {
                     )
                 )
             )
+        case .paidAdmission:
+            guard let paidAdmission = interaction.paidAdmission else {
+                scene = .field
+                substate = "field"
+                return
+            }
+
+            if hasFlag(paidAdmission.successFlagID) {
+                showDialogue(id: interaction.successDialogueID, completion: completionAction)
+                return
+            }
+
+            showDialogue(
+                id: interaction.introDialogueID,
+                completion: .fieldPrompt(
+                    interactionID: interaction.id,
+                    completionAction: completionAction
+                )
+            )
         }
     }
 
     func handleFieldPrompt(button: RuntimeButton) {
-        guard var promptState = fieldPromptState,
-              let interaction = content.fieldInteraction(id: promptState.interactionID) else {
+        guard var promptState = fieldPromptState else {
+            fieldPromptState = nil
+            scriptItemPromptState = nil
+            return
+        }
+
+        if let scriptItemPromptState {
+            switch button {
+            case .left, .right, .up, .down:
+                promptState.focusedIndex = promptState.focusedIndex == 0 ? 1 : 0
+                fieldPromptState = promptState
+            case .cancel:
+                playUIConfirmSound()
+                resolveScriptItemPromptSelection(accepted: false, promptState: scriptItemPromptState)
+            case .confirm, .start:
+                playUIConfirmSound()
+                resolveScriptItemPromptSelection(accepted: promptState.focusedIndex == 0, promptState: scriptItemPromptState)
+            }
+            return
+        }
+
+        guard let interaction = content.fieldInteraction(id: promptState.interactionID) else {
             fieldPromptState = nil
             return
         }
@@ -47,6 +87,54 @@ extension GameRuntime {
         }
     }
 
+    private func resolveScriptItemPromptSelection(
+        accepted: Bool,
+        promptState: RuntimeScriptItemPromptState
+    ) {
+        fieldPromptState = nil
+        scriptItemPromptState = nil
+        dialogueState = nil
+        isDialogueAudioBlockingInput = false
+        scene = .field
+        substate = "field"
+
+        guard accepted else {
+            finishScript()
+            return
+        }
+
+        guard var gameplayState else {
+            finishScript()
+            return
+        }
+
+        let itemID = promptState.itemID
+        guard addItem(itemID, quantity: 1, to: &gameplayState) else {
+            finishScript()
+            if let failureDialogueID = promptState.failureDialogueID {
+                showDialogue(id: failureDialogueID, completion: .returnToField)
+            }
+            return
+        }
+
+        if let objectID = promptState.targetObjectID {
+            ensureObjectStateExists(objectID, in: &gameplayState)
+            gameplayState.objectStates[objectID]?.visible = false
+        }
+        if let successFlagID = promptState.successFlagID {
+            gameplayState.activeFlags.insert(successFlagID)
+        }
+        self.gameplayState = gameplayState
+        traceScriptInventoryAddition(itemID: itemID, quantity: 1, gameplayState: gameplayState)
+
+        let itemDisplayName = content.item(id: itemID)?.displayName ?? itemID
+        showDialogue(
+            id: promptState.successDialogueID,
+            replacements: ["wStringBuffer": itemDisplayName],
+            completion: .continueScript
+        )
+    }
+
     private func resolveFieldPromptSelection(
         accepted: Bool,
         promptState: RuntimeFieldPromptState,
@@ -58,29 +146,38 @@ extension GameRuntime {
         scene = .field
         substate = "field"
 
-        if accepted {
-            showDialogue(
-                id: interaction.acceptedDialogueID,
-                completion: .startFieldHealing(
-                    interactionID: interaction.id,
-                    completionAction: promptState.completionAction
+        switch interaction.kind {
+        case .pokemonCenterHealing:
+            if accepted {
+                showDialogue(
+                    id: interaction.acceptedDialogueID,
+                    completion: .startFieldHealing(
+                        interactionID: interaction.id,
+                        completionAction: promptState.completionAction
+                    )
                 )
-            )
-            return
-        }
+                return
+            }
 
-        if let declinedDialogueID = interaction.declinedDialogueID {
-            showDialogue(
-                id: declinedDialogueID,
-                completion: .showDialogue(
-                    dialogueID: interaction.farewellDialogueID,
-                    completionAction: promptState.completionAction
+            if let declinedDialogueID = interaction.declinedDialogueID {
+                showDialogue(
+                    id: declinedDialogueID,
+                    completion: .showDialogue(
+                        dialogueID: interaction.farewellDialogueID,
+                        completionAction: promptState.completionAction
+                    )
                 )
-            )
-            return
-        }
+                return
+            }
 
-        showDialogue(id: interaction.farewellDialogueID, completion: promptState.completionAction)
+            showDialogue(id: interaction.farewellDialogueID, completion: promptState.completionAction)
+        case .paidAdmission:
+            resolvePaidAdmissionPromptSelection(
+                accepted: accepted,
+                promptState: promptState,
+                interaction: interaction
+            )
+        }
     }
 
     func startFieldHealing(interactionID: String, completionAction: DialogueState.CompletionAction) {
@@ -198,6 +295,63 @@ extension GameRuntime {
         guard let checkpoint, var gameplayState else { return }
         gameplayState.blackoutCheckpoint = checkpoint
         self.gameplayState = gameplayState
+    }
+
+    private func resolvePaidAdmissionPromptSelection(
+        accepted: Bool,
+        promptState: RuntimeFieldPromptState,
+        interaction: FieldInteractionManifest
+    ) {
+        guard let paidAdmission = interaction.paidAdmission else {
+            showDialogue(id: interaction.farewellDialogueID, completion: promptState.completionAction)
+            return
+        }
+
+        let deniedDialogueID = interaction.declinedDialogueID ?? interaction.farewellDialogueID
+        let deniedCompletion = paidAdmission.deniedExitPath.isEmpty
+            ? promptState.completionAction
+            : .beginScriptedMovement(path: paidAdmission.deniedExitPath)
+
+        guard accepted else {
+            showDialogue(id: deniedDialogueID, completion: deniedCompletion)
+            return
+        }
+
+        guard var gameplayState else {
+            showDialogue(id: deniedDialogueID, completion: deniedCompletion)
+            return
+        }
+
+        guard canAfford(paidAdmission.price, gameplayState: gameplayState) else {
+            showDialogue(
+                id: paidAdmission.insufficientFundsDialogueID,
+                completion: .showDialogue(
+                    dialogueID: deniedDialogueID,
+                    completionAction: deniedCompletion
+                )
+            )
+            return
+        }
+
+        guard spendMoney(paidAdmission.price, from: &gameplayState) else {
+            showDialogue(
+                id: paidAdmission.insufficientFundsDialogueID,
+                completion: .showDialogue(
+                    dialogueID: deniedDialogueID,
+                    completionAction: deniedCompletion
+                )
+            )
+            return
+        }
+
+        gameplayState.activeFlags.insert(paidAdmission.successFlagID)
+        self.gameplayState = gameplayState
+
+        if let purchaseSoundEffectID = paidAdmission.purchaseSoundEffectID {
+            _ = playSoundEffect(id: purchaseSoundEffectID, reason: "paidAdmission")
+        }
+
+        showDialogue(id: interaction.acceptedDialogueID, completion: promptState.completionAction)
     }
 
     private func setObjectFacing(_ objectID: String, to facing: FacingDirection) {

@@ -29,6 +29,8 @@ struct GameplayFieldViewportProps {
     let fieldTransition: FieldTransitionTelemetry?
     let fieldAlert: FieldAlertTelemetry?
     let dialogueLines: [String]?
+    let dialogueInstantReveal: Bool
+    let onDialogueRevealed: (() -> Void)?
     let fieldPrompt: FieldPromptTelemetry?
     let fieldHealing: FieldHealingTelemetry?
     let shop: ShopTelemetry?
@@ -45,10 +47,13 @@ struct BattleViewportProps {
     let textLines: [String]
     let playerPokemon: PartyPokemonTelemetry
     let enemyPokemon: PartyPokemonTelemetry
+    let isEnemySpeciesOwned: Bool
     let trainerSpriteURL: URL?
     let playerTrainerFrontSpriteURL: URL?
     let playerTrainerBackSpriteURL: URL?
     let sendOutPoofSpriteURL: URL?
+    let battleAnimationManifest: BattleAnimationManifest
+    let battleAnimationTilesetURLs: [String: URL]
     let playerSpriteURL: URL?
     let enemySpriteURL: URL?
     let bagItems: [InventoryItemTelemetry]

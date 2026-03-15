@@ -6,7 +6,7 @@ import PokeDataModel
 @MainActor
 @Observable
 public final class GameRuntime {
-    nonisolated public static let saveSchemaVersion = 8
+    nonisolated public static let saveSchemaVersion = 9
 
     public let content: LoadedContent
 
@@ -20,6 +20,11 @@ public final class GameRuntime {
     public internal(set) var focusedIndex = 0
     public internal(set) var placeholderTitle: String?
     public internal(set) var starterChoiceFocusedIndex = 0
+    public internal(set) var optionsFocusedRow = 0
+    public var optionsTextSpeed: TextSpeed = .medium
+    public var optionsBattleAnimation: BattleAnimation = .on
+    public var optionsBattleStyle: BattleStyle = .shift
+    public var dialogueTextFullyRevealed = true
 
     let telemetryPublisher: (any TelemetryPublisher)?
     let audioPlayer: (any RuntimeAudioPlaying)?
@@ -45,6 +50,7 @@ public final class GameRuntime {
     var gameplayState: GameplayState?
     var dialogueState: DialogueState?
     var fieldPromptState: RuntimeFieldPromptState?
+    var scriptItemPromptState: RuntimeScriptItemPromptState?
     var fieldHealingState: RuntimeFieldHealingState?
     var shopState: RuntimeShopState?
     var fieldPartyReorderState: RuntimeFieldPartyReorderState?
@@ -289,6 +295,7 @@ public final class GameRuntime {
             scene == .field &&
             dialogueState == nil &&
             fieldPromptState == nil &&
+            scriptItemPromptState == nil &&
             fieldHealingState == nil &&
             fieldTransitionState == nil &&
             scriptedMovementTask == nil &&
@@ -370,6 +377,8 @@ public final class GameRuntime {
             }
         case .titleMenu:
             handleTitleMenu(button: button)
+        case .titleOptions:
+            handleTitleOptions(button: button)
         case .field:
             handleField(button: button)
         case .dialogue:

@@ -1,6 +1,7 @@
 import XCTest
 
 @testable import PokeUI
+import PokeDataModel
 
 @MainActor
 extension PokeUITests {
@@ -113,6 +114,7 @@ extension PokeUITests {
       BattleViewportCanvas.usesImplicitPokemonRevisionAnimation(
         stage: .enemySendOut,
         activeSide: .enemy,
+        attackAnimation: nil,
         side: .enemy
       )
     )
@@ -120,6 +122,7 @@ extension PokeUITests {
       BattleViewportCanvas.usesImplicitPokemonRevisionAnimation(
         stage: .enemySendOut,
         activeSide: .player,
+        attackAnimation: nil,
         side: .player
       )
     )
@@ -127,8 +130,151 @@ extension PokeUITests {
       BattleViewportCanvas.usesImplicitPokemonRevisionAnimation(
         stage: .attackImpact,
         activeSide: .enemy,
+        attackAnimation: nil,
         side: .enemy
       )
+    )
+  }
+
+  func testBattleAttackTimelineBuildsOverlayFramesAndScreenEffects() {
+    let frames = BattleAttackAnimationTimeline.sequence(
+      for: makeAttackPlayback(),
+      manifest: makeAttackAnimationManifest()
+    )
+
+    XCTAssertFalse(frames.isEmpty)
+    XCTAssertEqual(frames.first?.state.overlayPlacements.first?.tilesetID, "MOVE_ANIM_TILESET_0")
+    XCTAssertEqual(frames.first?.state.overlayPlacements.first?.x, 80)
+    XCTAssertEqual(frames.first?.state.overlayPlacements.first?.y, 56)
+    XCTAssertTrue(frames.contains { $0.state.flashOpacity > 0 })
+  }
+
+  func testBattleAttackTimelineBuildsNativeParticlesForMissingSourceEffects() {
+    let particleEffects = [
+      "SE_WATER_DROPLETS_EVERYWHERE",
+      "SE_SPIRAL_BALLS_INWARD",
+      "SE_LEAVES_FALLING",
+      "SE_PETALS_FALLING",
+      "SE_SHOOT_BALLS_UPWARD",
+      "SE_SHOOT_MANY_BALLS_UPWARD",
+    ]
+
+    for effectID in particleEffects {
+      let frames = BattleAttackAnimationTimeline.sequence(
+        for: makeAttackPlayback(moveID: effectID),
+        manifest: makeSpecialEffectAnimationManifest(moveID: effectID, effectID: effectID)
+      )
+
+      XCTAssertFalse(frames.isEmpty, "\(effectID) should produce keyframes")
+      XCTAssertTrue(
+        frames.contains { $0.state.particlePlacements.isEmpty == false },
+        "\(effectID) should emit native particle placements"
+      )
+    }
+  }
+
+  func testBattleAttackTimelineBuildsTransformVisualStateForTransformEffect() {
+    let frames = BattleAttackAnimationTimeline.sequence(
+      for: makeAttackPlayback(moveID: "TRANSFORM"),
+      manifest: makeSpecialEffectAnimationManifest(
+        moveID: "TRANSFORM",
+        effectID: "SE_TRANSFORM_MON"
+      )
+    )
+
+    XCTAssertTrue(frames.contains { $0.state.playerScale != 1 })
+    XCTAssertTrue(frames.contains { $0.state.flashOpacity > 0 })
+  }
+
+  func testBattleAttackTimelineBuildsEnemyHUDShakeState() {
+    let frames = BattleAttackAnimationTimeline.sequence(
+      for: makeAttackPlayback(moveID: "HUD_SHAKE"),
+      manifest: makeSpecialEffectAnimationManifest(
+        moveID: "HUD_SHAKE",
+        effectID: "SE_SHAKE_ENEMY_HUD"
+      )
+    )
+
+    XCTAssertTrue(frames.contains { abs($0.state.enemyHUDOffset.width) > 0.1 })
+  }
+
+  func testBattleAttackAnimationDisablesRevisionDrivenAnimationForActiveSide() {
+    let playback = makeAttackPlayback()
+
+    XCTAssertFalse(
+      BattleViewportCanvas.usesImplicitPokemonRevisionAnimation(
+        stage: .attackWindup,
+        activeSide: .player,
+        attackAnimation: playback,
+        side: .player
+      )
+    )
+    XCTAssertTrue(
+      BattleViewportCanvas.usesImplicitPokemonRevisionAnimation(
+        stage: .attackWindup,
+        activeSide: .player,
+        attackAnimation: playback,
+        side: .enemy
+      )
+    )
+  }
+
+  func testBattleAttackStateResolvesToIdleWhenAnimationKeyIsStale() {
+    XCTAssertEqual(
+      BattleViewportCanvas.resolvedAttackAnimationState(
+        attackAnimation: makeAttackPlayback(playbackID: "attack-2"),
+        attackAnimationVisualState: .init(
+          playerOffset: .zero,
+          enemyOffset: .zero,
+          playerScale: 1,
+          enemyScale: 1,
+          playerOpacity: 1,
+          enemyOpacity: 1,
+          overlayPlacements: [.init(tilesetID: "MOVE_ANIM_TILESET_0", x: 80, y: 56, tileID: 0, flipH: false, flipV: false)],
+          screenShake: .zero,
+          flashOpacity: 0,
+          darknessOpacity: 0
+        ),
+        animationTriggerKey: "attack-3",
+        activeAnimationKey: "attack-2"
+      ),
+      .idle
+    )
+  }
+
+  func testApplyingHitEffectTimelineBuildsGBBlinkSequence() {
+    let frames = BattleApplyingHitEffectTimeline.sequence(for: makeApplyingHitEffect())
+
+    XCTAssertEqual(frames.count, 12)
+    XCTAssertEqual(frames.first?.state.enemyOpacity, 0)
+    XCTAssertEqual(try XCTUnwrap(frames.first?.duration), 5.0 / 60.0, accuracy: 0.0001)
+    XCTAssertEqual(frames.dropFirst().first?.state.enemyOpacity, 1)
+    XCTAssertEqual(try XCTUnwrap(frames.dropFirst().first?.duration), 8.0 / 60.0, accuracy: 0.0001)
+  }
+
+  func testApplyingHitEffectTimelineBuildsVerticalShakeSequence() {
+    let frames = BattleApplyingHitEffectTimeline.sequence(
+      for: makeApplyingHitEffect(playbackID: "hit-2", kind: .shakeScreenVertical, totalDuration: 48.0 / 60.0)
+    )
+
+    XCTAssertEqual(frames.count, 16)
+    XCTAssertEqual(Double(try XCTUnwrap(frames.first?.state.screenShake.height)), 8, accuracy: 0.0001)
+    XCTAssertEqual(Double(try XCTUnwrap(frames.dropFirst().first?.state.screenShake.height)), 0, accuracy: 0.0001)
+  }
+
+  func testApplyingHitEffectStateResolvesToIdleWhenAnimationKeyIsStale() {
+    XCTAssertEqual(
+      BattleViewportCanvas.resolvedApplyingHitEffectState(
+        applyingHitEffect: makeApplyingHitEffect(playbackID: "hit-2"),
+        applyingHitEffectVisualState: .init(
+          playerOpacity: 1,
+          enemyOpacity: 0,
+          screenShake: .init(width: 2, height: 0)
+        ),
+        animationTriggerKey: "hit-3",
+        activeAnimationKey: "hit-2"
+      ),
+      .idle
     )
   }
 
@@ -233,5 +379,111 @@ extension PokeUITests {
 
     XCTAssertEqual(layout.enemySpriteSize, layout.playerSpriteSize)
     XCTAssertGreaterThan(layout.playerTrainerCenter.y, layout.playerSpriteCenter.y)
+  }
+
+  private func makeAttackPlayback(
+    playbackID: String = "attack-1",
+    moveID: String = "TACKLE"
+  ) -> BattleAttackAnimationPlaybackTelemetry {
+    .init(
+      playbackID: playbackID,
+      moveID: moveID,
+      attackerSide: .player,
+      totalDuration: 0.2
+    )
+  }
+
+  private func makeApplyingHitEffect(
+    playbackID: String = "hit-1",
+    kind: BattleApplyingHitEffectKind = .blinkDefender,
+    totalDuration: TimeInterval = 78.0 / 60.0
+  ) -> BattleApplyingHitEffectTelemetry {
+    .init(
+      playbackID: playbackID,
+      kind: kind,
+      attackerSide: .player,
+      totalDuration: totalDuration
+    )
+  }
+
+  private func makeAttackAnimationManifest() -> BattleAnimationManifest {
+    .init(
+      variant: .red,
+      moveAnimations: [
+        .init(
+          moveID: "TACKLE",
+          commands: [
+            .init(
+              kind: .subanimation,
+              soundMoveID: "TACKLE",
+              subanimationID: "SUBANIM_TEST",
+              specialEffectID: nil,
+              tilesetID: "MOVE_ANIM_TILESET_0",
+              delayFrames: 2
+            ),
+            .init(
+              kind: .specialEffect,
+              soundMoveID: nil,
+              subanimationID: nil,
+              specialEffectID: "SE_DARK_SCREEN_FLASH",
+              tilesetID: nil,
+              delayFrames: nil
+            ),
+          ]
+        ),
+      ],
+      subanimations: [
+        .init(
+          id: "SUBANIM_TEST",
+          transform: .normal,
+          steps: [
+            .init(frameBlockID: "FRAMEBLOCK_TEST", baseCoordinateID: "BASECOORD_TEST", frameBlockMode: .mode00),
+          ]
+        ),
+      ],
+      frameBlocks: [
+        .init(id: "FRAMEBLOCK_TEST", tiles: [.init(x: 0, y: 0, tileID: 0)]),
+      ],
+      baseCoordinates: [
+        .init(id: "BASECOORD_TEST", x: 80, y: 56),
+      ],
+      specialEffects: [
+        .init(id: "SE_DARK_SCREEN_FLASH", routine: "AnimationFlashScreen"),
+      ],
+      tilesets: [
+        .init(id: "MOVE_ANIM_TILESET_0", tileCount: 79, imagePath: "Assets/battle/animations/move_anim_0.png"),
+      ]
+    )
+  }
+
+  private func makeSpecialEffectAnimationManifest(
+    moveID: String,
+    effectID: String
+  ) -> BattleAnimationManifest {
+    .init(
+      variant: .red,
+      moveAnimations: [
+        .init(
+          moveID: moveID,
+          commands: [
+            .init(
+              kind: .specialEffect,
+              soundMoveID: nil,
+              subanimationID: nil,
+              specialEffectID: effectID,
+              tilesetID: nil,
+              delayFrames: nil
+            ),
+          ]
+        ),
+      ],
+      subanimations: [],
+      frameBlocks: [],
+      baseCoordinates: [],
+      specialEffects: [
+        .init(id: effectID, routine: "TestRoutine"),
+      ],
+      tilesets: []
+    )
   }
 }
