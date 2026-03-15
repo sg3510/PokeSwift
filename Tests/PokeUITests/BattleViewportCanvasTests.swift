@@ -149,6 +149,55 @@ extension PokeUITests {
     XCTAssertTrue(frames.contains { $0.state.flashOpacity > 0 })
   }
 
+  func testBattleAttackTimelineBuildsNativeParticlesForMissingSourceEffects() {
+    let particleEffects = [
+      "SE_WATER_DROPLETS_EVERYWHERE",
+      "SE_SPIRAL_BALLS_INWARD",
+      "SE_LEAVES_FALLING",
+      "SE_PETALS_FALLING",
+      "SE_SHOOT_BALLS_UPWARD",
+      "SE_SHOOT_MANY_BALLS_UPWARD",
+    ]
+
+    for effectID in particleEffects {
+      let frames = BattleAttackAnimationTimeline.sequence(
+        for: makeAttackPlayback(moveID: effectID),
+        manifest: makeSpecialEffectAnimationManifest(moveID: effectID, effectID: effectID)
+      )
+
+      XCTAssertFalse(frames.isEmpty, "\(effectID) should produce keyframes")
+      XCTAssertTrue(
+        frames.contains { $0.state.particlePlacements.isEmpty == false },
+        "\(effectID) should emit native particle placements"
+      )
+    }
+  }
+
+  func testBattleAttackTimelineBuildsTransformVisualStateForTransformEffect() {
+    let frames = BattleAttackAnimationTimeline.sequence(
+      for: makeAttackPlayback(moveID: "TRANSFORM"),
+      manifest: makeSpecialEffectAnimationManifest(
+        moveID: "TRANSFORM",
+        effectID: "SE_TRANSFORM_MON"
+      )
+    )
+
+    XCTAssertTrue(frames.contains { $0.state.playerScale != 1 })
+    XCTAssertTrue(frames.contains { $0.state.flashOpacity > 0 })
+  }
+
+  func testBattleAttackTimelineBuildsEnemyHUDShakeState() {
+    let frames = BattleAttackAnimationTimeline.sequence(
+      for: makeAttackPlayback(moveID: "HUD_SHAKE"),
+      manifest: makeSpecialEffectAnimationManifest(
+        moveID: "HUD_SHAKE",
+        effectID: "SE_SHAKE_ENEMY_HUD"
+      )
+    )
+
+    XCTAssertTrue(frames.contains { abs($0.state.enemyHUDOffset.width) > 0.1 })
+  }
+
   func testBattleAttackAnimationDisablesRevisionDrivenAnimationForActiveSide() {
     let playback = makeAttackPlayback()
 
@@ -333,11 +382,12 @@ extension PokeUITests {
   }
 
   private func makeAttackPlayback(
-    playbackID: String = "attack-1"
+    playbackID: String = "attack-1",
+    moveID: String = "TACKLE"
   ) -> BattleAttackAnimationPlaybackTelemetry {
     .init(
       playbackID: playbackID,
-      moveID: "TACKLE",
+      moveID: moveID,
       attackerSide: .player,
       totalDuration: 0.2
     )
@@ -403,6 +453,37 @@ extension PokeUITests {
       tilesets: [
         .init(id: "MOVE_ANIM_TILESET_0", tileCount: 79, imagePath: "Assets/battle/animations/move_anim_0.png"),
       ]
+    )
+  }
+
+  private func makeSpecialEffectAnimationManifest(
+    moveID: String,
+    effectID: String
+  ) -> BattleAnimationManifest {
+    .init(
+      variant: .red,
+      moveAnimations: [
+        .init(
+          moveID: moveID,
+          commands: [
+            .init(
+              kind: .specialEffect,
+              soundMoveID: nil,
+              subanimationID: nil,
+              specialEffectID: effectID,
+              tilesetID: nil,
+              delayFrames: nil
+            ),
+          ]
+        ),
+      ],
+      subanimations: [],
+      frameBlocks: [],
+      baseCoordinates: [],
+      specialEffects: [
+        .init(id: effectID, routine: "TestRoutine"),
+      ],
+      tilesets: []
     )
   }
 }

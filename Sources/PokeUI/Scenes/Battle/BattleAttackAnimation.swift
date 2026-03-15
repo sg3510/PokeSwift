@@ -20,6 +20,23 @@ struct BattleAttackAnimationTilePlacement: Equatable {
     }
 }
 
+enum BattleAttackAnimationParticleKind: Equatable {
+    case orb
+    case droplet
+    case leaf
+    case petal
+}
+
+struct BattleAttackAnimationParticlePlacement: Equatable {
+    let kind: BattleAttackAnimationParticleKind
+    let x: CGFloat
+    let y: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let rotationDegrees: Double
+    let opacity: Double
+}
+
 struct BattleAttackAnimationVisualState: Equatable {
     let playerOffset: CGSize
     let enemyOffset: CGSize
@@ -28,22 +45,71 @@ struct BattleAttackAnimationVisualState: Equatable {
     let playerOpacity: Double
     let enemyOpacity: Double
     let overlayPlacements: [BattleAttackAnimationTilePlacement]
+    let particlePlacements: [BattleAttackAnimationParticlePlacement]
     let screenShake: CGSize
     let flashOpacity: Double
     let darknessOpacity: Double
+    let enemyHUDOffset: CGSize
 
-    static let idle = BattleAttackAnimationVisualState(
-        playerOffset: .zero,
-        enemyOffset: .zero,
-        playerScale: 1,
-        enemyScale: 1,
-        playerOpacity: 1,
-        enemyOpacity: 1,
-        overlayPlacements: [],
-        screenShake: .zero,
-        flashOpacity: 0,
-        darknessOpacity: 0
-    )
+    init(
+        playerOffset: CGSize = .zero,
+        enemyOffset: CGSize = .zero,
+        playerScale: CGFloat = 1,
+        enemyScale: CGFloat = 1,
+        playerOpacity: Double = 1,
+        enemyOpacity: Double = 1,
+        overlayPlacements: [BattleAttackAnimationTilePlacement] = [],
+        particlePlacements: [BattleAttackAnimationParticlePlacement] = [],
+        screenShake: CGSize = .zero,
+        flashOpacity: Double = 0,
+        darknessOpacity: Double = 0,
+        enemyHUDOffset: CGSize = .zero
+    ) {
+        self.playerOffset = playerOffset
+        self.enemyOffset = enemyOffset
+        self.playerScale = playerScale
+        self.enemyScale = enemyScale
+        self.playerOpacity = playerOpacity
+        self.enemyOpacity = enemyOpacity
+        self.overlayPlacements = overlayPlacements
+        self.particlePlacements = particlePlacements
+        self.screenShake = screenShake
+        self.flashOpacity = flashOpacity
+        self.darknessOpacity = darknessOpacity
+        self.enemyHUDOffset = enemyHUDOffset
+    }
+
+    func with(
+        playerOffset: CGSize? = nil,
+        enemyOffset: CGSize? = nil,
+        playerScale: CGFloat? = nil,
+        enemyScale: CGFloat? = nil,
+        playerOpacity: Double? = nil,
+        enemyOpacity: Double? = nil,
+        overlayPlacements: [BattleAttackAnimationTilePlacement]? = nil,
+        particlePlacements: [BattleAttackAnimationParticlePlacement]? = nil,
+        screenShake: CGSize? = nil,
+        flashOpacity: Double? = nil,
+        darknessOpacity: Double? = nil,
+        enemyHUDOffset: CGSize? = nil
+    ) -> BattleAttackAnimationVisualState {
+        .init(
+            playerOffset: playerOffset ?? self.playerOffset,
+            enemyOffset: enemyOffset ?? self.enemyOffset,
+            playerScale: playerScale ?? self.playerScale,
+            enemyScale: enemyScale ?? self.enemyScale,
+            playerOpacity: playerOpacity ?? self.playerOpacity,
+            enemyOpacity: enemyOpacity ?? self.enemyOpacity,
+            overlayPlacements: overlayPlacements ?? self.overlayPlacements,
+            particlePlacements: particlePlacements ?? self.particlePlacements,
+            screenShake: screenShake ?? self.screenShake,
+            flashOpacity: flashOpacity ?? self.flashOpacity,
+            darknessOpacity: darknessOpacity ?? self.darknessOpacity,
+            enemyHUDOffset: enemyHUDOffset ?? self.enemyHUDOffset
+        )
+    }
+
+    static let idle = BattleAttackAnimationVisualState()
 }
 
 struct BattleAttackAnimationKeyframe: Equatable {
@@ -226,62 +292,46 @@ enum BattleAttackAnimationTimeline {
 
         func applyToAttacker(offset: CGSize = .zero, scale: CGFloat = 1, opacity: Double = 1) {
             if attackerSide == .player {
-                state = .init(
+                state = state.with(
                     playerOffset: offset,
-                    enemyOffset: state.enemyOffset,
                     playerScale: scale,
-                    enemyScale: state.enemyScale,
-                    playerOpacity: opacity,
-                    enemyOpacity: state.enemyOpacity,
-                    overlayPlacements: state.overlayPlacements,
-                    screenShake: state.screenShake,
-                    flashOpacity: state.flashOpacity,
-                    darknessOpacity: state.darknessOpacity
+                    playerOpacity: opacity
                 )
             } else {
-                state = .init(
-                    playerOffset: state.playerOffset,
+                state = state.with(
                     enemyOffset: offset,
-                    playerScale: state.playerScale,
                     enemyScale: scale,
-                    playerOpacity: state.playerOpacity,
-                    enemyOpacity: opacity,
-                    overlayPlacements: state.overlayPlacements,
-                    screenShake: state.screenShake,
-                    flashOpacity: state.flashOpacity,
-                    darknessOpacity: state.darknessOpacity
+                    enemyOpacity: opacity
                 )
             }
         }
 
         func applyToDefender(offset: CGSize = .zero, scale: CGFloat = 1, opacity: Double = 1) {
             if attackerSide == .player {
-                state = .init(
-                    playerOffset: state.playerOffset,
+                state = state.with(
                     enemyOffset: offset,
-                    playerScale: state.playerScale,
                     enemyScale: scale,
-                    playerOpacity: state.playerOpacity,
-                    enemyOpacity: opacity,
-                    overlayPlacements: state.overlayPlacements,
-                    screenShake: state.screenShake,
-                    flashOpacity: state.flashOpacity,
-                    darknessOpacity: state.darknessOpacity
+                    enemyOpacity: opacity
                 )
             } else {
-                state = .init(
+                state = state.with(
                     playerOffset: offset,
-                    enemyOffset: state.enemyOffset,
                     playerScale: scale,
-                    enemyScale: state.enemyScale,
-                    playerOpacity: opacity,
-                    enemyOpacity: state.enemyOpacity,
-                    overlayPlacements: state.overlayPlacements,
-                    screenShake: state.screenShake,
-                    flashOpacity: state.flashOpacity,
-                    darknessOpacity: state.darknessOpacity
+                    playerOpacity: opacity
                 )
             }
+        }
+
+        func defenderFocusPoint() -> CGPoint {
+            attackerSide == .player
+                ? CGPoint(x: 112, y: 46)
+                : CGPoint(x: 52, y: 96)
+        }
+
+        func attackerFocusPoint() -> CGPoint {
+            attackerSide == .player
+                ? CGPoint(x: 52, y: 96)
+                : CGPoint(x: 112, y: 46)
         }
 
         switch effectID {
@@ -294,9 +344,11 @@ enum BattleAttackAnimationTimeline {
                 playerOpacity: 1,
                 enemyOpacity: 1,
                 overlayPlacements: [],
+                particlePlacements: [],
                 screenShake: .zero,
                 flashOpacity: Double(0.75 - (0.35 * progress)),
-                darknessOpacity: Double(0.2 + (0.2 * progress))
+                darknessOpacity: Double(0.2 + (0.2 * progress)),
+                enemyHUDOffset: .zero
             )
         case "SE_FLASH_SCREEN_LONG", "SE_LIGHT_SCREEN_PALETTE":
             state = .init(
@@ -307,9 +359,11 @@ enum BattleAttackAnimationTimeline {
                 playerOpacity: 1,
                 enemyOpacity: 1,
                 overlayPlacements: [],
+                particlePlacements: [],
                 screenShake: .zero,
                 flashOpacity: Double(0.55 - (0.3 * progress)),
-                darknessOpacity: 0
+                darknessOpacity: 0,
+                enemyHUDOffset: .zero
             )
         case "SE_DARK_SCREEN_PALETTE", "SE_DARKEN_MON_PALETTE":
             state = .init(
@@ -320,9 +374,11 @@ enum BattleAttackAnimationTimeline {
                 playerOpacity: 1,
                 enemyOpacity: 1,
                 overlayPlacements: [],
+                particlePlacements: [],
                 screenShake: .zero,
                 flashOpacity: 0,
-                darknessOpacity: 0.35
+                darknessOpacity: 0.35,
+                enemyHUDOffset: .zero
             )
         case "SE_SHAKE_SCREEN":
             state = .init(
@@ -333,9 +389,11 @@ enum BattleAttackAnimationTimeline {
                 playerOpacity: 1,
                 enemyOpacity: 1,
                 overlayPlacements: [],
+                particlePlacements: [],
                 screenShake: CGSize(width: sin(progress * .pi * 6) * 3, height: cos(progress * .pi * 4) * 1.5),
                 flashOpacity: 0,
-                darknessOpacity: 0
+                darknessOpacity: 0,
+                enemyHUDOffset: .zero
             )
         case "SE_MOVE_MON_HORIZONTALLY":
             applyToAttacker(offset: .init(width: attackerDirection * sin(progress * .pi) * 14, height: 0))
@@ -373,6 +431,65 @@ enum BattleAttackAnimationTimeline {
             applyToDefender(opacity: isBlinkFrame ? 0.2 : 1)
         case "SE_SLIDE_ENEMY_MON_OFF":
             applyToDefender(offset: .init(width: -attackerDirection * 42 * progress, height: 0), opacity: Double(1 - progress))
+        case "SE_TRANSFORM_MON":
+            let pulse = 0.8 + (abs(sin(progress * .pi * 4)) * 0.22)
+            let shimmerOpacity = Double(0.58 + (abs(cos(progress * .pi * 4)) * 0.42))
+            applyToAttacker(scale: pulse, opacity: shimmerOpacity)
+            state = state.with(
+                flashOpacity: Double(abs(sin(progress * .pi * 4)) * 0.2),
+                darknessOpacity: Double((1 - progress) * 0.12)
+            )
+        case "SE_SPIRAL_BALLS_INWARD":
+            state = state.with(
+                particlePlacements: spiralParticles(
+                    around: defenderFocusPoint(),
+                    progress: progress
+                )
+            )
+        case "SE_WATER_DROPLETS_EVERYWHERE":
+            state = state.with(
+                particlePlacements: waterDropletParticles(progress: progress)
+            )
+        case "SE_LEAVES_FALLING":
+            state = state.with(
+                particlePlacements: fallingParticles(
+                    kind: .leaf,
+                    progress: progress,
+                    driftAmplitude: 14,
+                    verticalTravel: 118,
+                    baseRotation: 75
+                )
+            )
+        case "SE_PETALS_FALLING":
+            state = state.with(
+                particlePlacements: fallingParticles(
+                    kind: .petal,
+                    progress: progress,
+                    driftAmplitude: 10,
+                    verticalTravel: 108,
+                    baseRotation: 130
+                )
+            )
+        case "SE_SHOOT_BALLS_UPWARD":
+            state = state.with(
+                particlePlacements: upwardShotParticles(
+                    origin: attackerFocusPoint(),
+                    progress: progress,
+                    count: 3
+                )
+            )
+        case "SE_SHOOT_MANY_BALLS_UPWARD":
+            state = state.with(
+                particlePlacements: upwardShotParticles(
+                    origin: attackerFocusPoint(),
+                    progress: progress,
+                    count: 5
+                )
+            )
+        case "SE_SHAKE_ENEMY_HUD", "SE_SHAKE_ENEMY_HUD_2":
+            state = state.with(
+                enemyHUDOffset: .init(width: sin(progress * .pi * 8) * 3, height: 0)
+            )
         case "SE_WAVY_SCREEN":
             state = .init(
                 playerOffset: .zero,
@@ -382,15 +499,106 @@ enum BattleAttackAnimationTimeline {
                 playerOpacity: 1,
                 enemyOpacity: 1,
                 overlayPlacements: [],
+                particlePlacements: [],
                 screenShake: CGSize(width: sin(progress * .pi * 4) * 2, height: 0),
                 flashOpacity: 0,
-                darknessOpacity: 0
+                darknessOpacity: 0,
+                enemyHUDOffset: .zero
             )
         default:
             break
         }
 
         return state
+    }
+
+    private static func spiralParticles(
+        around center: CGPoint,
+        progress: CGFloat
+    ) -> [BattleAttackAnimationParticlePlacement] {
+        let rotations: CGFloat = 1.8
+        let radius = max(4, 28 - (progress * 22))
+        return (0..<4).map { index in
+            let phase = (CGFloat(index) / 4) * (.pi * 2)
+            let angle = (progress * (.pi * 2) * rotations) + phase
+            return .init(
+                kind: .orb,
+                x: center.x + cos(angle) * radius,
+                y: center.y + sin(angle) * radius * 0.7,
+                width: 6,
+                height: 6,
+                rotationDegrees: Double(angle * 180 / .pi),
+                opacity: Double(0.55 + ((1 - progress) * 0.35))
+            )
+        }
+    }
+
+    private static func waterDropletParticles(
+        progress: CGFloat
+    ) -> [BattleAttackAnimationParticlePlacement] {
+        (0..<8).map { index in
+            let baseX = CGFloat(12 + (index * 18))
+            let startY = CGFloat(-18 - ((index % 3) * 8))
+            let travel = progress * 132
+            let drift = sin((progress * .pi * 2) + (CGFloat(index) * 0.6)) * 4
+            return .init(
+                kind: .droplet,
+                x: min(CGFloat(viewportWidth - 8), baseX + drift),
+                y: startY + travel,
+                width: 4,
+                height: 9,
+                rotationDegrees: Double(drift * 3),
+                opacity: Double(0.7 + (0.2 * (1 - progress)))
+            )
+        }
+    }
+
+    private static func fallingParticles(
+        kind: BattleAttackAnimationParticleKind,
+        progress: CGFloat,
+        driftAmplitude: CGFloat,
+        verticalTravel: CGFloat,
+        baseRotation: Double
+    ) -> [BattleAttackAnimationParticlePlacement] {
+        (0..<6).map { index in
+            let laneProgress = progress + (CGFloat(index) * 0.03)
+            let wrappedProgress = laneProgress.truncatingRemainder(dividingBy: 1)
+            let baseX = CGFloat(18 + (index * 22))
+            let startY = CGFloat(-20 - ((index % 2) * 10))
+            let drift = sin((wrappedProgress * .pi * 2) + (CGFloat(index) * 0.75)) * driftAmplitude
+            let size: CGFloat = kind == .leaf ? 8 : 6
+            return .init(
+                kind: kind,
+                x: baseX + drift,
+                y: startY + (wrappedProgress * verticalTravel),
+                width: size,
+                height: kind == .leaf ? 4 : 5,
+                rotationDegrees: baseRotation + Double((wrappedProgress * 360) + (CGFloat(index) * 20)),
+                opacity: Double(0.65 + (0.25 * (1 - wrappedProgress)))
+            )
+        }
+    }
+
+    private static func upwardShotParticles(
+        origin: CGPoint,
+        progress: CGFloat,
+        count: Int
+    ) -> [BattleAttackAnimationParticlePlacement] {
+        let halfSpread = CGFloat(count - 1) / 2
+        return (0..<count).map { index in
+            let relativeIndex = CGFloat(index) - halfSpread
+            let xSpread = relativeIndex * 8
+            let arcLift = abs(sin((progress * .pi * 2) + (CGFloat(index) * 0.4))) * 5
+            return .init(
+                kind: .orb,
+                x: origin.x + xSpread + (relativeIndex * progress * 2),
+                y: origin.y - (progress * 48) - arcLift,
+                width: 5,
+                height: 5,
+                rotationDegrees: Double(relativeIndex * 24),
+                opacity: Double(0.5 + ((1 - progress) * 0.45))
+            )
+        }
     }
 
     private static func renderPlacements(

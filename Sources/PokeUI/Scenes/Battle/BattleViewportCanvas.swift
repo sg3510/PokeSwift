@@ -169,6 +169,13 @@ struct BattleViewportCanvas: View {
                 )
             }
 
+            if currentAttackAnimationState.particlePlacements.isEmpty == false {
+                BattleAttackAnimationParticleLayerView(
+                    placements: currentAttackAnimationState.particlePlacements,
+                    displayScale: displayScale
+                )
+            }
+
             if shouldShowPokeball {
                 BattlePokeballToken()
                     .frame(width: max(8, size.width * 0.05), height: max(8, size.width * 0.05))
@@ -218,7 +225,7 @@ struct BattleViewportCanvas: View {
         .frame(width: layout.enemyCardSize.width, height: layout.enemyCardSize.height)
         .position(x: layout.enemyCardCenter.x, y: layout.enemyCardCenter.y)
         .opacity(enemyHudOpacity)
-        .offset(y: enemyHudOffset)
+        .offset(x: enemyHudOffset.width, y: enemyHudOffset.height)
         .animation(hudAnimation, value: presentation.revision)
 
         BattleStatusCard(
@@ -425,8 +432,12 @@ struct BattleViewportCanvas: View {
         return 1
     }
 
-    private var enemyHudOffset: CGFloat {
-        enemyHudOpacity > 0 ? 0 : 14
+    private var enemyHudOffset: CGSize {
+        let hiddenOffset: CGFloat = enemyHudOpacity > 0 ? 0 : 14
+        return .init(
+            width: currentAttackAnimationState.enemyHUDOffset.width,
+            height: hiddenOffset + currentAttackAnimationState.enemyHUDOffset.height
+        )
     }
 
     private var playerHudOffset: CGFloat {
@@ -1075,6 +1086,53 @@ private struct BattleAttackAnimationLayerView: View {
                     )
                 }
             }
+        }
+    }
+}
+
+private struct BattleAttackAnimationParticleLayerView: View {
+    let placements: [BattleAttackAnimationParticlePlacement]
+    let displayScale: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(placements.enumerated()), id: \.offset) { _, placement in
+                particleView(for: placement)
+                    .frame(
+                        width: placement.width * displayScale,
+                        height: placement.height * displayScale
+                    )
+                    .rotationEffect(.degrees(placement.rotationDegrees))
+                    .opacity(placement.opacity)
+                    .offset(
+                        x: placement.x * displayScale,
+                        y: placement.y * displayScale
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func particleView(
+        for placement: BattleAttackAnimationParticlePlacement
+    ) -> some View {
+        switch placement.kind {
+        case .orb:
+            Circle()
+                .fill(Color(white: 0.2))
+                .overlay {
+                    Circle()
+                        .stroke(Color(white: 0.85), lineWidth: max(1, 0.8 * displayScale))
+                }
+        case .droplet:
+            Capsule(style: .circular)
+                .fill(Color(white: 0.78))
+        case .leaf:
+            Capsule(style: .circular)
+                .fill(Color(white: 0.32))
+        case .petal:
+            Ellipse()
+                .fill(Color(white: 0.68))
         }
     }
 }
