@@ -513,9 +513,18 @@ func repoRoot() -> URL {
 }
 
 @MainActor
+private var cachedRepoContent: LoadedContent?
+
+@MainActor
 func loadRepoContent() throws -> LoadedContent {
+    if let cachedRepoContent {
+        return cachedRepoContent
+    }
+
     let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-    return try FileSystemContentLoader(rootURL: contentRoot).load()
+    let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+    cachedRepoContent = content
+    return content
 }
 
 @MainActor

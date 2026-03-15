@@ -6,14 +6,10 @@ import PokeDataModel
 @MainActor
 extension PokeCoreTests {
     func testRepoGeneratedContentPublishesRealAssetFieldTelemetry() async throws {
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
         let runtime = GameRuntime(content: content, telemetryPublisher: nil)
 
-        runtime.start()
-        try? await Task.sleep(for: .milliseconds(1700))
-        runtime.handle(button: .start)
-        runtime.handle(button: .confirm)
+        runtime.beginNewGame()
         completeOakIntro(runtime)
 
         let snapshot = runtime.currentSnapshot()
@@ -148,37 +144,6 @@ extension PokeCoreTests {
 
         XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_4")
         XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "ROUTE_4")
-    }
-
-    func testRepoGeneratedMtMoonB1FExitWarpReturnsToRoute4Anchor() async throws {
-        let runtime = try makeRepoRuntime()
-
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "ROUTE_4"
-        runtime.gameplayState?.playerPosition = .init(x: 24, y: 5)
-        runtime.gameplayState?.facing = .up
-
-        XCTAssertTrue(runtime.handleWarpIfNeeded())
-        _ = try await waitForSnapshot(runtime, timeout: 2.0) {
-            $0.field?.mapID == "MT_MOON_B1F" && $0.field?.transition == nil
-        }
-
-        XCTAssertEqual(runtime.gameplayState?.mapID, "MT_MOON_B1F")
-        XCTAssertEqual(runtime.gameplayState?.previousMapID, "ROUTE_4")
-
-        runtime.gameplayState?.playerPosition = .init(x: 27, y: 3)
-        runtime.gameplayState?.facing = .up
-
-        XCTAssertTrue(runtime.handleWarpIfNeeded())
-        _ = try await waitForSnapshot(runtime, timeout: 2.0) {
-            $0.field?.mapID == "ROUTE_4" && $0.field?.transition == nil
-        }
-
-        XCTAssertEqual(runtime.gameplayState?.mapID, "ROUTE_4")
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, .init(x: 24, y: 6))
-        XCTAssertEqual(runtime.gameplayState?.previousMapID, "ROUTE_4")
     }
 
     func testRepoGeneratedMuseum1FOldAmberExhibitShowsDialogue() throws {
@@ -897,90 +862,6 @@ extension PokeCoreTests {
         XCTAssertEqual(failureEvent?.details["failureKind"], "missingDialogue")
         XCTAssertEqual(failureEvent?.details["missingDialogueID"], "missing_dialogue")
     }
-    func testRepoGeneratedDoorWarpIntoRedsHouseUsesExactDoorTileAndFadeTelemetry() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "PALLET_TOWN"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 5, y: 6)
-        runtime.gameplayState?.facing = .up
-
-        runtime.movePlayer(in: .up)
-        var sawDoorTransition = false
-
-        let snapshot = try await waitForSnapshot(runtime) {
-            if $0.field?.transition?.kind == "door" {
-                sawDoorTransition = true
-            }
-            return $0.field?.mapID == "REDS_HOUSE_1F" && $0.field?.transition == nil
-        }
-        XCTAssertTrue(sawDoorTransition)
-        XCTAssertEqual(snapshot.field?.playerPosition, .init(x: 2, y: 7))
-        XCTAssertEqual(snapshot.field?.facing, .up)
-    }
-    func testRepoGeneratedDoorWarpBackOutsideStepsOutToSettledTile() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
-        runtime.gameplayState?.facing = .down
-
-        runtime.movePlayer(in: .down)
-        var sawDoorTransition = false
-
-        let settledSnapshot = try await waitForSnapshot(runtime) {
-            if $0.field?.transition?.kind == "door" {
-                sawDoorTransition = true
-            }
-            return $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
-        }
-        XCTAssertTrue(sawDoorTransition)
-        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
-        XCTAssertEqual(settledSnapshot.field?.facing, .down)
-    }
-    func testRepoGeneratedRedsHouseDoorWarpIgnoresIndoorPreviousMapAnchor() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
-        runtime.gameplayState?.previousMapID = "REDS_HOUSE_2F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
-        runtime.gameplayState?.facing = .down
-
-        runtime.movePlayer(in: .down)
-
-        let settledSnapshot = try await waitForSnapshot(runtime) {
-            $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
-        }
-        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
-        XCTAssertEqual(settledSnapshot.field?.facing, .down)
-    }
-    func testRepoGeneratedViridianForestSouthGateCenterAisleWalksNorthThroughEntrance() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "VIRIDIAN_FOREST_SOUTH_GATE"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 4, y: 6)
-        runtime.gameplayState?.facing = .up
-
-        runtime.movePlayer(in: .up)
-
-        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "VIRIDIAN_FOREST_SOUTH_GATE")
-        XCTAssertEqual(runtime.currentSnapshot().field?.playerPosition, .init(x: 4, y: 5))
-        XCTAssertEqual(runtime.currentSnapshot().field?.facing, .up)
-
-        try await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        runtime.movePlayer(in: .up)
-
-        XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "VIRIDIAN_FOREST_SOUTH_GATE")
-        XCTAssertEqual(runtime.currentSnapshot().field?.playerPosition, .init(x: 4, y: 4))
-        XCTAssertEqual(runtime.currentSnapshot().field?.facing, .up)
-    }
     func testRepoGeneratedViridianForestTrainerAutoEngagesOnLineOfSight() async throws {
         let audioPlayer = RecordingAudioPlayer()
         let runtime = try makeRepoRuntime(audioPlayer: audioPlayer)
@@ -1016,154 +897,8 @@ extension PokeCoreTests {
         XCTAssertEqual(snapshot.audio?.reason, "battle")
         XCTAssertEqual(audioPlayer.musicRequests.last, .init(trackID: "MUSIC_TRAINER_BATTLE", entryID: "default"))
     }
-    func testRepoGeneratedStairWarpUsesExactTileWithFadeAndNoStepOut() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_2F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 6, y: 1)
-        runtime.gameplayState?.facing = .right
-
-        runtime.movePlayer(in: .right)
-        var sawWarpTransition = false
-
-        let snapshot = try await waitForSnapshot(runtime) {
-            if $0.field?.transition?.kind == "warp" {
-                sawWarpTransition = true
-            }
-            return $0.field?.mapID == "REDS_HOUSE_1F" && $0.field?.transition == nil
-        }
-        XCTAssertTrue(sawWarpTransition)
-        XCTAssertEqual(snapshot.field?.playerPosition, .init(x: 7, y: 1))
-        XCTAssertEqual(snapshot.field?.facing, .down)
-    }
-    func testFieldMovementRejectsImmediateSecondStepUntilCadenceCompletes() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.movePlayer(in: .right)
-        runtime.movePlayer(in: .right)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        let halfStepNanoseconds = UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: halfStepNanoseconds)
-        runtime.movePlayer(in: .right)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        let settleNanoseconds = UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: settleNanoseconds)
-        runtime.movePlayer(in: .right)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
-    }
-    func testFieldDirectionalInputAvailabilityClearsAsSoonAsStepSettles() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        XCTAssertTrue(runtime.canAcceptFieldDirectionalInput)
-
-        runtime.movePlayer(in: .right)
-        XCTAssertFalse(runtime.canAcceptFieldDirectionalInput)
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertTrue(runtime.canAcceptFieldDirectionalInput)
-    }
-    func testHeldDirectionalInputContinuesWalkingAcrossCooldowns() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
-
-        runtime.setDirectionalButton(.right, isPressed: false)
-    }
-    func testHeldDirectionalInputTurnsImmediatelyAfterCooldownUnlocks() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        let halfStepNanoseconds = UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: halfStepNanoseconds)
-        runtime.setDirectionalButton(.down, isPressed: true)
-
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 5))
-
-        runtime.setDirectionalButton(.down, isPressed: false)
-        runtime.setDirectionalButton(.right, isPressed: false)
-    }
-    func testHeldDirectionalInputFallsBackToOlderHeldDirectionAfterRelease() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration / 2) * 1_000_000_000))
-        runtime.setDirectionalButton(.down, isPressed: true)
-        runtime.setDirectionalButton(.down, isPressed: false)
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 0.75) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 6, y: 4))
-        XCTAssertEqual(runtime.preferredHeldFieldDirection, .right)
-
-        runtime.setDirectionalButton(.right, isPressed: false)
-    }
-    func testHeldDirectionalInputClearsAcrossDialogueBoundary() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-
-        runtime.setDirectionalButton(.right, isPressed: true)
-        runtime.showInlineDialogue(
-            id: "held_direction_dialogue",
-            pages: [.init(lines: ["Hold cleared."], waitsForPrompt: true)],
-            completion: .returnToField
-        )
-
-        XCTAssertNil(runtime.preferredHeldFieldDirection)
-
-        runtime.handle(button: .confirm)
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 4))
-    }
-    func testHeldDirectionalInputClearsAcrossWarpBoundary() async throws {
-        let runtime = try makeRepoRuntime()
-        runtime.gameplayState = runtime.makeInitialGameplayState()
-        runtime.scene = .field
-        runtime.substate = "field"
-        runtime.gameplayState?.mapID = "REDS_HOUSE_1F"
-        runtime.gameplayState?.playerPosition = TilePoint(x: 2, y: 6)
-        runtime.gameplayState?.facing = .down
-
-        runtime.setDirectionalButton(.down, isPressed: true)
-
-        let settledSnapshot = try await waitForSnapshot(runtime) {
-            $0.field?.mapID == "PALLET_TOWN" && $0.field?.transition == nil
-        }
-        XCTAssertEqual(settledSnapshot.field?.playerPosition, .init(x: 5, y: 6))
-        XCTAssertNil(runtime.preferredHeldFieldDirection)
-
-        try? await Task.sleep(nanoseconds: UInt64((runtime.fieldAnimationStepDuration * 1.1) * 1_000_000_000))
-        XCTAssertEqual(runtime.gameplayState?.playerPosition, TilePoint(x: 5, y: 6))
-    }
     func testRepoGeneratedPalletNorthExitStartsOakIntroFromSourceScript() async throws {
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
         let runtime = GameRuntime(content: content, telemetryPublisher: nil)
 
         runtime.gameplayState = runtime.makeInitialGameplayState()

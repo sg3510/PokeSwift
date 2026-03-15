@@ -2,7 +2,7 @@ import Foundation
 import PokeDataModel
 
 extension GameRuntime {
-    private static let evolutionSwapDurations: [Duration] = [
+    private static let baseEvolutionSwapDurations: [Duration] = [
         .milliseconds(820),
         .milliseconds(720),
         .milliseconds(640),
@@ -20,6 +20,14 @@ extension GameRuntime {
         .milliseconds(75),
         .milliseconds(55),
     ]
+
+    private var evolutionSwapDurations: [Duration] {
+        guard validationMode || isTestEnvironment else {
+            return Self.baseEvolutionSwapDurations
+        }
+
+        return Array(repeating: .milliseconds(5), count: Self.baseEvolutionSwapDurations.count)
+    }
 
     func beginPendingEvolutionIfNeeded(
         from battle: RuntimeBattleState,
@@ -106,7 +114,8 @@ extension GameRuntime {
         evolutionTask?.cancel()
         evolutionTask = Task { [weak self] in
             guard let self, Task.isCancelled == false else { return }
-            for (index, duration) in Self.evolutionSwapDurations.enumerated() {
+            let durations = self.evolutionSwapDurations
+            for (index, duration) in durations.enumerated() {
                 try? await Task.sleep(for: duration)
                 guard Task.isCancelled == false else { return }
                 self.advanceEvolutionAnimation(step: index + 1)
@@ -140,7 +149,7 @@ extension GameRuntime {
         self.gameplayState = gameplayState
 
         evolutionState.phase = .evolved
-        evolutionState.animationStep = Self.evolutionSwapDurations.count
+        evolutionState.animationStep = Self.baseEvolutionSwapDurations.count
         evolutionState.showsEvolvedSprite = true
         self.evolutionState = evolutionState
         substate = "evolution_evolved"

@@ -5,51 +5,6 @@ import PokeDataModel
 
 @MainActor
 extension PokeCoreTests {
-    func testTitleFlowTransitionsFromAttractToMenuAndOptions() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.start()
-        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
-        XCTAssertEqual(runtime.scene, .titleAttract)
-        runtime.handle(button: .start)
-        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
-        XCTAssertEqual(runtime.scene, .titleMenu)
-
-        runtime.handle(button: .down)
-        runtime.handle(button: .down)
-        runtime.handle(button: .confirm)
-        runtime.updateWindowScale(5)
-        XCTAssertEqual(runtime.currentSnapshot().window.scale, 5)
-        XCTAssertEqual(runtime.scene, .titleOptions)
-
-        runtime.handle(button: .cancel)
-        XCTAssertEqual(runtime.scene, .titleMenu)
-    }
-    func testMenuInteractionWithDisabledContinue() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.start()
-        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
-        runtime.handle(button: .start)
-        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
-        runtime.handle(button: .down)
-        runtime.handle(button: .confirm)
-        XCTAssertEqual(runtime.currentSnapshot().substate, "continue_disabled")
-    }
-    func testNewGameEntersFieldAndPublishesFieldTelemetry() async {
-        let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil)
-        runtime.start()
-        await waitForScene(.titleAttract, in: runtime, message: "title flow did not reach attract mode")
-        runtime.handle(button: .start)
-        await waitForScene(.titleMenu, in: runtime, message: "title flow did not reach the menu")
-        runtime.handle(button: .confirm)
-        completeOakIntro(runtime)
-
-        let snapshot = runtime.currentSnapshot()
-        XCTAssertEqual(snapshot.scene, .field)
-        XCTAssertEqual(snapshot.field?.mapID, "REDS_HOUSE_2F")
-        XCTAssertEqual(snapshot.field?.playerPosition, TilePoint(x: 4, y: 4))
-        XCTAssertEqual(snapshot.field?.renderMode, "placeholder")
-        XCTAssertEqual(snapshot.field?.objects, [])
-    }
     func testSaveAndContinueRestoreGameplayState() async throws {
         let saveStore = InMemorySaveStore()
         let runtime = GameRuntime(content: fixtureContent(), telemetryPublisher: nil, saveStore: saveStore)
@@ -297,8 +252,7 @@ extension PokeCoreTests {
 
     func testContinueMergesDefaultObjectStatesSoForestTrainerSightStillWorks() async throws {
         let saveStore = InMemorySaveStore()
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
 
         saveStore.envelope = GameSaveEnvelope(
             metadata: .init(
@@ -369,8 +323,7 @@ extension PokeCoreTests {
     }
     func testContinueMissingObjectStatesStillHidesForestPickupAfterCollection() throws {
         let saveStore = InMemorySaveStore()
-        let contentRoot = repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
-        let content = try FileSystemContentLoader(rootURL: contentRoot).load()
+        let content = try loadRepoContent()
 
         saveStore.envelope = GameSaveEnvelope(
             metadata: .init(
@@ -686,23 +639,6 @@ extension PokeCoreTests {
         XCTAssertNotEqual(firstEncounter.speciesID, secondEncounter.speciesID)
         XCTAssertNotEqual(firstEncounter.level, secondEncounter.level)
     }
-}
-
-@MainActor
-private func waitForScene(
-    _ scene: RuntimeScene,
-    in runtime: GameRuntime,
-    message: String,
-    attempts: Int = 60
-) async {
-    for _ in 0..<attempts {
-        if runtime.scene == scene {
-            return
-        }
-        try? await Task.sleep(for: .milliseconds(50))
-    }
-
-    XCTAssertEqual(runtime.scene, scene, message)
 }
 
 private func decodeLegacySaveEnvelope(

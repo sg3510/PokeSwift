@@ -53,6 +53,7 @@
 - For a full Swift workspace test sweep, run:
   - `xcodebuild -workspace PokeSwift.xcworkspace -scheme PokeSwift-Workspace -derivedDataPath .build/DerivedData test`
 - Prefer the smallest relevant `xcodebuild` build/test invocation for the touched target while iterating, then run the broader validation needed for the change class before finalizing.
+- Do not add tests that wait on animation cadence, presentation beats, transition delays, or title/field/battle timing. Assert the resulting gameplay state, telemetry, or requested audio instead of sleeping/polling for visual timing.
 
 ## Change-Specific Expectations
 
