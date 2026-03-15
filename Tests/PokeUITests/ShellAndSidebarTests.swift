@@ -712,7 +712,12 @@ extension PokeUITests {
       ],
       focusedMoveIndex: 1,
       canRun: true,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
 
     XCTAssertEqual(props.actionRows.map(\.kind), [.move, .move, .run])
@@ -766,7 +771,12 @@ extension PokeUITests {
           accuracy: 100
         )
       ],
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
 
     let moveAction = try XCTUnwrap(props.actionRows.first)
@@ -923,6 +933,135 @@ extension PokeUITests {
     XCTAssertTrue(wildPlayerSendOutProps.showsEnemyCombatantStatus)
     XCTAssertTrue(wildPlayerSendOutProps.showsPlayerCombatantStatus)
   }
+  func testBattleSidebarActionRowsOnlyAppearWhenBattleInputIsReady() {
+    func makeProps(
+      phase: String,
+      presentation: BattlePresentationTelemetry,
+      learnMovePrompt: BattleLearnMovePromptTelemetry? = nil
+    ) -> BattleSidebarProps {
+      BattleSidebarProps(
+        trainerName: "PIDGEY",
+        kind: .wild,
+        phase: phase,
+        promptText: "Pick the next move.",
+        playerPokemon: .init(
+          speciesID: "BULBASAUR",
+          displayName: "Bulbasaur",
+          level: 5,
+          currentHP: 19,
+          maxHP: 19,
+          attack: 11,
+          defense: 10,
+          speed: 9,
+          special: 12,
+          moves: ["TACKLE", "GROWL"]
+        ),
+        enemyPokemon: .init(
+          speciesID: "PIDGEY",
+          displayName: "Pidgey",
+          level: 3,
+          currentHP: 12,
+          maxHP: 12,
+          attack: 8,
+          defense: 8,
+          speed: 10,
+          special: 7,
+          moves: ["TACKLE"]
+        ),
+        learnMovePrompt: learnMovePrompt,
+        moveSlots: [
+          .init(moveID: "TACKLE", displayName: "Tackle", currentPP: 35, maxPP: 35, isSelectable: true),
+          .init(moveID: "GROWL", displayName: "Growl", currentPP: 40, maxPP: 40, isSelectable: true),
+        ],
+        focusedMoveIndex: 0,
+        canRun: true,
+        party: .init(pokemon: []),
+        presentation: presentation
+      )
+    }
+
+    let introProps = makeProps(
+      phase: "introText",
+      presentation: .init(
+        stage: .introReveal,
+        revision: 1,
+        uiVisibility: .visible
+      )
+    )
+    let sendOutProps = makeProps(
+      phase: "moveSelection",
+      presentation: .init(
+        stage: .enemySendOut,
+        revision: 2,
+        uiVisibility: .visible,
+        activeSide: .player
+      )
+    )
+    let turnTextProps = makeProps(
+      phase: "turnText",
+      presentation: .init(
+        stage: .resultText,
+        revision: 3,
+        uiVisibility: .visible,
+        activeSide: .player
+      )
+    )
+    let bagSelectionProps = makeProps(
+      phase: "bagSelection",
+      presentation: .init(
+        stage: .commandReady,
+        revision: 4,
+        uiVisibility: .visible
+      )
+    )
+    let commandReadyProps = makeProps(
+      phase: "moveSelection",
+      presentation: .init(
+        stage: .commandReady,
+        revision: 5,
+        uiVisibility: .visible
+      )
+    )
+    let learnPromptProps = makeProps(
+      phase: "learnMoveDecision",
+      presentation: .init(
+        stage: .resultText,
+        revision: 6,
+        uiVisibility: .visible
+      ),
+      learnMovePrompt: .init(
+        pokemonName: "Bulbasaur",
+        moveID: "VINE_WHIP",
+        moveDisplayName: "VINE WHIP",
+        stage: .confirm
+      )
+    )
+    let trainerDecisionProps = BattleSidebarProps(
+      trainerName: "BUG CATCHER",
+      kind: .trainer,
+      phase: "trainerAboutToUseDecision",
+      promptText: "Will RED change #MON?",
+      playerPokemon: commandReadyProps.playerPokemon,
+      enemyPokemon: commandReadyProps.enemyPokemon,
+      moveSlots: commandReadyProps.moveSlots,
+      focusedMoveIndex: 0,
+      canRun: false,
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .resultText,
+        revision: 7,
+        uiVisibility: .visible
+      )
+    )
+
+    XCTAssertTrue(introProps.actionRows.isEmpty)
+    XCTAssertTrue(sendOutProps.actionRows.isEmpty)
+    XCTAssertTrue(turnTextProps.actionRows.isEmpty)
+    XCTAssertTrue(bagSelectionProps.actionRows.isEmpty)
+    XCTAssertEqual(commandReadyProps.actionRows.map(\.kind), [.move, .move, .run])
+    XCTAssertEqual(learnPromptProps.actionRows.map(\.kind), [.learn, .skip])
+    XCTAssertEqual(trainerDecisionProps.actionRows.map(\.kind), [.confirm, .deny])
+  }
   func testBattleSidebarActionRowsFocusRunOnlyForWildBattles() {
     let wildProps = BattleSidebarProps(
       trainerName: "PIDGEY",
@@ -960,7 +1099,12 @@ extension PokeUITests {
       ],
       focusedMoveIndex: 2,
       canRun: true,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
     let trainerProps = BattleSidebarProps(
       trainerName: "BLUE",
@@ -972,7 +1116,12 @@ extension PokeUITests {
       moveSlots: wildProps.moveSlots,
       focusedMoveIndex: 1,
       canRun: false,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 2,
+        uiVisibility: .visible
+      )
     )
 
     XCTAssertEqual(wildProps.actionRows.map(\.kind), [.move, .move, .run])
@@ -1017,7 +1166,12 @@ extension PokeUITests {
       canRun: true,
       canUseBag: true,
       bagItemCount: 3,
-      party: .init(pokemon: [])
+      party: .init(pokemon: []),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
+      )
     )
 
     XCTAssertEqual(props.actionRows.map(\.kind), [.move, .move, .bag, .run])
@@ -1070,6 +1224,11 @@ extension PokeUITests {
           .init(id: "bulbasaur-0", speciesID: "BULBASAUR", displayName: "Bulbasaur", level: 5, currentHP: 19, maxHP: 19, isLead: true),
           .init(id: "pidgey-1", speciesID: "PIDGEY", displayName: "Pidgey", level: 3, currentHP: 12, maxHP: 12, isLead: false),
         ]
+      ),
+      presentation: .init(
+        stage: .commandReady,
+        revision: 1,
+        uiVisibility: .visible
       )
     )
 

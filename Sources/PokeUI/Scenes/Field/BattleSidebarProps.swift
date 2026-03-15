@@ -170,8 +170,24 @@ extension BattleSidebarProps {
         }
     }
 
-    public var actionRows: [BattleSidebarActionRowProps] {
+    public var showsActionRows: Bool {
         guard showsInterface else {
+            return false
+        }
+
+        if learnMovePrompt != nil || phase == "trainerAboutToUseDecision" {
+            return true
+        }
+
+        guard phase == "moveSelection" else {
+            return false
+        }
+
+        return presentation.stage == .commandReady
+    }
+
+    public var actionRows: [BattleSidebarActionRowProps] {
+        guard showsActionRows else {
             return []
         }
         if let learnMovePrompt {
