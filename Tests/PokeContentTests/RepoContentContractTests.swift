@@ -137,6 +137,35 @@ final class RepoContentContractTests: XCTestCase {
         XCTAssertEqual(route3Youngster.trainerSpritePath, "Assets/battle/trainers/youngster.png")
     }
 
+    func testLoaderReadsRepoGeneratedMuseumExhibitContracts() throws {
+        let root = PokeContentTestSupport.repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
+        let loaded = try FileSystemContentLoader(rootURL: root).load()
+
+        let museum1F = try XCTUnwrap(loaded.map(id: "MUSEUM_1F"))
+        let museum2F = try XCTUnwrap(loaded.map(id: "MUSEUM_2F"))
+
+        XCTAssertEqual(
+            museum1F.objects.first { $0.id == "museum1_f_old_amber" }?.interactionDialogueID,
+            "museum1_f_old_amber"
+        )
+        XCTAssertEqual(
+            museum2F.backgroundEvents.map(\.dialogueID),
+            ["museum2_f_space_shuttle_sign", "museum2_f_moon_stone_sign"]
+        )
+        XCTAssertEqual(
+            loaded.dialogue(id: "museum1_f_old_amber")?.pages.first?.lines,
+            ["The AMBER is", "clear and gold!"]
+        )
+        XCTAssertEqual(
+            loaded.dialogue(id: "museum2_f_space_shuttle_sign")?.pages.first?.lines,
+            ["SPACE SHUTTLE", "COLUMBIA"]
+        )
+        XCTAssertEqual(
+            loaded.dialogue(id: "museum2_f_moon_stone_sign")?.pages.first?.lines,
+            ["Meteorite that", "fell on MT.MOON.", "(MOON STONE?)"]
+        )
+    }
+
     func testLoaderReadsRepoGeneratedPokemonCenterInteractionContract() throws {
         let root = PokeContentTestSupport.repoRoot().appendingPathComponent("Content/Red", isDirectory: true)
         let loaded = try FileSystemContentLoader(rootURL: root).load()

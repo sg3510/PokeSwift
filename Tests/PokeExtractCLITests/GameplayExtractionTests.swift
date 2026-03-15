@@ -826,6 +826,14 @@ final class GameplayExtractionTests: XCTestCase {
             )
         )
         XCTAssertEqual(
+            museum1F.objects.first { $0.id == "museum1_f_old_amber" }?.interactionDialogueID,
+            "museum1_f_old_amber"
+        )
+        XCTAssertEqual(
+            manifest.dialogues.first { $0.id == "museum1_f_old_amber" }?.pages.first?.lines,
+            ["The AMBER is", "clear and gold!"]
+        )
+        XCTAssertEqual(
             manifest.mapScripts.first { $0.mapID == "MUSEUM_1F" }?.triggers,
             [
                 .init(
@@ -848,6 +856,22 @@ final class GameplayExtractionTests: XCTestCase {
                 ),
             ]
         )
+
+        let museum2F = try XCTUnwrap(manifest.maps.first { $0.id == "MUSEUM_2F" })
+        XCTAssertEqual(museum2F.tileset, "MUSEUM")
+        XCTAssertEqual(
+            museum2F.backgroundEvents.map(\.dialogueID),
+            ["museum2_f_space_shuttle_sign", "museum2_f_moon_stone_sign"]
+        )
+        XCTAssertEqual(
+            manifest.dialogues.first { $0.id == "museum2_f_space_shuttle_sign" }?.pages.first?.lines,
+            ["SPACE SHUTTLE", "COLUMBIA"]
+        )
+        XCTAssertEqual(
+            manifest.dialogues.first { $0.id == "museum2_f_moon_stone_sign" }?.pages.first?.lines,
+            ["Meteorite that", "fell on MT.MOON.", "(MOON STONE?)"]
+        )
+
         XCTAssertEqual(
             manifest.mapScripts.first { $0.mapID == "PEWTER_CITY" }?.triggers,
             [

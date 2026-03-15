@@ -128,6 +128,52 @@ extension PokeCoreTests {
         XCTAssertEqual(runtime.gameplayState?.mapID, "PEWTER_CITY")
         XCTAssertEqual(runtime.currentSnapshot().field?.mapID, "PEWTER_CITY")
     }
+
+    func testRepoGeneratedMuseum1FOldAmberExhibitShowsDialogue() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_1F"
+        runtime.gameplayState?.playerPosition = .init(x: 15, y: 2)
+        runtime.gameplayState?.facing = .right
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum1_f_old_amber")
+    }
+
+    func testRepoGeneratedMuseum2FSpaceShuttleExhibitShowsDialogue() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_2F"
+        runtime.gameplayState?.playerPosition = .init(x: 11, y: 3)
+        runtime.gameplayState?.facing = .up
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum2_f_space_shuttle_sign")
+    }
+
+    func testRepoGeneratedMuseum2FMoonStoneExhibitShowsDialogue() throws {
+        let runtime = try makeRepoRuntime()
+
+        runtime.gameplayState = runtime.makeInitialGameplayState()
+        runtime.scene = .field
+        runtime.substate = "field"
+        runtime.gameplayState?.mapID = "MUSEUM_2F"
+        runtime.gameplayState?.playerPosition = .init(x: 2, y: 6)
+        runtime.gameplayState?.facing = .up
+
+        runtime.interactAhead()
+
+        XCTAssertEqual(runtime.currentSnapshot().dialogue?.dialogueID, "museum2_f_moon_stone_sign")
+    }
+
     func testRepoGeneratedRoute1GrassCanTriggerWildEncounterAndEscapeForFixedRandomBytes() throws {
         let runtime = try makeRepoRuntime()
         let grassTile = try findGrassTile(in: runtime, mapID: "ROUTE_1")
