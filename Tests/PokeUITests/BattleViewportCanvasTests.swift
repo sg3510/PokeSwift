@@ -154,6 +154,7 @@ extension PokeUITests {
         battleKind: .wild,
         stage: .introReveal,
         activeSide: nil,
+        hidePlayerPokemon: false,
         sendOutPokemonOpacity: 0
       ),
       0
@@ -163,6 +164,7 @@ extension PokeUITests {
         battleKind: .wild,
         stage: .enemySendOut,
         activeSide: .player,
+        hidePlayerPokemon: false,
         sendOutPokemonOpacity: 0.42
       ),
       0.42,
@@ -173,9 +175,20 @@ extension PokeUITests {
         battleKind: .wild,
         stage: .commandReady,
         activeSide: nil,
+        hidePlayerPokemon: false,
         sendOutPokemonOpacity: 0
       ),
       1
+    )
+    XCTAssertEqual(
+      BattleViewportCanvas.playerHudOpacity(
+        battleKind: .wild,
+        stage: .resultText,
+        activeSide: .player,
+        hidePlayerPokemon: true,
+        sendOutPokemonOpacity: 1
+      ),
+      0
     )
   }
 

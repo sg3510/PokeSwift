@@ -412,6 +412,7 @@ struct BattleViewportCanvas: View {
             battleKind: kind,
             stage: presentation.stage,
             activeSide: presentation.activeSide,
+            hidePlayerPokemon: presentation.hidePlayerPokemon,
             sendOutPokemonOpacity: currentSendOutState.pokemonOpacity
         )
     }
@@ -684,8 +685,13 @@ struct BattleViewportCanvas: View {
         battleKind: BattleKind,
         stage: BattlePresentationStage,
         activeSide: BattlePresentationSide?,
+        hidePlayerPokemon: Bool,
         sendOutPokemonOpacity: Double
     ) -> Double {
+        if hidePlayerPokemon {
+            return 0
+        }
+
         switch battleKind {
         case .trainer:
             switch stage {
