@@ -618,6 +618,7 @@ struct DialogueState {
         case startFieldHealing(interactionID: String, completionAction: CompletionAction)
         case beginScriptedMovement(path: [FacingDirection])
         case openScriptItemPrompt(RuntimeScriptItemPromptState)
+        case openScriptChoicePrompt(RuntimeScriptChoicePromptState)
     }
 
     let dialogueID: String
@@ -640,6 +641,11 @@ struct RuntimeScriptItemPromptState {
     let targetObjectID: String?
     let successFlagID: String?
     let successDialogueID: String
+    let failureDialogueID: String?
+}
+
+struct RuntimeScriptChoicePromptState {
+    let promptID: String
     let failureDialogueID: String?
 }
 

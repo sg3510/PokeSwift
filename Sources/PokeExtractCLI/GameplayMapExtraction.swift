@@ -443,6 +443,7 @@ private func collisionKey(for tileset: String) -> String {
     case "GATE": return "Gate_Coll"
     case "MUSEUM": return "Museum_Coll"
     case "HOUSE": return "House_Coll"
+    case "INTERIOR": return "Interior_Coll"
     case "MART": return "Mart_Coll"
     case "POKECENTER": return "Pokecenter_Coll"
     default: return "Overworld_Coll"
@@ -462,6 +463,7 @@ private func tilesetLabel(for tileset: String) -> String {
     case "GATE": return "Gate"
     case "MUSEUM": return "Museum"
     case "HOUSE": return "House"
+    case "INTERIOR": return "Interior"
     case "MART": return "Mart"
     case "POKECENTER": return "Pokecenter"
     default: return "Overworld"
@@ -870,6 +872,15 @@ func buildTilesets(repoRoot: URL) throws -> [TilesetManifest] {
             blockTileWidth: 4,
             blockTileHeight: 4,
             collision: tilesetCollisionManifest(for: "HOUSE", parsed: collisionData)
+        ),
+        .init(
+            id: "INTERIOR",
+            imagePath: "Assets/field/tilesets/interior.png",
+            blocksetPath: "Assets/field/blocksets/interior.bst",
+            sourceTileSize: 8,
+            blockTileWidth: 4,
+            blockTileHeight: 4,
+            collision: tilesetCollisionManifest(for: "INTERIOR", parsed: collisionData)
         ),
         .init(
             id: "MART",
