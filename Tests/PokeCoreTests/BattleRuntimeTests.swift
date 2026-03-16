@@ -534,6 +534,8 @@ extension PokeCoreTests {
         runtime.handle(button: .confirm)
         runtime.handle(button: .confirm)
 
+        let swappedHP = runtime.currentSnapshot().battle?.playerPokemon.currentHP
+
         waitUntil(
             runtime.battlePresentationTask == nil &&
                 runtime.currentSnapshot().battle?.phase == "turnText" &&
@@ -558,6 +560,7 @@ extension PokeCoreTests {
             message: "enemy switch follow-up did not pause on the used-move prompt",
             maxTicks: 240
         )
+        XCTAssertEqual(runtime.currentSnapshot().battle?.playerPokemon.currentHP, swappedHP)
 
         runtime.handle(button: .confirm)
 

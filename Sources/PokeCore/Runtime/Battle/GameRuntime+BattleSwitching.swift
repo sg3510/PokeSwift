@@ -183,9 +183,6 @@ extension GameRuntime {
             ])
         }
 
-        battle.enemyPokemon = enemyPokemon
-        battle.playerPokemon = playerPokemon
-
         battle.phase = .resolvingTurn
         battle.pendingAction = nil
         battle.queuedMessages = []
