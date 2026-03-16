@@ -406,30 +406,12 @@ struct BattleViewportCanvas: View {
 
     private var playerHudOpacity: Double {
         guard presentation.uiVisibility == .visible else { return 0 }
-
-        if isTrainerBattle {
-            switch presentation.stage {
-            case .introReveal:
-                return 0
-            case .enemySendOut where presentation.activeSide == .enemy:
-                return 0
-            case .enemySendOut where presentation.activeSide == .player:
-                return currentSendOutState.pokemonOpacity
-            default:
-                return 1
-            }
-        }
-
-        if isWildBattle {
-            switch presentation.stage {
-            case .enemySendOut where presentation.activeSide == .player:
-                return currentSendOutState.pokemonOpacity
-            default:
-                return 1
-            }
-        }
-
-        return 1
+        return Self.playerHudOpacity(
+            battleKind: kind,
+            stage: presentation.stage,
+            activeSide: presentation.activeSide,
+            sendOutPokemonOpacity: currentSendOutState.pokemonOpacity
+        )
     }
 
     private var enemyHudOffset: CGSize {
@@ -711,6 +693,36 @@ struct BattleViewportCanvas: View {
             return false
         }
         return !(attackAnimation != nil && activeSide == side)
+    }
+
+    static func playerHudOpacity(
+        battleKind: BattleKind,
+        stage: BattlePresentationStage,
+        activeSide: BattlePresentationSide?,
+        sendOutPokemonOpacity: Double
+    ) -> Double {
+        switch battleKind {
+        case .trainer:
+            switch stage {
+            case .introReveal:
+                return 0
+            case .enemySendOut where activeSide == .enemy:
+                return 0
+            case .enemySendOut where activeSide == .player:
+                return sendOutPokemonOpacity
+            default:
+                return 1
+            }
+        case .wild:
+            switch stage {
+            case .introReveal:
+                return 0
+            case .enemySendOut where activeSide == .player:
+                return sendOutPokemonOpacity
+            default:
+                return 1
+            }
+        }
     }
 
     static func resolvedSendOutState(

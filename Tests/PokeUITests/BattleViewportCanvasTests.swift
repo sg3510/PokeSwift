@@ -136,6 +136,37 @@ extension PokeUITests {
     )
   }
 
+  func testWildBattlePlayerHUDStaysHiddenUntilSendOutReveal() {
+    XCTAssertEqual(
+      BattleViewportCanvas.playerHudOpacity(
+        battleKind: .wild,
+        stage: .introReveal,
+        activeSide: nil,
+        sendOutPokemonOpacity: 0
+      ),
+      0
+    )
+    XCTAssertEqual(
+      BattleViewportCanvas.playerHudOpacity(
+        battleKind: .wild,
+        stage: .enemySendOut,
+        activeSide: .player,
+        sendOutPokemonOpacity: 0.42
+      ),
+      0.42,
+      accuracy: 0.0001
+    )
+    XCTAssertEqual(
+      BattleViewportCanvas.playerHudOpacity(
+        battleKind: .wild,
+        stage: .commandReady,
+        activeSide: nil,
+        sendOutPokemonOpacity: 0
+      ),
+      1
+    )
+  }
+
   func testBattleAttackTimelineBuildsOverlayFramesAndScreenEffects() {
     let frames = BattleAttackAnimationTimeline.sequence(
       for: makeAttackPlayback(),
